@@ -521,7 +521,10 @@ func build_level(index: int) -> void:
 		put_object("note",Vector2i(29,1),"secret_moon")
 		put_object("note",Vector2i(17,21),"secret_bench")
 		put_object("arch",Vector2i(29,21),"exit")
-		player = Vector2(1.5,1.5)*TILE
+		# A sheltered central starting alcove, connected to the first maze row.
+		for y in range(1,4):
+			for x in range(14,17): set_cell(x,y,".")
+		player = Vector2(15.5,1.5)*TILE
 	else:
 		for y in range(19):
 			grid.append("#".repeat(27) if y==0 or y==18 else "#"+".".repeat(25)+"#")
@@ -689,6 +692,18 @@ func touch_button_at(node: Node, pos: Vector2) -> Button:
 	return null
 
 func _input(event: InputEvent) -> void:
+	# Handle the active finger before GUI Controls consume iOS drag events.
+	if playing and not paused and not transition and not rotate_overlay.visible:
+		if event is InputEventScreenDrag and event.index==joy_id:
+			joy_vector = ((event.position-joy_origin)/52.0).limit_length()
+			get_viewport().set_input_as_handled()
+			return
+		if event is InputEventScreenTouch and event.pressed and joy_id<0 and event.position.x<get_viewport_rect().size.x*0.48 and touch_button_at(root,event.position)==null:
+			joy_id = event.index
+			joy_origin = event.position
+			joy_vector = Vector2.ZERO
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventScreenDrag and touch_scrolls.has(event.index):
 		var sc = touch_scrolls[event.index].get_ref()
 		if is_instance_valid(sc): sc.scroll_vertical -= int(event.relative.y)
