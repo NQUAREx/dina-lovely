@@ -13,6 +13,7 @@ var ground: Texture2D = preload("res://assets/ground.png")
 var glow: Texture2D = preload("res://assets/glow.png")
 var body_font: Font = preload("res://assets/body.ttf")
 var title_font: Font = preload("res://assets/title.ttf")
+var outlines: Dictionary = {}
 var sprites: Dictionary
 var content: Dictionary
 var save_data: Dictionary
@@ -1062,6 +1063,19 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	var size := Vector2(64,96)*scale_factor
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
 
+func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> void:
+	if not outlines.has(name):
+		var id := int(sprites.get(name,0))
+		var source := atlas.get_image().get_region(Rect2i(id%16*32,id/16*48,32,48))
+		var border := Image.create(34,50,false,Image.FORMAT_RGBA8)
+		for y in range(48):
+			for x in range(32):
+				if source.get_pixel(x,y).a<.2: continue
+				for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
+					border.set_pixel(x+1+d.x,y+1+d.y,CREAM)
+		outlines[name] = ImageTexture.create_from_image(border)
+	draw_texture_rect(outlines[name],Rect2(pos-Vector2(34,88)*scale_factor,Vector2(68,100)*scale_factor),false)
+
 func draw_shadow(pos: Vector2, width: float = 24) -> void:
 	draw_set_transform(pos,0,Vector2(1,.3))
 	draw_circle(Vector2.ZERO,width,Color(0.06,.09,.15,.28))
@@ -1147,6 +1161,9 @@ func _draw() -> void:
 			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,1,1,.45 if enemy.state=="spawn" else 1))
 			for h in range(enemy.hp): draw_rect(Rect2(p+Vector2(-12+h*9,-57),Vector2(7,3)),PINK)
 		else:
+			if not item.has("wall") and available(item) and item.pos.distance_to(player)<95 and kind not in ["doorway","arch","sprout","well","stone"]:
+				var highlight := "flashlight" if kind=="stand_flashlight" else kind
+				draw_pickup_outline(highlight,p+Vector2(0,-40) if kind=="stand_flashlight" else p,3.0 if kind=="chest" and item.id=="final" else 1.0)
 			if not item.has("wall"): draw_shadow(p,20 if kind!="tree" else 30)
 			if kind=="sprout" and plants.has(item.id):
 				var growth: float = bloom_times.get(item.id,1.0)
@@ -1162,7 +1179,7 @@ func _draw() -> void:
 			elif kind=="chest": draw_sprite("chest_open" if ((item.id=="final" and chest_open) or item.id in save_data.letters) else "chest",p,Color.WHITE,3.0 if item.id=="final" else 1.0)
 			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4+25*(1-clampf((time-float(item.get("rise_start",time-1)))/.45,0,1))))
 			else: draw_sprite(kind,p)
-			if kind.begins_with("rack_"):
+			if kind.begins_with("rack_") and item.id not in save_data.weapons_taken and item.pos.distance_to(player)<95:
 				draw_string(body_font,p+Vector2(-25,-75),{"rpg":"РПГ","rifle":"АК-47","sword":"Меч"}[item.id],HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
 			if level==6 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("635770"))
 			if kind in ["arch","doorway"]:
@@ -1444,7 +1461,7 @@ func draw_extra_effects() -> void:
 			origin = target+Vector2(0,-45)
 			target = screen(player)+Vector2(12,-15)
 		elif task_kind.begins_with("water:"):
-			origin = origin.lerp(target+Vector2(-32,-48),clampf((2.2-task_time)*5.0,0,1))
+			origin = screen(player)+Vector2(-10,-35)
 			var angle := -.45+sin(time*5)*.06
 			draw_set_transform(origin,angle)
 			draw_sprite("can",Vector2(0,25),Color.WHITE,.65)
@@ -1483,7 +1500,7 @@ void fragment(){
  float distance = length(offset);
  float beam = smoothstep(0.72,0.94,dot(normalize(offset+vec2(0.001)),light_dir));
  float reach = 1.0-smoothstep(90.0,190.0,distance);
- float near_light = 0.0;
+ float near_light = 0.8*(1.0-smoothstep(35.0,100.0,length(offset+vec2(14.0,-5.0))));
  float light = max(near_light,enabled ? beam*reach : 0.0);
  light = max(light,0.7*(1.0-smoothstep(45.0,115.0,length(UV*view_size-pedestal_pos))));
  COLOR = vec4(vec3(0.0),1.0-light);
