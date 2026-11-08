@@ -60,6 +60,7 @@ var playing := false
 var paused := true
 var touch_mode := false
 var touch_buttons: Dictionary = {}
+var stuck_seconds := 0.0
 var joy_id := -1
 var joy_origin := Vector2.ZERO
 var joy_vector := Vector2.ZERO
@@ -89,8 +90,6 @@ var sound_on := true
 var fps_average := 60.0
 var low_fx := false
 var save_error := false
-var browser_paused := false
-var browser_poll := 0.0
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -372,6 +371,7 @@ func show_intro() -> void:
 func show_settings() -> void:
 	var box := modal_box(550, 350)
 	box.add_child(label("Звуки нашего сада", 28, CREAM, true))
+	box.add_child(label("Build 2026-11-08.3 · mobile movement",12))
 	box.add_child(button("Эффекты: " + ("вкл" if sound_on else "выкл"), func(): sound_on = not sound_on; persist(); show_settings()))
 	box.add_child(label("Прогресс хранится в этом браузере. Очистка данных сайта удалит сохранение. В приватном режиме оно может не сохраниться.", 14, Color("c1bdce")))
 	box.add_child(button("Назад", show_menu))
@@ -621,6 +621,11 @@ func blocked(pos: Vector2) -> bool:
 func move_player(delta: float, input: Vector2) -> void:
 	moving = input.length()>0.1
 	if not moving: return
+	var motion := input.limit_length()*SPEED*delta
+	var next := player+Vector2(motion.x,0)
+	if not blocked(next): player = next
+	next = player+Vector2(0,motion.y)
+	if not blocked(next): player = next
 	step_clock -= delta
 	if level==0 and (blocked(player+input.normalized()*18)) and step_clock<=0:
 		sfx("rustle")
@@ -628,13 +633,19 @@ func move_player(delta: float, input: Vector2) -> void:
 		var cell := Vector2i(player/TILE)
 		sfx("step_stone" if level in [4,6] or (level==5 and (cell.x==13 or cell.y==15)) else "step_grass")
 		step_clock = .31
-	var motion := input.limit_length()*SPEED*delta
-	var next := player+Vector2(motion.x,0)
-	if not blocked(next): player = next
-	next = player+Vector2(0,motion.y)
-	if not blocked(next): player = next
 	if abs(input.x)>abs(input.y): direction = 1 if input.x<0 else 3
 	else: direction = 0 if input.y<0 else 2
+
+func _physics_process(delta: float) -> void:
+	# Simulation must not depend on audio, particles or HUD updating successfully.
+	if playing and not paused and not transition and task_time<=0:
+		var before := player
+		move_player(delta,joy_vector if joy_id>=0 else Vector2.ZERO)
+		if joy_vector.length()>.2 and player.distance_to(before)<.01:
+			stuck_seconds += delta
+			if stuck_seconds>.8:
+				hint.text = "v3 · Стена рядом · " + str(Vector2i(player/TILE))
+		else: stuck_seconds = 0.0
 
 func _process(delta: float) -> void:
 	# Browser visibility already suspends rendering; the DOM orientation gate
@@ -652,10 +663,6 @@ func _process(delta: float) -> void:
 		sfx("birds" if level==0 else "crickets" if level==1 else "ambient")
 		ambience_clock = 10.0 if level in [0,1] else randf_range(7,13)
 	if not paused and not transition and playing and not rotate_overlay.visible:
-		var input := Vector2.ZERO
-		if joy_id>=0: input = joy_vector
-		if task_time<=0: move_player(minf(delta,0.04),input)
-		else: moving = false
 		update_new_rooms(delta)
 		update_tasks(delta)
 		if level==5: update_plants(delta)
