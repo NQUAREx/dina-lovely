@@ -19,6 +19,7 @@
     gate.remove();launch();
    };
   }
+  const credits=document.createElement("a");credits.href="audio-credits.html";credits.target="_blank";credits.rel="noopener";credits.textContent="Звуки: авторы и лицензии";credits.style.cssText="color:#c3a7b8;font:12px sans-serif;margin-top:24px";gate.append(credits);
   document.body.append(gate);
   const rotate=document.createElement('div');rotate.id='portrait-gate';rotate.textContent='↻ Верни телефон вертикально';if(!mobile)rotate.style.display='none';document.body.append(rotate);
  });
