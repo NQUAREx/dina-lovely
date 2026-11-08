@@ -6,7 +6,7 @@ func run():
  var e=InputEventScreenTouch.new();e.index=4;e.pressed=true;e.position=Vector2(100,800);g._input(e)
  var d=InputEventScreenDrag.new();d.index=4;d.position=Vector2(100,748);g._input(d)
  assert(g.joy_vector.y<-.9);var before=g.player;await physics_frame;await physics_frame;assert(g.player.distance_to(before)>0)
- e.pressed=false;g._input(e);assert(g.joy_id==-1);print('PASS centered spawn, touch drag, physics movement, release')
+ e.pressed=false;g._input(e);assert(not g.joy_active);print('PASS centered spawn, touch drag, physics movement, release')
  for room in range(7):
   g.build_level(room);assert(not g.blocked(g.player),'blocked spawn room '+str(room))
   var found=false

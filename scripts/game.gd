@@ -61,7 +61,8 @@ var paused := true
 var touch_mode := false
 var touch_buttons: Dictionary = {}
 var stuck_seconds := 0.0
-var joy_id := -1
+var joy_active := false
+var joy_id := 0
 var joy_origin := Vector2.ZERO
 var joy_vector := Vector2.ZERO
 var attack_held := false
@@ -291,7 +292,7 @@ func clear_modal() -> void:
 	modal = null
 	paused = false
 	if playing and is_instance_valid(hud): hud.show()
-	joy_id = -1
+	joy_active = false
 	joy_vector = Vector2.ZERO
 	attack_held = false
 
@@ -371,7 +372,7 @@ func show_intro() -> void:
 func show_settings() -> void:
 	var box := modal_box(550, 350)
 	box.add_child(label("Звуки нашего сада", 28, CREAM, true))
-	box.add_child(label("Build 2026-11-08.3 · mobile movement",12))
+	box.add_child(label("Build 2026-11-08.4 · mobile movement",12))
 	box.add_child(button("Эффекты: " + ("вкл" if sound_on else "выкл"), func(): sound_on = not sound_on; persist(); show_settings()))
 	box.add_child(label("Прогресс хранится в этом браузере. Очистка данных сайта удалит сохранение. В приватном режиме оно может не сохраниться.", 14, Color("c1bdce")))
 	box.add_child(button("Назад", show_menu))
@@ -640,7 +641,7 @@ func _physics_process(delta: float) -> void:
 	# Simulation must not depend on audio, particles or HUD updating successfully.
 	if playing and not paused and not transition and task_time<=0:
 		var before := player
-		move_player(delta,joy_vector if joy_id>=0 else Vector2.ZERO)
+		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
 		if joy_vector.length()>.2 and player.distance_to(before)<.01:
 			stuck_seconds += delta
 			if stuck_seconds>.8:
@@ -699,11 +700,12 @@ func touch_button_at(node: Node, pos: Vector2) -> Button:
 func _input(event: InputEvent) -> void:
 	# Handle the active finger before GUI Controls consume iOS drag events.
 	if playing and not paused and not transition and not rotate_overlay.visible:
-		if event is InputEventScreenDrag and event.index==joy_id:
+		if event is InputEventScreenDrag and joy_active and event.index==joy_id:
 			joy_vector = ((event.position-joy_origin)/52.0).limit_length()
 			get_viewport().set_input_as_handled()
 			return
-		if event is InputEventScreenTouch and event.pressed and joy_id<0 and event.position.x<get_viewport_rect().size.x*0.48 and touch_button_at(root,event.position)==null:
+		if event is InputEventScreenTouch and event.pressed and not joy_active and event.position.x<get_viewport_rect().size.x*0.48 and touch_button_at(root,event.position)==null:
+			joy_active = true
 			joy_id = event.index
 			joy_origin = event.position
 			joy_vector = Vector2.ZERO
@@ -717,8 +719,8 @@ func _input(event: InputEvent) -> void:
 		return
 	if not event is InputEventScreenTouch: return
 	touch_mode = true
-	if not event.pressed and event.index==joy_id:
-		joy_id = -1
+	if not event.pressed and joy_active and event.index==joy_id:
+		joy_active = false
 		joy_vector = Vector2.ZERO
 	if rotate_overlay.visible: return
 	if event.pressed:
@@ -749,14 +751,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if paused or not playing: return
 	if event is InputEventScreenTouch:
 		touch_mode = true
-		if event.pressed and event.position.x<get_viewport_rect().size.x*0.48 and joy_id<0:
+		if event.pressed and event.position.x<get_viewport_rect().size.x*0.48 and not joy_active:
+			joy_active = true
 			joy_id = event.index
 			joy_origin = event.position
 			joy_vector = Vector2.ZERO
-		elif not event.pressed and event.index==joy_id:
-			joy_id = -1
+		elif not event.pressed and joy_active and event.index==joy_id:
+			joy_active = false
 			joy_vector = Vector2.ZERO
-	if event is InputEventScreenDrag and event.index==joy_id:
+	if event is InputEventScreenDrag and joy_active and event.index==joy_id:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
@@ -950,7 +953,7 @@ func update_hud() -> void:
 	if level==3 and save_data.shovel and (nearest<0 or objects[nearest].id not in ["exit","back","buried"]): action_button.text="Копать" if task_time<=0 else "Копаю…"
 	switch_button.visible = false
 	attack_button.visible = level==4 and not combat_done and playing
-	hint.text = ("v3 · Стена рядом · " + str(Vector2i(player/TILE))) if stuck_seconds>.8 else ("Коснись слева, чтобы идти" if joy_id<0 else "")
+	hint.text = ("v3 · Стена рядом · " + str(Vector2i(player/TILE))) if stuck_seconds>.8 else ("Коснись слева, чтобы идти" if not joy_active else "")
 
 func notify(text: String) -> void:
 	toast.text = text
@@ -1248,7 +1251,7 @@ func travel(destination: int) -> void:
 	if transition or destination<0 or destination>6: return
 	transition = true
 	paused = true
-	joy_id = -1
+	joy_active = false
 	joy_vector = Vector2.ZERO
 	attack_held = false
 	moving = true
