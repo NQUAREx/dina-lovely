@@ -124,7 +124,7 @@
     "source_file": "sounds/sks.wav",
     "source_url": "https://opengameart.org/content/gunshot-sounds",
     "license": "CC BY 3.0 (bundled license; OGA page differs)",
-    "changes": "0.28\u20131.03 sec excerpt, mono 44.1kHz, loudness normalization, fade",
+    "changes": "0.28–1.03 sec excerpt, mono 44.1kHz, loudness normalization, fade",
     "sha256": "cecb857f6092b5bb36fcfebe4bf69ba2ec4f91bd120ba865a9be4f10e33cb39e"
   },
   "birds": {
@@ -140,9 +140,9 @@
     "sha256": "25185bd83369c40678de6d467e186d4c0cd1634015a431cdaefd090193b5a168"
   },
   "rustle": {
-    "pack": "Kenney",
-    "source_url": "https://kenney.nl/assets/impact-sounds",
+    "pack": "20 Rustles of dry leaves — qubodup",
+    "source_url": "https://opengameart.org/content/20-rustles-dry-leaves",
     "license": "CC0",
-    "sha256": "5317838e5aad1b9fdbf223eda21dcefb5d1287ce35de543c9fc8b7bab0b2ba1e"
+    "sha256": "19b9181206983502b6b80203711bcc561eb33d63e53a7d37067f04300f32708f"
   }
 }

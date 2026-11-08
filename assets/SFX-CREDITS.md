@@ -11,3 +11,5 @@ All in-game audio uses downloaded sound libraries. No procedurally generated osc
 - **isaiah658**, Ambient Bird Sounds, CC0: https://opengameart.org/content/ambient-bird-sounds — 10-second excerpt, fades, mono conversion.
 - **syncopika**, cricket sounds, CC0: https://opengameart.org/content/cricket-sounds — 10-second excerpt, fades, mono conversion.
 - Hedge rustle reuses the licensed Kenney grass footstep variation (not synthesized).
+
+Rustle: qubodup, 20 Rustles of dry leaves, CC0. https://opengameart.org/content/20-rustles-dry-leaves — trimmed and normalized.

@@ -3,7 +3,7 @@ extends Node2D
 const TILE := 48.0
 const SPEED := 150.0
 const SAVE_PATH := "user://garden_save_v1.json"
-const TITLES := ["Записки в саду", "Без света", "Три прохода", "Под травой", "Три раунда", "Заброшенный сад", "Сундук наверху"]
+const TITLES := ["Записки в саду", "Без света", "Пять проходов", "Под травой", "Хранитель сада", "Заброшенный сад", "Сундук наверху"]
 const REQUIRED := ["dawn", "flower", "star"]
 const CREAM := Color("f5e3cf")
 const PINK := Color("e5a6bd")
@@ -84,6 +84,7 @@ var nearest := -1
 var audio_pool: Array[AudioStreamPlayer] = []
 var audio_cursor := 0
 var step_clock := 0.0
+var foliage_voice: AudioStreamPlayer
 var rustle_clock := 0.0
 var hedge_contact := false
 var shake := 0.0
@@ -149,6 +150,10 @@ func persist() -> void:
 		if is_instance_valid(toast): notify("Хранилище недоступно. Не закрывай вкладку до финала.")
 
 func setup_audio() -> void:
+	foliage_voice = AudioStreamPlayer.new()
+	foliage_voice.stream = preload("res://assets/rustle.wav")
+	foliage_voice.volume_db = -5
+	add_child(foliage_voice)
 	for i in range(10):
 		var voice := AudioStreamPlayer.new()
 		voice.volume_db = -12
@@ -367,7 +372,7 @@ func show_intro() -> void:
 	var box := modal_box(650, 410)
 	box.add_child(label("Глава " + str(level + 1) + " / 7", 13, PINK))
 	box.add_child(label(TITLES[level], 30, CREAM, true))
-	var texts := ["В лабиринте три записки. Собери их и иди к северному выходу. Две дополнительные записки можно не искать.\n\nВсе комнаты стоят одна над другой. Назад тоже можно вернуться.","В коридоре лежит фонарик. Подбери его и найди три записки. Света немного: поворачивайся, чтобы осмотреть углы. Черепа на полу исчезают сами и не причиняют вреда.","Три балки ездят поперёк прохода. Дождись свободного края и пройди вверх. При столкновении тебя отодвинет назад; здоровье не теряется.","Лопата стоит слева от входа. Возьми её и копай в любом месте газона. На ямку — четверть секунды. Письмо спрятано случайно; подсказка скажет, когда ты рядом.","На стойках у входа лежат РПГ, автомат и меч. Подойди к стойке и возьми оружие. Менять его можно в любой момент.\n\nПройди три волны. Розовый круг означает, что сейчас будет удар.","Возьми лейку и пакет удобрения слева. Каждому цветку нужна одна порция удобрения и три полива.\n\nПосле полива дай растению подрасти. Лейки хватает на шесть порций воды.","В записках были три знака и их порядок. Нажми знаки на камнях, потом открой сундук.\n\nЕсли забыла порядок, записки есть в журнале."]
+	var texts := ["В лабиринте три записки. Собери их и иди к северному выходу. Две дополнительные записки можно не искать.\n\nВсе комнаты стоят одна над другой. Назад тоже можно вернуться.","В коридоре лежит фонарик. Подбери его и найди три записки. Света немного: поворачивайся, чтобы осмотреть углы. Черепа на полу исчезают сами и не причиняют вреда.","Пять балок разной длины и скорости ездят поперёк прохода. Дождись свободного края и пройди вверх. При столкновении тебя отодвинет назад; здоровье не теряется.","Лопата стоит слева от входа. Возьми её и копай в любом месте газона. На ямку — четверть секунды. Письмо спрятано случайно; подсказка скажет, когда ты рядом.","На стойках у входа лежат РПГ, автомат и меч. Подойди к стойке и возьми оружие. Менять его можно в любой момент.\n\nПройди пять волн и победи хранителя сада. Розовый круг означает, что сейчас будет удар.","Возьми лейку и пакет удобрения слева. Каждому цветку нужна одна порция удобрения и три полива.\n\nПосле полива дай растению подрасти. Лейки хватает на шесть порций воды.","В записках были три знака и их порядок. Нажми знаки на камнях, потом открой сундук.\n\nЕсли забыла порядок, записки есть в журнале."]
 	box.add_child(label(texts[level], 18))
 	box.add_child(label("Слева — джойстик. Справа — действие и атака.\nГероиня сама выбирает ближайшую цель.", 18, Color("c1bdce")))
 	box.add_child(button("Пойдём", func(): clear_modal(); hud.show()))
@@ -633,14 +638,14 @@ func move_player(delta: float, input: Vector2) -> void:
 	step_clock -= delta
 	if step_clock<=0:
 		var cell := Vector2i(player/TILE)
-		sfx("step_stone" if level in [4,6] or (level==5 and (cell.x==13 or cell.y==15)) else "step_grass")
+		if not touching_hedge(player): sfx("step_stone" if level in [4,6] or (level==5 and (cell.x==13 or cell.y==15)) else "step_grass")
 		step_clock = .31
 	if abs(input.x)>abs(input.y): direction = 1 if input.x<0 else 3
 	else: direction = 0 if input.y<0 else 2
 
 func touching_hedge(pos: Vector2) -> bool:
 	if level!=0: return false
-	for offset in [Vector2(-15,-10),Vector2(15,-10),Vector2(-15,10),Vector2(15,10)]:
+	for offset in [Vector2(-20,-16),Vector2(20,-16),Vector2(-20,16),Vector2(20,16)]:
 		var c := Vector2i((pos+offset)/TILE)
 		if c.y>=0 and c.y<grid.size() and c.x>=0 and c.x<grid[0].length() and grid[c.y][c.x]=="#": return true
 	return false
@@ -653,7 +658,7 @@ func _physics_process(delta: float) -> void:
 		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
 		var contact := touching_hedge(player)
 		if contact and (not hedge_contact or (moving and rustle_clock<=0)):
-			sfx("rustle")
+			if sound_on: foliage_voice.play()
 			rustle_clock = .42
 		hedge_contact = contact
 		if joy_vector.length()>.2 and player.distance_to(before)<.01:
@@ -919,7 +924,7 @@ func use_exit() -> void:
 	if transition: return
 	if level==0 and not has_maze_letters(): notify("Нужно найти три письма.")
 	elif level==1 and not dark_letters_found(): notify("В темноте осталось письмо. Нужно найти все три.")
-	elif level==2 and (save_data.obstacles.size()<3 or "crossing" not in save_data.letters): notify("Пройди балки и забери записку посередине.")
+	elif level==2 and (save_data.obstacles.size()<5 or "crossing" not in save_data.letters): notify("Пройди балки и забери записку посередине.")
 	elif level==3 and "buried" not in save_data.letters: notify("Записка ещё под землёй.")
 	elif level==4 and "courage" not in save_data.letters: notify("Прочитай письмо из сундука.")
 	elif level==5 and "garden" not in save_data.letters: notify("Выращены не все цветы. Письмо появится в центре.")
@@ -957,9 +962,9 @@ func update_hud() -> void:
 				if id in save_data.letters: count+=1
 			status.text = "Письма %d / 3   ·   Секреты %d / 2   ·   %s" % [count,save_data.secrets.size(),"Арка открыта" if count==3 else "Ищи золотые искорки"]
 		1: status.text = "Письма %d / 3 · %s" % [dark_letter_count(),"Фонарик включён" if save_data.flashlight else "Подбери фонарик у входа"]
-		2: status.text = "Пройдено %d / 3 · жди свободного прохода" % save_data.obstacles.size()
+		2: status.text = "Пройдено %d / 5 · жди свободного прохода" % save_data.obstacles.size()
 		3: status.text = "Записка найдена" if "buried" in save_data.letters else ("Копай в любом месте газона" if save_data.shovel else "Лопата у входа")
-		4: status.text = "♥ ".repeat(health) + "   Волна %d / 3   ·   %s" % [mini(wave,3),"Открой сундук" if combat_done else {"sword":"Меч","rifle":"АК-47","rpg":"РПГ"}.get(weapon,"Выбери оружие")]
+		4: status.text = "♥ ".repeat(health) + "   Волна %d / 6   ·   %s" % [mini(wave,6),"Открой сундук" if combat_done else {"sword":"Меч","rifle":"АК-47","rpg":"РПГ"}.get(weapon,"Выбери оружие")]
 		5: status.text = "Цветы %d / 6   ·   %s" % [watered.size(),"Вода: "+str(water)+" / 6" if garden_can else "Найди лейку на юго-западе"]
 		6: status.text = "Знаки %d / 3   ·   Подсказка в журнале писем" % puzzle.size()
 	action_button.visible = (nearest>=0 or (level==3 and save_data.shovel)) and playing
@@ -982,18 +987,18 @@ func spawn_wave() -> void:
 	wave += 1
 	health = mini(8,health+3)
 	wave_timer = 3.0
-	var count := 3 + wave*2
+	var count := 1 if wave==6 else 3+wave
 	for i in range(count):
 		var angle := TAU*i/count
 		var pos := Vector2(13.5,9.5)*TILE+Vector2(cos(angle)*390,sin(angle)*235)
-		enemies.append({"pos":pos,"hp":2 if wave<3 else 3,"type":i%mini(wave,3),"state":"spawn","timer":1.4+float(i)*0.14,"target":player,"cooldown":randf_range(.4,1.2)})
-	notify("Волна %d из 3 · Выбери оружие на стойке." % wave)
+		enemies.append({"pos":pos,"hp":600 if wave==6 else 5+wave*2+(i%3)*2,"max_hp":600 if wave==6 else 5+wave*2+(i%3)*2,"boss":wave==6,"type":2 if wave==6 else i%mini(wave+1,5),"state":"spawn","timer":1.4+float(i)*0.14,"target":player,"cooldown":randf_range(.4,1.2)})
+	notify("Хранитель сада · финальный бой" if wave==6 else "Волна %d из 6" % wave)
 
 func update_combat(delta: float) -> void:
 	if enemies.is_empty():
 		wave_timer -= delta
 		if wave_timer<=0:
-			if wave<3: spawn_wave()
+			if wave<6: spawn_wave()
 			else:
 				combat_done = true
 				health = 8
@@ -1008,20 +1013,23 @@ func update_combat(delta: float) -> void:
 			if enemy.timer<=0: enemy.state="chase"
 		elif enemy.state=="warn":
 			if enemy.timer<=0:
-				if enemy.pos.distance_to(player)<70: hurt()
+				if enemy.pos.distance_to(player)<(125 if enemy.get("boss",false) else 70): hurt()
 				burst(enemy.pos,7,Color("bc96c7"))
 				enemy.state="rest"
 				enemy.timer=.65
 		elif enemy.state=="rest":
 			if enemy.timer<=0: enemy.state="chase"
 		else:
-			if diff.length()<61:
+			if diff.length()<(110 if enemy.get("boss",false) else 61):
 				enemy.state="warn"
 				enemy.timer=.95 if enemy.type!=2 else 1.15
 			else:
 				var speed: float = 39.0+enemy.type*7+wave*3
 				var v: Vector2 = diff.normalized()
 				if enemy.type==1: v = v.rotated(sin(time*2+enemy.pos.x)*.65)
+				if enemy.type==3: speed *= 1.6 if fposmod(time+enemy.pos.x*.001,2.4)<.6 else .7
+				if enemy.type==4: speed *= .6
+				if enemy.get("boss",false): speed = 65.0
 				var target: Vector2 = enemy.pos+v*speed*delta
 				if not blocked(target): enemy.pos=target
 				elif not blocked(enemy.pos+Vector2(v.x,0)*speed*delta): enemy.pos+=Vector2(v.x,0)*speed*delta
@@ -1143,7 +1151,7 @@ func _draw() -> void:
 		if obj.id=="fertilizer" and has_fertilizer: continue
 		if obj.id=="shovel" and save_data.shovel: continue
 		renderables.append(obj)
-	for enemy in enemies: renderables.append({"kind":"enemy"+str(enemy.type),"pos":enemy.pos,"id":"","enemy":enemy})
+	for enemy in enemies: renderables.append({"kind":"enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
 	if level==1:
 		for i in range(24):
@@ -1167,12 +1175,15 @@ func _draw() -> void:
 		elif item.has("enemy"):
 			var enemy: Dictionary = item.enemy
 			if enemy.state=="warn":
-				draw_circle(p,70,Color(.91,.43,.58,.19))
-				draw_arc(p,70,0,TAU,32,PINK,2)
+				draw_circle(p,125 if enemy.get("boss",false) else 70,Color(.91,.43,.58,.19))
+				draw_arc(p,125 if enemy.get("boss",false) else 70,0,TAU,32,PINK,2)
 				draw_string(body_font,p+Vector2(-5,-69),"!",HORIZONTAL_ALIGNMENT_LEFT,-1,24,CREAM)
 			draw_shadow(p,20)
-			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,1,1,.45 if enemy.state=="spawn" else 1))
-			for h in range(enemy.hp): draw_rect(Rect2(p+Vector2(-12+h*9,-57),Vector2(7,3)),PINK)
+			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,.65,.75,.45 if enemy.state=="spawn" else 1) if enemy.get("boss",false) else (Color(.65,1,.85) if enemy.type==3 else Color(.75,.8,1) if enemy.type==4 else Color.WHITE),1.8 if enemy.get("boss",false) else 1.2 if enemy.type==4 else .85 if enemy.type==3 else 1.0)
+			if enemy.get("boss",false): draw_string(body_font,p+Vector2(-62,-115),"Хранитель сада",HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
+			var bar_width := 100.0 if enemy.get("boss",false) else 36.0
+			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width,5)),INK)
+			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width*float(enemy.hp)/float(enemy.get("max_hp",enemy.hp)),5)),PINK)
 		else:
 			if not item.has("wall") and available(item) and item.pos.distance_to(player)<95 and kind not in ["doorway","arch","sprout","well","stone"]:
 				var highlight := "flashlight" if kind=="stand_flashlight" else kind
@@ -1196,7 +1207,7 @@ func _draw() -> void:
 				draw_string(body_font,p+Vector2(-25,-75),{"rpg":"РПГ","rifle":"АК-47","sword":"Меч"}[item.id],HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
 			if level==6 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("635770"))
 			if kind in ["arch","doorway"]:
-				var open: bool = (level==1 and dark_letters_found()) or (level==2 and save_data.obstacles.size()==3) or (level==3 and "buried" in save_data.letters) or (level==0 and has_maze_letters()) or (level==4 and "courage" in save_data.letters) or (level==5 and "garden" in save_data.letters)
+				var open: bool = (level==1 and dark_letters_found()) or (level==2 and save_data.obstacles.size()==5) or (level==3 and "buried" in save_data.letters) or (level==0 and has_maze_letters()) or (level==4 and "courage" in save_data.letters) or (level==5 and "garden" in save_data.letters)
 				draw_texture_rect(glow,Rect2(p-Vector2(65,110),Vector2(130,150)),false,Color(.9,1,.9,1 if open else .2))
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
@@ -1513,7 +1524,7 @@ void fragment(){
  float distance = length(offset);
  float beam = smoothstep(0.72,0.94,dot(normalize(offset+vec2(0.001)),light_dir));
  float reach = 1.0-smoothstep(90.0,190.0,distance);
- float near_light = 0.8*(1.0-smoothstep(35.0,100.0,length(offset+vec2(14.0,-5.0))));
+ float near_light = 0.9*(1.0-smoothstep(0.85,1.1,length((offset+vec2(14.0,10.0))/vec2(19.0,34.0))));
  float light = max(near_light,enabled ? beam*reach : 0.0);
  light = max(light,0.7*(1.0-smoothstep(45.0,115.0,length(UV*view_size-pedestal_pos))));
  COLOR = vec4(vec3(0.0),1.0-light);
@@ -1545,8 +1556,11 @@ func dark_letters_found() -> bool:
 	return dark_letter_count()==3
 
 func obstacle_rect(index: int) -> Rect2:
-	var center := Vector2(13.5*TILE+sin(room_clock*(1.05+index*.13)+index*1.9)*90,(12.5+index*3)*TILE)
-	return Rect2(center-Vector2(140,14),Vector2(280,28))
+	var widths := [160.0,240.0,200.0,280.0,120.0]
+	var speeds := [.8,1.3,1.0,1.65,2.1]
+	var width: float = widths[index]
+	var center := Vector2(13.5*TILE+sin(room_clock*speeds[index]+index*1.9)*(215-width*.5),(10.5+index*2.2)*TILE)
+	return Rect2(center-Vector2(width*.5,14),Vector2(width,28))
 
 func update_new_rooms(delta: float) -> void:
 	room_clock += delta
@@ -1561,7 +1575,7 @@ func update_new_rooms(delta: float) -> void:
 			if skulls[i].life<=0: skulls.remove_at(i)
 	elif level==2:
 		obstacle_cooldown=maxf(0,obstacle_cooldown-delta)
-		for i in range(3):
+		for i in range(5):
 			var obstacle := obstacle_rect(i)
 			if obstacle.grow(10).has_point(player) and obstacle_cooldown<=0:
 				player=Vector2(13.5,grid.size()-7.5)*TILE
@@ -1576,11 +1590,11 @@ func draw_new_rooms() -> void:
 			draw_sprite("skull",screen(skull.pos),Color(1,1,1,minf(1,skull.life)))
 		if save_data.flashlight: draw_sprite("flashlight",screen(player)+Vector2(14,-10),Color.WHITE,.5)
 	elif level==2:
-		for i in range(3):
+		for i in range(5):
 			var rect := obstacle_rect(i)
 			var y := screen(rect.get_center()).y
 			draw_line(screen(Vector2(9*TILE,rect.get_center().y)),screen(Vector2(18*TILE,rect.get_center().y)),Color("786878"),5)
-			for x in range(7): draw_sprite("moving_bar",Vector2(screen(rect.position).x+x*40+20,y+16))
+			for x in range(int(rect.size.x/40)): draw_sprite("moving_bar",Vector2(screen(rect.position).x+x*40+20,y+16))
 			var middle := screen(rect.get_center())
 			draw_texture_rect(glow,Rect2(middle-Vector2(55,55),Vector2(110,110)),false,Color(1,.7,.4,.5))
 
