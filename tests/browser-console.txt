@@ -1,0 +1,3 @@
+warning: WebGL: CONTEXT_LOST_WEBGL: loseContext: context lost
+error: Failed to load resource: net::ERR_CONNECTION_RESET
+PAGEERROR TypeError: network error

@@ -1,0 +1,19 @@
+const {chromium}=require(process.env.PLAYWRIGHT_PATH || '/root/termux-remote-access/tools/node_modules/playwright');
+const fs=require('fs');
+const OUT=__dirname+'/screenshots';
+(async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_BIN || '/root/.cache/ms-playwright/chromium-1243/chrome-linux-arm64/chrome',headless:true,args:['--remote-debugging-port=9226','--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=gles','--ignore-gpu-blocklist']});
+ const context=await browser.newContext({viewport:{width:960,height:540}});
+ const page=await context.newPage(); let logs=[];
+ page.on('console',m=>{logs.push(m.type()+': '+m.text());console.log(m.type()+': '+m.text())});
+ page.on('pageerror',e=>{logs.push('PAGEERROR '+String(e));console.error(e)});
+ await page.goto('http://127.0.0.1:8766/love-in-bloom/docs/',{waitUntil:'domcontentloaded',timeout:120000});
+ await page.waitForFunction(()=>!document.getElementById("status"), null, {timeout:120000}).catch(()=>{});
+ await page.waitForTimeout(5000);
+ await page.screenshot({path:OUT+'/menu.png'});
+ console.log('TITLE',await page.title());
+ console.log('IDB',await page.evaluate(()=>indexedDB.databases()));
+ fs.writeFileSync(__dirname+'/browser-console.txt',logs.join('\n'));
+ if(process.env.HOLD) await new Promise(()=>{});
+ await browser.close();
+})();
