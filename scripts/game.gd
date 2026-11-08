@@ -544,7 +544,7 @@ func build_level(index: int) -> void:
 			for y in range(13): grid.append("#".repeat(27) if y in [0,12] else "#"+".".repeat(25)+"#")
 			player=Vector2(13.5,10.5)*TILE
 			put_object("shovel",Vector2i(8,8),"shovel")
-			if save_data.dig_target.is_empty():
+			if save_data.dig_target.size()!=2 or float(save_data.dig_target[1])>=16*TILE or float(save_data.dig_target[1])<7*TILE:
 				save_data.dig_target=[randf_range(4,22)*TILE,randf_range(7,15)*TILE]
 			for key in save_data.dug:
 				var parts: PackedStringArray = str(key).split(":")
