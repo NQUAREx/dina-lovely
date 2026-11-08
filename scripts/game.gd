@@ -3,7 +3,7 @@ extends Node2D
 const TILE := 48.0
 const SPEED := 150.0
 const SAVE_PATH := "user://garden_save_v1.json"
-const TITLES := ["Записки в саду", "Три раунда", "Заброшенный сад", "Сундук наверху"]
+const TITLES := ["Записки в саду", "Без света", "Три прохода", "Под травой", "Три раунда", "Заброшенный сад", "Сундук наверху"]
 const REQUIRED := ["dawn", "flower", "star"]
 const CREAM := Color("f5e3cf")
 const PINK := Color("e5a6bd")
@@ -16,6 +16,11 @@ var title_font: Font = preload("res://assets/title.ttf")
 var sprites: Dictionary
 var content: Dictionary
 var save_data: Dictionary
+var fog: ColorRect
+var skulls: Array[Dictionary] = []
+var skull_clock := 4.0
+var obstacle_cooldown := 0.0
+var room_clock := 0.0
 var weapon := "sword"
 var shots: Array[Dictionary] = []
 var plants: Dictionary = {}
@@ -92,8 +97,9 @@ func _ready() -> void:
 	content = JSON.parse_string(FileAccess.get_file_as_string("res://content/letters.json"))
 	load_save()
 	setup_audio()
+	setup_fog()
 	setup_ui()
-	build_level(2)
+	build_level(5)
 	camera = Vector2(13.5,9.5)*TILE
 	touch_mode = true
 	show_menu()
@@ -101,19 +107,24 @@ func _ready() -> void:
 	layout_ui()
 
 func default_save() -> Dictionary:
-	return {"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"sword","version":1,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"sword","flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
 	if FileAccess.file_exists(SAVE_PATH):
 		var parsed = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
-		if parsed is Dictionary and parsed.get("version", 0) == 1:
+		if parsed is Dictionary and int(parsed.get("version", 0)) in [1,2]:
 			for key in save_data:
 				if parsed.has(key) and typeof(parsed[key]) == typeof(save_data[key]):
 					save_data[key] = parsed[key]
 			# JSON numbers decode as floats.
-			save_data.level = clampi(int(parsed.get("level", 0)), 0, 3)
-			save_data.water = clampi(int(parsed.get("water", 0)), 0, 3)
+			var old_level := int(parsed.get("level",0))
+			if int(parsed.get("version",1))==1:
+				old_level = old_level+3 if old_level>0 else 0
+				save_data.completed_levels = save_data.completed_levels.map(func(v): return int(v)+3 if int(v)>0 else 0)
+			save_data.version = 2
+			save_data.level = clampi(old_level,0,6)
+			save_data.water = clampi(int(parsed.get("water", 0)), 0, 6)
 	sound_on = save_data.sound
 
 func persist() -> void:
@@ -187,6 +198,7 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 
 func setup_ui() -> void:
 	ui = CanvasLayer.new()
+	ui.layer = 2
 	add_child(ui)
 	root = Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -222,6 +234,12 @@ func setup_ui() -> void:
 	attack_button.button_down.connect(func(): attack_held = true)
 	attack_button.button_up.connect(func(): attack_held = false)
 	hud.add_child(attack_button)
+	var stick := Control.new()
+	stick.set_script(preload("res://scripts/touch_stick.gd"))
+	stick.game = self
+	stick.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stick.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hud.add_child(stick)
 	toast = label("", 17, Color("ffe6b3"))
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(toast)
@@ -302,11 +320,11 @@ func show_menu() -> void:
 	box.add_child(label(content.game_title, 35, CREAM, true))
 	box.add_child(label("Найди записки и поднимись к сундуку.", 15, Color("c1bdce")))
 	if playing: box.add_child(button("Вернуться в сад" if health>0 else "Повторить комнату", func():
-		if health<=0: build_level(1)
+		if health<=0: build_level(4)
 		clear_modal()))
 	elif save_data.started: box.add_child(button("Продолжить", resume_game))
 	box.add_child(button("Новая игра", confirm_new if save_data.started else new_game))
-	box.add_child(button("Собранные письма · " + str(save_data.letters.size()) + "/7", show_journal))
+	box.add_child(button("Собранные письма · " + str(save_data.letters.size()) + "/11", show_journal))
 	box.add_child(button("Настройки звука", show_settings))
 	if save_data.finished: box.add_child(button("Посмотреть открытку", show_card))
 	box.add_child(label("Со звуком здесь приятнее.", 12, Color("b5adc4")))
@@ -335,9 +353,9 @@ func resume_game() -> void:
 
 func show_intro() -> void:
 	var box := modal_box(650, 410)
-	box.add_child(label("Глава " + str(level + 1) + " / 4", 13, PINK))
+	box.add_child(label("Глава " + str(level + 1) + " / 7", 13, PINK))
 	box.add_child(label(TITLES[level], 30, CREAM, true))
-	var texts := ["В лабиринте три записки. Собери их и иди к северному выходу. Две дополнительные записки можно не искать.\n\nВсе комнаты стоят одна над другой. Назад тоже можно вернуться.","На стойках у входа лежат РПГ, автомат и меч. Подойди к стойке и возьми оружие. Менять его можно в любой момент.\n\nПройди три волны. Розовый круг означает, что сейчас будет удар.","Возьми лейку и пакет удобрения слева. Каждому цветку нужна одна порция удобрения и три полива.\n\nПосле полива дай растению подрасти. Лейки хватает на шесть порций воды.","В записках были три знака и их порядок. Нажми знаки на камнях, потом открой сундук.\n\nЕсли забыла порядок, записки есть в журнале."]
+	var texts := ["В лабиринте три записки. Собери их и иди к северному выходу. Две дополнительные записки можно не искать.\n\nВсе комнаты стоят одна над другой. Назад тоже можно вернуться.","В коридоре лежит фонарик. Подбери его и найди три записки. Света немного: поворачивайся, чтобы осмотреть углы. Черепа на полу исчезают сами и не причиняют вреда.","Три балки ездят поперёк прохода. Дождись свободного края и пройди вверх. При столкновении тебя отодвинет назад; здоровье не теряется.","Подбери лопату и проверь рыхлую землю на газоне. В одной из ям спрятана записка.","На стойках у входа лежат РПГ, автомат и меч. Подойди к стойке и возьми оружие. Менять его можно в любой момент.\n\nПройди три волны. Розовый круг означает, что сейчас будет удар.","Возьми лейку и пакет удобрения слева. Каждому цветку нужна одна порция удобрения и три полива.\n\nПосле полива дай растению подрасти. Лейки хватает на шесть порций воды.","В записках были три знака и их порядок. Нажми знаки на камнях, потом открой сундук.\n\nЕсли забыла порядок, записки есть в журнале."]
 	box.add_child(label(texts[level], 18))
 	box.add_child(label("Слева — джойстик. Справа — действие и атака.\nГероиня сама выбирает ближайшую цель.", 18, Color("c1bdce")))
 	box.add_child(button("Пойдём", func(): clear_modal(); hud.show()))
@@ -443,6 +461,9 @@ func set_cell(x: int, y: int, value: String) -> void:
 
 func build_level(index: int) -> void:
 	level = index
+	skulls.clear()
+	room_clock = 0
+	if is_instance_valid(fog): fog.visible = level==1
 	shots.clear()
 	task_time = 0
 	plants = save_data.get("plants",{}).duplicate(true)
@@ -496,14 +517,31 @@ func build_level(index: int) -> void:
 		for y in range(19):
 			grid.append("#".repeat(27) if y==0 or y==18 else "#"+".".repeat(25)+"#")
 		player = Vector2(13.5,15.5)*TILE
-		if level == 1:
+		if level==1:
+			put_object("flashlight",Vector2i(13,17),"flashlight")
+			put_object("note",Vector2i(5,5),"shade_1")
+			put_object("note",Vector2i(21,8),"shade_2")
+			put_object("note",Vector2i(7,13),"shade_3")
+			for x in [8,18]:
+				for y in [5,11]: put_object("stone",Vector2i(x,y),"",true)
+			put_object("arch",Vector2i(13,2),"exit")
+		elif level==2:
+			for y in range(1,18):
+				for x in range(1,26):
+					if x<9 or x>17: set_cell(x,y,"#")
+			put_object("arch",Vector2i(13,2),"exit")
+		elif level==3:
+			put_object("shovel",Vector2i(13,16),"shovel")
+			for i in range(9): put_object("mound",Vector2i(6+(i%3)*7,5+(i/3)*4),"dig_"+str(i))
+			put_object("arch",Vector2i(13,2),"exit")
+		elif level == 4:
 			for p in [Vector2i(5,5),Vector2i(21,5),Vector2i(5,13),Vector2i(21,13)]:
 				put_object("stone",p,"",true)
 				put_object("lamp",p+Vector2i(0,-1))
 			put_object("chest",Vector2i(13,7),"courage")
 			for i in range(3): put_object("rack_"+["rpg","rifle","sword"][i],Vector2i(9+i*4,14),["rpg","rifle","sword"][i])
 			put_object("arch",Vector2i(13,2),"exit")
-		elif level == 2:
+		elif level == 5:
 			put_object("can",Vector2i(5,14),"can")
 			put_object("fertilizer",Vector2i(5,12),"fertilizer")
 			put_object("well",Vector2i(13,8),"well",true)
@@ -523,10 +561,10 @@ func build_level(index: int) -> void:
 		for x in range(2,25,2):
 			for y in [2,16]:
 				if abs(x-13)>2:
-					put_object("blueflowers" if level==1 else "flowers",Vector2i(x,y))
+					put_object("blueflowers" if level==4 else "flowers",Vector2i(x,y))
 		for y in range(3,17,4):
 			for x in [2,24]: put_object("tree",Vector2i(x,y),"",true)
-		if level==3:
+		if level==6:
 			put_object("arch",Vector2i(13,3))
 			for x in [10,16]: put_object("blueflowers",Vector2i(x,6))
 	# Decorative borders and flowers never block a corridor.
@@ -565,7 +603,7 @@ func move_player(delta: float, input: Vector2) -> void:
 	step_clock -= delta
 	if step_clock<=0:
 		var cell := Vector2i(player/TILE)
-		sfx("step_stone" if level in [1,3] or (level==2 and (cell.x==13 or cell.y==15)) else "step_grass")
+		sfx("step_stone" if level in [4,6] or (level==5 and (cell.x==13 or cell.y==15)) else "step_grass")
 		step_clock = .31
 	var motion := input.limit_length()*SPEED*delta
 	var next := player+Vector2(motion.x,0)
@@ -597,9 +635,10 @@ func _process(delta: float) -> void:
 		if joy_id>=0: input = joy_vector
 		if task_time<=0: move_player(minf(delta,0.04),input)
 		else: moving = false
+		update_new_rooms(delta)
 		update_tasks(delta)
-		if level==2: update_plants(delta)
-		if level==1: update_shots(delta)
+		if level==5: update_plants(delta)
+		if level==4: update_shots(delta)
 		if player.y<2.8*TILE: use_exit()
 		elif level>0 and player.y>(grid.size()-2.8)*TILE: travel(level-1)
 		camera = camera.lerp(camera_target(),1-exp(-delta*9))
@@ -607,7 +646,7 @@ func _process(delta: float) -> void:
 		attack_cd -= delta
 		attack_flash = maxf(0,attack_flash-delta)
 		if attack_held and task_time<=0: attack()
-		if level == 1 and not combat_done: update_combat(minf(delta,0.04))
+		if level == 4 and not combat_done: update_combat(minf(delta,0.04))
 		for id in bloom_times: bloom_times[id] = minf(1.0,bloom_times[id]+delta/2.8)
 		find_nearest()
 		update_hud()
@@ -616,6 +655,7 @@ func _process(delta: float) -> void:
 		particles[i].pos += particles[i].vel*delta
 		particles[i].vel *= 0.98
 		if particles[i].life<=0: particles.remove_at(i)
+	update_fog()
 	queue_redraw()
 
 func touch_button_at(node: Node, pos: Vector2) -> Button:
@@ -680,6 +720,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.id=="flashlight": return not save_data.flashlight
+	if obj.id=="shovel": return not save_data.shovel
+	if obj.kind=="mound": return obj.id not in save_data.dug
 	var id: String = obj.id
 	if id.is_empty(): return false
 	if id == "courage": return combat_done and id not in save_data.letters
@@ -706,6 +749,9 @@ func find_nearest() -> void:
 				nearest = i
 
 func action_text(obj: Dictionary) -> String:
+	if obj.id=="flashlight": return "Взять фонарик"
+	if obj.id=="shovel": return "Взять лопату"
+	if obj.kind=="mound": return "Копать"
 	if obj.id=="back": return "Назад"
 	if obj.id=="fertilizer": return "Взять удобрение"
 	if obj.id in ["rpg","rifle","sword"]: return {"rpg":"Взять РПГ","rifle":"Взять автомат","sword":"Взять меч"}[obj.id]
@@ -717,7 +763,7 @@ func action_text(obj: Dictionary) -> String:
 		if float(plants.get(obj.id,{}).get("remaining",0))>0: return "Растёт…"
 		return "Полить · этап " + str(int(plants.get(obj.id,{}).get("stage",0))+1)
 	if obj.id == "final": return "Открыть"
-	if level==3 and obj.kind=="stone": return {"sun":"Солнце","flower":"Цветок","star":"Звезда"}[obj.id]
+	if level==6 and obj.kind=="stone": return {"sun":"Солнце","flower":"Цветок","star":"Звезда"}[obj.id]
 	return "Читать"
 
 func interact() -> void:
@@ -725,7 +771,14 @@ func interact() -> void:
 	var obj := objects[nearest]
 	var id: String = obj.id
 	if task_time>0: return
-	if id=="exit": use_exit()
+	if id in ["flashlight","shovel"]:
+		save_data[id] = true
+		persist()
+		sfx("ui")
+	elif obj.kind=="mound":
+		if not save_data.shovel: notify("Лопата осталась у входа.")
+		else: begin_task("dig:"+id,obj.pos,2.6)
+	elif id=="exit": use_exit()
 	elif id=="back": travel(level-1)
 	elif id in ["rpg","rifle","sword"]:
 		weapon = id
@@ -763,7 +816,7 @@ func interact() -> void:
 		if chest_open: show_card()
 		elif puzzle==["sun","flower","star"]: finish_game()
 		else: notify("Зажги знаки по порядку: подсказка в собранных письмах.")
-	elif level==3 and obj.kind=="stone":
+	elif level==6 and obj.kind=="stone":
 		var order := ["sun","flower","star"]
 		if puzzle.size()==3: notify("Все знаки сияют. Твой подарок ждёт в сундуке.")
 		elif id==order[puzzle.size()]:
@@ -785,13 +838,16 @@ func has_maze_letters() -> bool:
 func use_exit() -> void:
 	if transition: return
 	if level==0 and not has_maze_letters(): notify("Нужно найти три письма.")
-	elif level==1 and "courage" not in save_data.letters: notify("Прочитай письмо из сундука.")
-	elif level==2 and "garden" not in save_data.letters: notify("Выращены не все цветы. Письмо появится в центре.")
-	elif level<3: next_level()
+	elif level==1 and not dark_letters_found(): notify("В темноте осталось письмо. Нужно найти все три.")
+	elif level==2 and save_data.obstacles.size()<3: notify("Пройди все три балки.")
+	elif level==3 and "buried" not in save_data.letters: notify("Записка ещё под землёй.")
+	elif level==4 and "courage" not in save_data.letters: notify("Прочитай письмо из сундука.")
+	elif level==5 and "garden" not in save_data.letters: notify("Выращены не все цветы. Письмо появится в центре.")
+	elif level<6: next_level()
 	if player.y<3*TILE: player.y=3.2*TILE
 
 func next_level() -> void:
-	if level>=3: return
+	if level>=6: return
 	if level not in save_data.completed_levels: save_data.completed_levels.append(level)
 	travel(level+1)
 
@@ -801,7 +857,7 @@ func finish_game() -> void:
 	haptic(100)
 	sfx("chest")
 	save_data.finished = true
-	if 3 not in save_data.completed_levels: save_data.completed_levels.append(3)
+	if 6 not in save_data.completed_levels: save_data.completed_levels.append(6)
 	persist()
 	sfx()
 	paused = true
@@ -813,19 +869,22 @@ func finish_game() -> void:
 
 func update_hud() -> void:
 	if not is_instance_valid(objective): return
-	objective.text = str(level+1) + " / 4   ·   " + TITLES[level]
+	objective.text = str(level+1) + " / 7   ·   " + TITLES[level]
 	match level:
 		0:
 			var count := 0
 			for id in REQUIRED:
 				if id in save_data.letters: count+=1
 			status.text = "Письма %d / 3   ·   Секреты %d / 2   ·   %s" % [count,save_data.secrets.size(),"Арка открыта" if count==3 else "Ищи золотые искорки"]
-		1: status.text = "♥ ".repeat(health) + "   Волна %d / 3   ·   %s" % [mini(wave,3),"Открой сундук" if combat_done else {"sword":"Меч","rifle":"Автомат","rpg":"РПГ"}[weapon]]
-		2: status.text = "Цветы %d / 6   ·   %s" % [watered.size(),"Вода: "+str(water)+" / 6" if garden_can else "Найди лейку на юго-западе"]
-		3: status.text = "Знаки %d / 3   ·   Подсказка в журнале писем" % puzzle.size()
+		1: status.text = "Письма %d / 3 · %s" % [dark_letter_count(),"Фонарик включён" if save_data.flashlight else "Подбери фонарик у входа"]
+		2: status.text = "Пройдено %d / 3 · жди свободного прохода" % save_data.obstacles.size()
+		3: status.text = "Записка найдена" if "buried" in save_data.letters else ("Проверь рыхлую землю" if save_data.shovel else "Лопата у входа")
+		4: status.text = "♥ ".repeat(health) + "   Волна %d / 3   ·   %s" % [mini(wave,3),"Открой сундук" if combat_done else {"sword":"Меч","rifle":"Автомат","rpg":"РПГ"}[weapon]]
+		5: status.text = "Цветы %d / 6   ·   %s" % [watered.size(),"Вода: "+str(water)+" / 6" if garden_can else "Найди лейку на юго-западе"]
+		6: status.text = "Знаки %d / 3   ·   Подсказка в журнале писем" % puzzle.size()
 	action_button.visible = nearest>=0 and playing
 	if nearest>=0: action_button.text = ""+action_text(objects[nearest])
-	attack_button.visible = level==1 and not combat_done and playing
+	attack_button.visible = level==4 and not combat_done and playing
 	hint.text = "Коснись слева, чтобы идти" if joy_id<0 else ""
 
 func notify(text: String) -> void:
@@ -887,7 +946,7 @@ func update_combat(delta: float) -> void:
 				else: enemy.pos+=Vector2(0,v.y)*speed*delta
 
 func attack() -> void:
-	if paused or level!=1 or combat_done or attack_cd>0 or transition: return
+	if paused or level!=4 or combat_done or attack_cd>0 or transition: return
 	attack_cd = {"sword":.48,"rifle":.13,"rpg":1.35}[weapon]
 	attack_flash = .22
 	var closest := INF
@@ -920,7 +979,7 @@ func hurt() -> void:
 		var box := modal_box(590,330)
 		box.add_child(label("Попробуем ещё раз?", 30, CREAM, true))
 		box.add_child(label("Записки сохранены. Бой начнётся заново.\n\nОтходи от розовых кругов. Меч подходит для ближнего боя, автомат и РПГ — для стрельбы издалека.",18))
-		box.add_child(button("Попробовать снова", func(): build_level(1); clear_modal()))
+		box.add_child(button("Попробовать снова", func(): build_level(4); clear_modal()))
 		box.add_child(button("Меню", show_menu))
 
 func screen(pos: Vector2) -> Vector2:
@@ -965,14 +1024,14 @@ func _draw() -> void:
 		for x in range(maxi(0,from.x),mini(grid[0].length(),to.x)):
 			var p := screen(Vector2(x,y)*TILE)
 			var tile := 0
-			if level==1 or level==3: tile=2 if (x+y)%3 else 1
-			elif level==2 and (x==13 or y==15 or (watered.size()==6 and y<8 and x>=12 and x<=14)): tile=1
+			if level==4 or level==6: tile=2 if (x+y)%3 else 1
+			elif level==5 and (x==13 or y==15 or (watered.size()==6 and y<8 and x>=12 and x<=14)): tile=1
 			elif level==0 and grid[y][x]==".": tile=3
 			draw_texture_rect_region(ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
-			if level==3 and x>=10 and x<=16 and y>=5 and y<=15:
+			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
-			if grid[y][x]=="#": renderables.append({"kind":"hedge" if level!=1 else "stone","pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true})
+			if grid[y][x]=="#": renderables.append({"kind":"stone" if level in [1,2,4] else "hedge","pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true})
 	for obj in objects:
 		var p := screen(obj.pos)
 		if p.x < -100 or p.y < -100 or p.x>view.x+100 or p.y>view.y+150: continue
@@ -981,6 +1040,7 @@ func _draw() -> void:
 		if obj.kind=="note" and obj.id in save_data.letters: continue
 		if obj.id=="can" and garden_can: continue
 		if obj.id=="fertilizer" and has_fertilizer: continue
+		if obj.id in ["flashlight","shovel"] and save_data[obj.id]: continue
 		renderables.append(obj)
 	for enemy in enemies: renderables.append({"kind":"enemy"+str(enemy.type),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
@@ -1011,14 +1071,15 @@ func _draw() -> void:
 			if kind=="sprout" and plants.has(item.id):
 				var growth: float = bloom_times.get(item.id,1.0)
 				draw_sprite(["sprout","plant1","plant2","bloom"][clampi(int(plants[item.id].get("stage",0)),0,3)],p,Color.WHITE,0.85+growth*.15)
+			elif kind=="mound": draw_sprite("dug" if item.id in save_data.dug else "mound",p)
 			elif kind=="chest": draw_sprite("chest_open" if ((item.id=="final" and chest_open) or item.id in save_data.letters) else "chest",p,Color.WHITE,3.0 if item.id=="final" else 1.0)
 			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4))
 			else: draw_sprite(kind,p+Vector2(sin(time*1.3+item.pos.x)*1.3,0) if kind in ["tree","flowers","blueflowers"] else p)
 			if kind.begins_with("rack_"):
 				draw_string(body_font,p+Vector2(-25,-75),{"rpg":"РПГ","rifle":"Автомат","sword":"Меч"}[item.id],HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
-			if level==3 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("635770"))
+			if level==6 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("635770"))
 			if kind=="arch":
-				var open: bool = (level==0 and has_maze_letters()) or (level==1 and "courage" in save_data.letters) or (level==2 and "garden" in save_data.letters)
+				var open: bool = (level==1 and dark_letters_found()) or (level==2 and save_data.obstacles.size()==3) or (level==3 and "buried" in save_data.letters) or (level==0 and has_maze_letters()) or (level==4 and "courage" in save_data.letters) or (level==5 and "garden" in save_data.letters)
 				draw_texture_rect(glow,Rect2(p-Vector2(65,110),Vector2(130,150)),false,Color(.9,1,.9,1 if open else .2))
 				if not open: draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
@@ -1034,7 +1095,7 @@ func _draw() -> void:
 	for i in range(110):
 		var p := screen(Vector2(fposmod(i*137.7,grid[0].length()*TILE),fposmod(i*193.3,grid.size()*TILE))+Vector2(sin(time*.3+i)*26,cos(time*.4+i)*18))
 		var alpha := .25+.4*(sin(time*1.7+i)+1)/2
-		if level==2 and i%3==0:
+		if level==5 and i%3==0:
 			var flap := absf(sin(time*6+i))*5+1
 			draw_rect(Rect2(p-Vector2(flap,2),Vector2(flap*2,4)),Color(.92,.66,.84,alpha))
 		else:
@@ -1050,6 +1111,7 @@ func _draw() -> void:
 		c.a = minf(1,part.life)
 		if part.heart: draw_heart(screen(part.pos),1.2,c)
 		else: draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
+	draw_new_rooms()
 	draw_extra_effects()
 	# Soft framing, retained UI contrast.
 	for i in range(8):
@@ -1057,11 +1119,6 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2(i*5,i*5),view-Vector2.ONE*i*10),c,false,5)
 	if playing and not paused:
 		if level==0: draw_minimap(view)
-		if touch_mode:
-			var p := joy_origin if joy_id>=0 else Vector2(110,view.y-110)
-			draw_circle(p,57,Color(.9,.8,.9,.09))
-			draw_arc(p,57,0,TAU,32,Color(.9,.8,.9,.25),2)
-			draw_circle(p+joy_vector*43,22,Color(.92,.75,.82,.45))
 
 func draw_minimap(view: Vector2) -> void:
 	var origin := Vector2(view.x-150,235)
@@ -1102,7 +1159,7 @@ func add_corridors() -> void:
 	if level>0: put_object("arch",Vector2i(south,grid.size()-7),"back")
 
 func travel(destination: int) -> void:
-	if transition or destination<0 or destination>3: return
+	if transition or destination<0 or destination>6: return
 	transition = true
 	paused = true
 	joy_id = -1
@@ -1143,7 +1200,7 @@ func travel(destination: int) -> void:
 	transition = false
 	paused = false
 	persist()
-	notify("Сад" if destination==2 else TITLES[destination])
+	notify("Сад" if destination==5 else TITLES[destination])
 
 func corridor_position(pos: Vector2) -> void:
 	player = pos
@@ -1155,7 +1212,7 @@ func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	task_time = duration
 	moving = false
 	direction = 0 if target.y<player.y else 2
-	sfx("fill" if kind=="fill" else "paper" if kind=="fertilize" else "water")
+	sfx("fill" if kind=="fill" else "step_grass" if kind.begins_with("dig:") else "paper" if kind=="fertilize" else "water")
 
 func update_tasks(delta: float) -> void:
 	if task_time<=0: return
@@ -1171,6 +1228,12 @@ func update_tasks(delta: float) -> void:
 		save_data.water = water
 		plants[id].remaining = [12.0,18.0,24.0][clampi(int(plants[id].stage),0,2)]
 		burst(task_target,12,Color("9fdce1"))
+	elif task_kind.begins_with("dig:"):
+		var id := task_kind.trim_prefix("dig:")
+		if id not in save_data.dug: save_data.dug.append(id)
+		burst(task_target,16,Color("aa8263"))
+		if id=="dig_6": collect("buried")
+		else: notify("Только земля. Попробуй другую ямку.")
 	elif task_kind=="fertilize": burst(task_target,10,Color("c8aa7d"))
 	persist()
 
@@ -1231,7 +1294,7 @@ func draw_extra_effects() -> void:
 			draw_set_transform(Vector2.ZERO)
 			draw_texture_rect(glow,Rect2(p-Vector2(25,25),Vector2(50,50)),false,Color(1,.7,.35,.6))
 		else: draw_line(p,p-shot.vel.normalized()*20,Color("ffe3a7"),3)
-	if level==1:
+	if level==4:
 		var p := screen(player)+Vector2(14,-28)-aim*attack_flash*24
 		var swing := sin((1-attack_flash/.22)*PI)*1.5 if weapon=="sword" and attack_flash>0 else 0.0
 		draw_set_transform(p,aim.angle()+swing)
@@ -1240,7 +1303,7 @@ func draw_extra_effects() -> void:
 		if attack_flash>0 and weapon!="sword":
 			var muzzle := p+aim*29
 			draw_texture_rect(glow,Rect2(muzzle-Vector2(30,30),Vector2(60,60)),false,Color(1,.8,.5,attack_flash*4))
-	if level==2:
+	if level==5:
 		for obj in objects:
 			if obj.kind!="sprout" or obj.id in watered: continue
 			var plant: Dictionary = plants.get(obj.id,{"stage":0,"remaining":0.0})
@@ -1259,11 +1322,106 @@ func draw_extra_effects() -> void:
 			draw_set_transform(origin,-.45+sin(time*5)*.06)
 			draw_sprite("can",Vector2(0,45),Color.WHITE,.8)
 			draw_set_transform(Vector2.ZERO)
+		elif task_kind.begins_with("dig:"):
+			draw_set_transform(origin,sin(time*9)*.6)
+			draw_sprite("shovel",Vector2(0,40),Color.WHITE,.8)
+			draw_set_transform(Vector2.ZERO)
 		else: draw_sprite("fertilizer",origin+Vector2(0,sin(time*8)*3),Color.WHITE,.7)
 		for i in range(22):
 			var progress := fposmod(time*1.7+i*.087,1.0)
 			var p := origin.lerp(target,progress)+Vector2(sin(i*3.1)*6,-sin(progress*PI)*24)
-			draw_circle(p,1.5,Color("b8e8ed") if task_kind!="fertilize" else Color("bb9270"))
+			draw_circle(p,1.5,Color("b8e8ed") if task_kind!="fertilize" and not task_kind.begins_with("dig:") else Color("bb9270"))
 		var bar := screen(player)+Vector2(-25,-93)
 		draw_rect(Rect2(bar,Vector2(50,5)),INK)
 		draw_rect(Rect2(bar,Vector2(50*(1-task_time/2.4),5)),PINK)
+
+func setup_fog() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 1
+	add_child(layer)
+	fog = ColorRect.new()
+	fog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fog.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shader := Shader.new()
+	shader.code = """shader_type canvas_item;
+render_mode unshaded;
+uniform vec2 light_pos = vec2(270.0,480.0);
+uniform vec2 view_size = vec2(540.0,960.0);
+uniform vec2 light_dir = vec2(0.0,-1.0);
+uniform bool enabled = false;
+void fragment(){
+ vec2 offset = UV * view_size - light_pos;
+ float distance = length(offset);
+ float beam = smoothstep(0.72,0.94,dot(normalize(offset+vec2(0.001)),light_dir));
+ float reach = 1.0-smoothstep(90.0,190.0,distance);
+ float near_light = 1.0-smoothstep(24.0,44.0,distance);
+ float light = max(near_light,enabled ? beam*reach : 0.0);
+ COLOR = vec4(vec3(0.0),1.0-light);
+}"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	fog.material = material
+	layer.add_child(fog)
+
+func update_fog() -> void:
+	if not is_instance_valid(fog) or not fog.visible: return
+	var material: ShaderMaterial = fog.material
+	var facing: Vector2 = [Vector2.UP,Vector2.LEFT,Vector2.DOWN,Vector2.RIGHT][direction]
+	if joy_vector.length()>.2: facing=joy_vector.normalized()
+	material.set_shader_parameter("light_pos",screen(player)-Vector2(0,32))
+	material.set_shader_parameter("view_size",get_viewport_rect().size)
+	material.set_shader_parameter("light_dir",facing)
+	material.set_shader_parameter("enabled",save_data.flashlight)
+
+func dark_letter_count() -> int:
+	var count := 0
+	for id in ["shade_1","shade_2","shade_3"]:
+		if id in save_data.letters: count+=1
+	return count
+
+func dark_letters_found() -> bool:
+	return dark_letter_count()==3
+
+func obstacle_rect(index: int) -> Rect2:
+	var center := Vector2(13.5*TILE+sin(room_clock*(1.05+index*.13)+index*1.9)*90,(12.5+index*3)*TILE)
+	return Rect2(center-Vector2(140,14),Vector2(280,28))
+
+func update_new_rooms(delta: float) -> void:
+	room_clock += delta
+	if level==1:
+		for obj in objects:
+			if obj.id=="flashlight" and not save_data.flashlight and player.distance_to(obj.pos)<46:
+				save_data.flashlight=true
+				persist();sfx("ui");notify("Фонарик взят. Свети туда, куда идёшь.")
+		skull_clock -= delta
+		if skull_clock<=0:
+			skull_clock=randf_range(4.0,7.0)
+			var pos := player+Vector2.from_angle(randf()*TAU)*randf_range(70,145)
+			if not blocked(pos): skulls.append({"pos":pos,"life":3.5})
+		for i in range(skulls.size()-1,-1,-1):
+			skulls[i].life -= delta
+			if skulls[i].life<=0: skulls.remove_at(i)
+	elif level==2:
+		obstacle_cooldown=maxf(0,obstacle_cooldown-delta)
+		for i in range(3):
+			var obstacle := obstacle_rect(i)
+			if obstacle.grow(10).has_point(player) and obstacle_cooldown<=0:
+				player.y=obstacle.end.y+42
+				obstacle_cooldown=.65
+				shake=5;sfx("hurt");haptic(25)
+			if player.y<obstacle.position.y-24 and i not in save_data.obstacles:
+				save_data.obstacles.append(i);persist()
+
+func draw_new_rooms() -> void:
+	if level==1:
+		for skull in skulls:
+			draw_sprite("skull",screen(skull.pos),Color(1,1,1,minf(1,skull.life)))
+		if save_data.flashlight: draw_sprite("flashlight",screen(player)+Vector2(14,-10),Color.WHITE,.5)
+	elif level==2:
+		for i in range(3):
+			var rect := obstacle_rect(i)
+			var y := screen(rect.get_center()).y
+			draw_line(screen(Vector2(9*TILE,rect.get_center().y)),screen(Vector2(18*TILE,rect.get_center().y)),Color("786878"),5)
+			for x in range(7): draw_sprite("moving_bar",Vector2(screen(rect.position).x+x*40+20,y+16))
+			var middle := screen(rect.get_center())
+			draw_texture_rect(glow,Rect2(middle-Vector2(55,55),Vector2(110,110)),false,Color(1,.7,.4,.5))

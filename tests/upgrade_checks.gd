@@ -16,7 +16,7 @@ func run():
 	game.travel(0)
 	await create_timer(2.6).timeout
 	check(game.level==0 and not game.blocked(game.player),"back corridor arrives on walkable tile")
-	game.build_level(2)
+	game.build_level(5)
 	game.garden_can=true;game.water=6;game.fertilized=["0"]
 	game.plants["0"]={"stage":0,"remaining":-1.0}
 	game.begin_task("water:0",Vector2.ZERO,2.2)
@@ -29,9 +29,9 @@ func run():
 		game.update_plants(30)
 		check(game.plants["0"].stage==stage+1,"growth stage "+str(stage+1))
 	check("0" in game.watered,"third stage completes flower")
-	game.persist();game.build_level(2)
+	game.persist();game.build_level(5)
 	check(game.plants["0"].stage==3,"plant state survives rebuild")
-	game.build_level(1);game.clear_modal();game.touch_mode=true
+	game.build_level(4);game.clear_modal();game.touch_mode=true
 	for weapon in ["sword","rifle","rpg"]:
 		game.enemies.clear()
 		game.enemies.append({"pos":game.player+Vector2(0,-60),"hp":3,"state":"chase","type":0,"timer":0.0,"cooldown":0.0})
