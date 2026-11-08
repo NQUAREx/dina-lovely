@@ -37,3 +37,9 @@ if 'mobile.js' not in s:
 import html
 credits=(root/'assets/SFX-CREDITS.md').read_text()
 (p.parent/'audio-credits.html').write_text('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sound credits</title><style>body{max-width:740px;margin:40px auto;padding:20px;background:#242538;color:#f5e3cf;font:16px/1.7 sans-serif}pre{white-space:pre-wrap;word-break:break-word}a{color:#e5a6bd}</style><a href="./">Вернуться к игре</a><pre>'+html.escape(credits)+'</pre></html>')
+
+# Fit the canvas itself, leaving the page-colored area outside Godot.
+s=p.read_text().replace('"canvasResizePolicy":2','"canvasResizePolicy":0')
+s=s.replace('<canvas id="canvas"','<canvas width="540" height="960" id="canvas"')
+s=s.replace('</head>','<style>html,body{background:#242538!important}#canvas{position:fixed!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:min(100vw,56.25dvh)!important;height:min(100dvh,177.777778vw)!important;margin:0!important;display:block}</style></head>')
+p.write_text(s)

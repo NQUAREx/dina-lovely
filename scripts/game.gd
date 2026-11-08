@@ -84,6 +84,8 @@ var nearest := -1
 var audio_pool: Array[AudioStreamPlayer] = []
 var audio_cursor := 0
 var step_clock := 0.0
+var rustle_clock := 0.0
+var hedge_contact := false
 var shake := 0.0
 var shake_offset := Vector2.ZERO
 var ambience_clock := 3.0
@@ -160,7 +162,7 @@ func sfx(name: String = "chime") -> void:
 	var sample_name := name
 	if name in ["step_grass","step_stone","attack"]: sample_name += ["","_2","_3"][randi()%3]
 	voice.stream = load("res://assets/" + sample_name + ".wav")
-	voice.volume_db = {"birds":-29,"crickets":-28,"rustle":-22,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rifle":-13}.get(name,-15)
+	voice.volume_db = {"birds":-29,"crickets":-28,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rifle":-13}.get(name,-15)
 	voice.pitch_scale = randf_range(.98,1.02) if name in ["rifle","water","fill"] else randf_range(.94,1.06)
 	voice.play()
 
@@ -629,8 +631,6 @@ func move_player(delta: float, input: Vector2) -> void:
 	next = player+Vector2(0,motion.y)
 	if not blocked(next): player = next
 	step_clock -= delta
-	if level==0 and (blocked(player+input.normalized()*18)) and step_clock<=0:
-		sfx("rustle")
 	if step_clock<=0:
 		var cell := Vector2i(player/TILE)
 		sfx("step_stone" if level in [4,6] or (level==5 and (cell.x==13 or cell.y==15)) else "step_grass")
@@ -638,11 +638,24 @@ func move_player(delta: float, input: Vector2) -> void:
 	if abs(input.x)>abs(input.y): direction = 1 if input.x<0 else 3
 	else: direction = 0 if input.y<0 else 2
 
+func touching_hedge(pos: Vector2) -> bool:
+	if level!=0: return false
+	for offset in [Vector2(-15,-10),Vector2(15,-10),Vector2(-15,10),Vector2(15,10)]:
+		var c := Vector2i((pos+offset)/TILE)
+		if c.y>=0 and c.y<grid.size() and c.x>=0 and c.x<grid[0].length() and grid[c.y][c.x]=="#": return true
+	return false
+
 func _physics_process(delta: float) -> void:
 	# Simulation must not depend on audio, particles or HUD updating successfully.
 	if playing and not paused and not transition and task_time<=0:
+		rustle_clock = maxf(0,rustle_clock-delta)
 		var before := player
 		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
+		var contact := touching_hedge(player)
+		if contact and (not hedge_contact or (moving and rustle_clock<=0)):
+			sfx("rustle")
+			rustle_clock = .42
+		hedge_contact = contact
 		if joy_vector.length()>.2 and player.distance_to(before)<.01:
 			stuck_seconds += delta
 			if stuck_seconds>.8:
