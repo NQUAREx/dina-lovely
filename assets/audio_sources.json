@@ -126,5 +126,23 @@
     "license": "CC BY 3.0 (bundled license; OGA page differs)",
     "changes": "0.28\u20131.03 sec excerpt, mono 44.1kHz, loudness normalization, fade",
     "sha256": "cecb857f6092b5bb36fcfebe4bf69ba2ec4f91bd120ba865a9be4f10e33cb39e"
+  },
+  "birds": {
+    "pack": "isaiah658",
+    "source_url": "https://opengameart.org/content/ambient-bird-sounds",
+    "license": "CC0",
+    "sha256": "7de3fc1da2c164613b19f61e2da03e42011cb3217a5c3eed9b4990bf9c4fa710"
+  },
+  "crickets": {
+    "pack": "syncopika",
+    "source_url": "https://opengameart.org/content/cricket-sounds",
+    "license": "CC0",
+    "sha256": "25185bd83369c40678de6d467e186d4c0cd1634015a431cdaefd090193b5a168"
+  },
+  "rustle": {
+    "pack": "Kenney",
+    "source_url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0",
+    "sha256": "5317838e5aad1b9fdbf223eda21dcefb5d1287ce35de543c9fc8b7bab0b2ba1e"
   }
 }
