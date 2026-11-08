@@ -5,6 +5,7 @@
  window.gardenHaptic=ms=>{if(!ios&&typeof navigator.vibrate==='function')navigator.vibrate(ms);};
  const suspend=()=>window.gardenSuspended=document.hidden||matchMedia("(orientation: landscape)").matches;
  addEventListener("resize",suspend);document.addEventListener("visibilitychange",suspend);suspend();
+ const liveContent=fetch('https://raw.githubusercontent.com/NQUAREx/dina-lovely/main/content/letters.json?fresh='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(8000)}).then(r=>{if(!r.ok)throw Error(r.status);return r.json()}).then(d=>{window.gardenContent=d;return d;}).catch(()=>null);
  let launch;window.gardenLaunch=new Promise(r=>launch=r);
  const style=document.createElement('style');style.textContent=`html,body{margin:0;background:#242538;overscroll-behavior:none;height:100%;touch-action:none}#mobile-gate,#portrait-gate{position:fixed;inset:0;z-index:2000;background:radial-gradient(ellipse at top,#55435d,#242538 75%);color:#f5e3cf;display:grid;place-content:center;padding:max(28px,env(safe-area-inset-top)) 28px max(28px,env(safe-area-inset-bottom));text-align:center;font:17px/1.6 Georgia,serif}#mobile-gate h1{font-size:32px;line-height:1.2;color:#edbdce}#mobile-gate button{padding:18px 28px;border:1px solid #df9eb9;border-radius:18px;color:#fff0dc;background:#76556f;font:18px Georgia;margin-top:24px}#mobile-gate ol{text-align:left;max-width:340px}#portrait-gate{display:none;font-size:24px;z-index:3000}@media(orientation:landscape){#portrait-gate{display:grid}}canvas{touch-action:none}`;document.head.append(style);
  addEventListener('DOMContentLoaded',()=>{
@@ -16,11 +17,12 @@
    gate.querySelector('button').onclick=async()=>{
     try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();}catch(e){}
     try{if(screen.orientation?.lock)await screen.orientation.lock('portrait');}catch(e){}
-    gate.remove();launch();
+    await liveContent;gate.remove();launch();
    };
   }
   const credits=document.createElement("a");credits.href="audio-credits.html";credits.target="_blank";credits.rel="noopener";credits.textContent="Звуки: авторы и лицензии";credits.style.cssText="color:#c3a7b8;font:12px sans-serif;margin-top:24px";gate.append(credits);
   document.body.append(gate);
+  liveContent.then(d=>{if(!d)return;document.title=d.game_title||document.title;const title=gate.querySelector('h1');if(title&&mobile&&(!ios||standalone))title.textContent=d.game_title;const walk=n=>{for(const child of n.childNodes){if(child.nodeType===3&&d.ui&&d.ui[child.textContent])child.textContent=d.ui[child.textContent];else if(child.nodeType===1)walk(child);}};walk(gate);});
   const rotate=document.createElement('div');rotate.id='portrait-gate';rotate.textContent='↻ Верни телефон вертикально';if(!mobile)rotate.style.display='none';document.body.append(rotate);
  });
  addEventListener('pointerdown',()=>{if(mobile&&!ios&&!document.fullscreenElement&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});},{passive:true});

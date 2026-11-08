@@ -67,8 +67,8 @@ def hero(d,face,frame):
  d.polygon([(7,15+b),(25,15+b),(28,33+b),(18,30+b),(5,33+b)],fill='#8e7c90')
  d.line((9,12+b,16,9+b,23,13+b),fill='#c7b0be',width=2)
  if face!=0:
-  d.rounded_rectangle((10 if face!=3 else 13,15+b,23 if face!=1 else 20,28+b),3,fill='#373348')
-  d.line((12,25+b,21,26+b),fill='#51495f')
+  d.rounded_rectangle((10 if face!=3 else 13,15+b,23 if face!=1 else 20,28+b),3,fill='#d6a383')
+  # Open featureless skin, framed by scarf.
  else:d.line((15,15+b,17,30+b),fill='#b29baa')
  d.rectangle((6,31+b,9,35+b),fill='#4a435d');d.rectangle((23,31+b,26,35+b),fill='#4a435d')
  d.point((23,12+b),fill='#f3d19c')
@@ -126,6 +126,19 @@ def pond(d):
  d.ellipse((1,19,31,45),fill='#687b72');d.ellipse((4,22,28,42),fill='#345a6b');d.arc((6,24,25,38),0,160,fill='#789e9c',width=1);d.ellipse((8,26,15,30),fill='#7b9b70');d.line((17,33,24,33),fill='#a0bbb0')
 sprite('house',house);sprite('pond',pond)
 sprite('bench',lambda d:(d.rectangle((2,25,29,30),fill='#9a7b6e'),d.rectangle((2,33,29,37),fill='#b38c78'),d.rectangle((5,37,8,44),fill='#504758'),d.rectangle((24,37,27,44),fill='#504758')))
+for variant in range(3):
+ def varied(d,v=variant):
+  hedge(d)
+  if v==0:
+   for x,y in [(7,23),(18,27),(24,22)]:d.rectangle((x,y,x+2,y+2),fill='#c75c83')
+  elif v==1:
+   for x,y in [(5,20),(17,18),(26,26)]:d.line((x,y,x+2,y-4),fill='#b4cb82',width=2)
+  else:
+   d.rectangle((14,23,17,32),fill='#826248');leaf(d,16,18,9)
+ sprite('hedge'+str(variant),varied)
+sprite('berries',lambda d:(d.ellipse((8,24,24,38),fill='#487b50'),d.rectangle((12,25,15,28),fill='#dc7694'),d.rectangle((20,29,23,32),fill='#d95378')))
+sprite('rake',lambda d:(d.line((13,39,20,13),fill='#ae8866',width=2),d.line((12,13,26,17),fill='#c8c5b0',width=2),[d.line((x,14,x-2,20),fill='#c8c5b0') for x in range(13,27,3)]))
+sprite('weeds',lambda d:(d.ellipse((4,34,29,44),fill='#574b41'),[d.line((x,40,x-4,22+(x%4)*3),fill='#64845a',width=3) for x in range(8,28,4)]))
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)

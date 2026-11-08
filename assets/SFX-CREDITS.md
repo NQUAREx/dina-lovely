@@ -13,3 +13,5 @@ All in-game audio uses downloaded sound libraries. No procedurally generated osc
 - Hedge rustle reuses the licensed Kenney grass footstep variation (not synthesized).
 
 Rustle: qubodup, 20 Rustles of dry leaves, CC0. https://opengameart.org/content/20-rustles-dry-leaves — trimmed and normalized.
+
+Current bush rustle: Moving Leaves Stereo by Augmentality (Brandon Morris), CC0. https://opengameart.org/content/random-sounds-samples — excerpt, normalized and faded.
