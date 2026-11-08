@@ -1561,6 +1561,7 @@ func draw_corridor_extensions() -> void:
 				else: draw_texture_rect_region(ground,Rect2(pos,Vector2(48,48)),Rect2(Vector2(24,0),Vector2(24,24)))
 
 func valid_ground(pos: Vector2) -> bool:
+	if pos.x<0 or pos.y<0 or pos.x>=grid[0].length()*TILE or pos.y>=grid.size()*TILE: return false
 	var c := Vector2i(pos/TILE)
 	return c.x>=0 and c.y>=0 and c.y<grid.size() and c.x<grid[0].length() and grid[c.y][c.x]=="."
 
