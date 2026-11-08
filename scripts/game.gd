@@ -950,7 +950,7 @@ func update_hud() -> void:
 	if level==3 and save_data.shovel and (nearest<0 or objects[nearest].id not in ["exit","back","buried"]): action_button.text="Копать" if task_time<=0 else "Копаю…"
 	switch_button.visible = false
 	attack_button.visible = level==4 and not combat_done and playing
-	hint.text = "Коснись слева, чтобы идти" if joy_id<0 else ""
+	hint.text = ("v3 · Стена рядом · " + str(Vector2i(player/TILE))) if stuck_seconds>.8 else ("Коснись слева, чтобы идти" if joy_id<0 else "")
 
 func notify(text: String) -> void:
 	toast.text = text
