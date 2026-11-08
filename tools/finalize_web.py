@@ -26,7 +26,7 @@ if marker not in s:
 import json, shutil
 root=p.parent.parent
 shutil.copyfile(root/'tools/mobile_shell.js',p.parent/'mobile.js')
-manifest={"name":"Сад, где живёт любовь","short_name":"Наш сад","id":"./","start_url":"./","scope":"./","display":"fullscreen","orientation":"portrait","background_color":"#242538","theme_color":"#242538","icons":[{"src":"index.apple-touch-icon.png","sizes":"180x180","type":"image/png"}]}
+manifest={"name":"Тебе. От меня.","short_name":"Наш сад","id":"./","start_url":"./","scope":"./","display":"fullscreen","orientation":"portrait","background_color":"#242538","theme_color":"#242538","icons":[{"src":"index.apple-touch-icon.png","sizes":"180x180","type":"image/png"}]}
 (p.parent/'manifest.webmanifest').write_text(json.dumps(manifest,ensure_ascii=False))
 s=p.read_text()
 if 'mobile.js' not in s:

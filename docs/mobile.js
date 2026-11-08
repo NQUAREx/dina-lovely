@@ -12,7 +12,7 @@
   if(!mobile)gate.innerHTML='<h1>Этот сад — в твоём телефоне</h1><p>Открой эту же ссылку на смартфоне.<br>Игра создана для вертикального экрана и касаний.</p>';
   else if(ios&&!standalone)gate.innerHTML='<h1>Сохрани наш сад</h1><p>Открой его как маленькое приложение — без панелей Safari.</p><ol><li>Нажми «Поделиться» в Safari.</li><li>Выбери «На экран Домой».</li><li>Включи «Открывать как веб-приложение», если этот переключатель показан.</li><li>Открой сад через новую иконку.</li></ol><p>После этого начнётся путешествие.</p>';
   else {
-   gate.innerHTML='<h1>Сад, где живёт любовь</h1><p>Маленькое путешествие<br>для самого дорогого человека.</p><button>Войти в сад</button>';
+   gate.innerHTML='<h1>Тебе. От меня.</h1><p>Я оставил здесь несколько записок.<br>Осталось их найти.</p><button>Войти в сад</button>';
    gate.querySelector('button').onclick=async()=>{
     try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();}catch(e){}
     try{if(screen.orientation?.lock)await screen.orientation.lock('portrait');}catch(e){}

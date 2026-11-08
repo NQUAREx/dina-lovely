@@ -81,6 +81,25 @@ def enemy(d,kind):
  for x in [11,21]:d.rectangle((x,31,x+1,33),fill='#39364d')
  d.line((15,35,18,35),fill='#6d536e')
 for k in range(3):sprite('enemy'+str(k),lambda d,k=k:enemy(d,k))
+def weapon(d,kind):
+ if kind=='sword':
+  d.polygon([(15,9),(18,14),(18,31),(15,34),(12,31),(12,14)],fill='#b9d6dc');d.line((15,12,15,31),fill='#f4e8d0');d.rectangle((8,32,22,34),fill='#d0a776');d.rectangle((13,35,17,42),fill='#795568')
+ elif kind=='rifle':
+  d.rectangle((5,23,27,29),fill='#45465a');d.rectangle((9,21,23,25),fill='#899098');d.rectangle((25,24,30,26),fill='#d3b294');d.polygon([(10,29),(15,29),(14,38),(9,37)],fill='#5c4c5c');d.rectangle((18,28,21,34),fill='#747481');d.line((10,22,21,22),fill='#c3c6c0')
+ else:
+  d.rectangle((3,23,26,31),fill='#697e70');d.rectangle((5,24,24,26),fill='#a7b496');d.polygon([(25,21),(31,27),(25,33)],fill='#be9a8c');d.rectangle((8,31,12,38),fill='#594b60');d.rectangle((16,30,19,35),fill='#594b60')
+for kind in ['rpg','rifle','sword']:
+ def rack(d,k=kind):
+  d.rectangle((3,34,28,39),fill='#886775');d.rectangle((5,39,8,45),fill='#4e4358');d.rectangle((24,39,27,45),fill='#4e4358');weapon(d,k)
+ sprite('rack_'+kind,rack)
+ sprite('weapon_'+kind,lambda d,k=kind:weapon(d,k))
+sprite('rocket_item',lambda d:(d.rectangle((8,22,24,27),fill='#a4b39b'),d.polygon([(24,20),(30,25),(24,30)],fill='#d49b8a'),d.polygon([(8,22),(3,18),(5,25),(3,32),(8,27)],fill='#eab879')))
+sprite('fertilizer',lambda d:(d.rounded_rectangle((7,23,25,43),3,fill='#b89d81'),d.rectangle((8,24,24,27),fill='#f0d6a5'),d.ellipse((13,30,20,38),fill='#678a6e'),d.line((16,31,16,39),fill='#abc18e')))
+for stage in [1,2]:
+ def growing(d,st=stage):
+  plant(d,False);d.line((16,40,16,23 if st==2 else 29),fill='#82aa79',width=2);d.ellipse((9,27,16,32),fill='#90b57e');d.ellipse((16,25,24,30),fill='#6c996b')
+  if st==2:d.ellipse((12,18,20,27),fill='#c68caa');d.line((16,19,16,25),fill='#efb7c9')
+ sprite('plant'+str(stage),growing)
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)
@@ -131,3 +150,7 @@ wav('ui.wav',.08,lambda t:math.sin(2*math.pi*720*t)*math.exp(-t*65)*.12)
 wav('chest.wav',1.6,lambda t:(n(t)*.1*math.exp(-t*6)+math.sin(2*math.pi*(170*t-25*t*t))*.13*math.exp(-t*4)+math.sin(2*math.pi*1650*t)*.05*math.exp(-max(0,t-.3)*4))*min(1,t*50))
 wav('ambient.wav',2.0,lambda t:n(t)*.018*math.sin(math.pi*t/2)**2+math.sin(2*math.pi*(1600*t+90*math.sin(t*8)))*.015*max(0,math.sin(t*13))**10)
 print('Created covered heroine and original sound-design bank')
+
+wav('rifle.wav',.12,lambda t:(n(t)*.35+math.sin(2*math.pi*160*t)*.2)*math.exp(-t*42))
+wav('rocket.wav',.5,lambda t:n(t)*.28*math.sin(math.pi*t/.5)**2)
+wav('explosion.wav',.9,lambda t:(n(t)*.4+math.sin(2*math.pi*58*t)*.3)*math.exp(-t*7))

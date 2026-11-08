@@ -7,8 +7,8 @@ for y in range(540):
 for i in range(35):
  x=(i*137+50)%960;y=(i*91+40)%540;d.rectangle((x,y,x+2,y+2),fill='#bc9ca8')
 f=ImageFont.truetype(str(A/'title.ttf'),42);small=ImageFont.truetype(str(A/'body.ttf'),15)
-d.text((480,260),'Сад, где живёт любовь',font=f,anchor='mm',fill='#f5e3cf')
-d.text((480,315),'МАЛЕНЬКОЕ ПУТЕШЕСТВИЕ К БОЛЬШОМУ ЧУВСТВУ',font=small,anchor='mm',fill='#dca4b7')
+d.text((480,260),'Тебе. От меня.',font=f,anchor='mm',fill='#f5e3cf')
+d.text((480,315),'ЗАПИСКИ, САД И ОДИН СУНДУК',font=small,anchor='mm',fill='#dca4b7')
 d.line((370,211,590,211),fill='#997488',width=1)
 im.save(A/'cover.png')
 im=Image.new('RGBA',(64,64),'#292c42');d=ImageDraw.Draw(im)
