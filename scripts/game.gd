@@ -1137,7 +1137,7 @@ func _draw() -> void:
 			elif kind.begins_with("rack_") and item.id in save_data.weapons_taken: draw_sprite("rack_empty",p)
 			elif kind=="mound": draw_sprite("dug" if item.id in save_data.dug else "mound",p)
 			elif kind=="chest": draw_sprite("chest_open" if ((item.id=="final" and chest_open) or item.id in save_data.letters) else "chest",p,Color.WHITE,3.0 if item.id=="final" else 1.0)
-			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4))
+			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4+25*(1-clampf((time-float(item.get("rise_start",time-1)))/.45,0,1))))
 			else: draw_sprite(kind,p)
 			if kind.begins_with("rack_"):
 				draw_string(body_font,p+Vector2(-25,-75),{"rpg":"РПГ","rifle":"АК-47","sword":"Меч"}[item.id],HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
@@ -1304,7 +1304,8 @@ func update_tasks(delta: float) -> void:
 		var hidden: Vector2 = Vector2(save_data.dig_target[0],save_data.dig_target[1]) if save_data.dig_target.size()==2 else Vector2.ZERO
 		if task_target.distance_to(hidden)<90 and "buried" not in save_data.letters:
 			save_data.buried_exposed=true
-			objects.append({"kind":"note","id":"buried","solid":false,"pos":hidden})
+			save_data.dig_target=[task_target.x,task_target.y]
+			objects.append({"kind":"note","id":"buried","solid":false,"pos":task_target,"rise_start":time})
 			notify("Из земли показалась записка. Подойди и открой её.")
 		else: notify("Ближе к записке." if task_target.distance_to(hidden)<260 else "Здесь пусто.")
 	elif task_kind=="fertilize": burst(task_target,10,Color("c8aa7d"))
