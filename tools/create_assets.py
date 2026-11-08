@@ -1,4 +1,4 @@
-"""Original pixel artwork and original synthesized music; deterministic, no downloads."""
+"""Reproducible original pixel artwork. Licensed audio is kept separately."""
 from PIL import Image, ImageDraw
 import random, math, wave, struct, json
 from pathlib import Path
@@ -85,7 +85,13 @@ def weapon(d,kind):
  if kind=='sword':
   d.polygon([(15,9),(18,14),(18,31),(15,34),(12,31),(12,14)],fill='#b9d6dc');d.line((15,12,15,31),fill='#f4e8d0');d.rectangle((8,32,22,34),fill='#d0a776');d.rectangle((13,35,17,42),fill='#795568')
  elif kind=='rifle':
-  d.rectangle((5,23,27,29),fill='#45465a');d.rectangle((9,21,23,25),fill='#899098');d.rectangle((25,24,30,26),fill='#d3b294');d.polygon([(10,29),(15,29),(14,38),(9,37)],fill='#5c4c5c');d.rectangle((18,28,21,34),fill='#747481');d.line((10,22,21,22),fill='#c3c6c0')
+  # AK-pattern silhouette: wooden butt/handguard, steel receiver, curved magazine.
+  d.polygon([(1,25),(9,25),(10,28),(3,33),(1,32)],fill='#9e6846');d.line((2,26,7,26),fill='#d29a63')
+  d.rectangle((9,23,21,28),fill='#41434d');d.rectangle((18,24,26,28),fill='#a16d48');d.line((19,24,25,24),fill='#d49b64')
+  d.rectangle((25,24,31,26),fill='#6c7477');d.rectangle((28,21,29,25),fill='#41434d')
+  d.line((11,22,19,22),fill='#abb3b0');d.rectangle((11,28,14,34),fill='#77563e')
+  d.polygon([(17,28),(21,28),(22,34),(25,38),(21,40),(18,35)],fill='#545963');d.line((19,30,20,35,23,38),fill='#899093')
+
  else:
   d.rectangle((3,23,26,31),fill='#697e70');d.rectangle((5,24,24,26),fill='#a7b496');d.polygon([(25,21),(31,27),(25,33)],fill='#be9a8c');d.rectangle((8,31,12,38),fill='#594b60');d.rectangle((16,30,19,35),fill='#594b60')
 for kind in ['rpg','rifle','sword']:
@@ -111,6 +117,9 @@ def skull(d):
 sprite('flashlight',flashlight);sprite('shovel',shovel);sprite('mound',mound);sprite('skull',skull)
 sprite('dug',lambda d:(d.ellipse((2,30,30,44),fill='#87674f'),d.ellipse((6,32,26,42),fill='#382f3b'),d.line((8,32,22,31),fill='#ba9270')))
 sprite('moving_bar',lambda d:(d.rectangle((5,24,26,41),fill='#4b4050'),d.rectangle((5,24,26,29),fill='#b6a1a0'),d.rectangle((5,30,26,38),fill='#bf9d70'),d.polygon([(5,30),(10,30),(18,38),(13,38)],fill='#594956'),d.polygon([(17,30),(22,30),(26,34),(26,38),(25,38)],fill='#594956')))
+sprite('rack_empty',lambda d:(d.rectangle((3,34,28,39),fill='#886775'),d.rectangle((5,39,8,45),fill='#4e4358'),d.rectangle((24,39,27,45),fill='#4e4358')))
+sprite('pedestal',lambda d:(d.ellipse((6,38,26,44),fill='#443b51'),d.rectangle((10,27,22,41),fill='#827387'),d.rectangle((6,23,26,29),fill='#baa3a4'),d.line((8,24,24,24),fill='#e0c5ae')))
+sprite('doorpost',lambda d:(d.rectangle((10,7,22,43),fill='#5f566b'),d.rectangle((11,8,21,12),fill='#b7a1ac'),d.rectangle((9,39,24,44),fill='#95818e'),d.rectangle((13,15,20,19),fill='#dfb583'),d.line((12,22,12,36),fill='#968495')))
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)
@@ -141,27 +150,4 @@ d.ellipse((222,200,266,245),fill='#8e7c90')
 d.polygon([(223,217),(264,217),(271,258),(219,258)],fill='#8e7c90')
 d.line((263,254,277,254),fill='#51495f',width=9)
 im.save(A/'keepsake.png')
-def wav(name,seconds,sample):
- rate=22050
- with wave.open(str(A/name),'w') as w:
-  w.setparams((1,2,rate,0,'NONE','not compressed'));w.writeframes(b''.join(struct.pack('<h',int(max(-1,min(1,sample(i/rate)))*20000)) for i in range(int(seconds*rate))))
-# Layered, non-musical sound effects. No background music is generated.
-noise_rng=random.Random(37)
-noise=[noise_rng.uniform(-1,1) for _ in range(44100)]
-def n(t):return noise[int(t*22050)%len(noise)]
-wav('chime.wav',.6,lambda t:math.sin(2*math.pi*1350*t)*math.exp(-t*12)*.12+n(t)*math.exp(-t*24)*.03)
-wav('attack.wav',.24,lambda t:n(t)*math.sin(math.pi*t/.24)**2*.22+math.sin(2*math.pi*(320*t-500*t*t))*.12*math.exp(-t*15))
-wav('hurt.wav',.3,lambda t:(n(t)*.15+math.sin(2*math.pi*95*t)*.2)*math.exp(-t*15))
-wav('step_grass.wav',.18,lambda t:n(t)*math.exp(-t*27)*.18)
-wav('step_stone.wav',.18,lambda t:(n(t)*.12+math.sin(2*math.pi*190*t)*.2)*math.exp(-t*35))
-wav('water.wav',1.1,lambda t:(n(t)*.12+math.sin(2*math.pi*(780*t+25*math.sin(t*33)))*.06)*min(1,t*12)*min(1,(1.1-t)*5))
-wav('fill.wav',1.3,lambda t:(n(t)*.09+math.sin(2*math.pi*(380*t+35*t*t))*.08)*math.sin(math.pi*t/1.3)**2)
-wav('paper.wav',.5,lambda t:n(t)*.12*math.sin(t*85)**2*math.exp(-t*6))
-wav('ui.wav',.08,lambda t:math.sin(2*math.pi*720*t)*math.exp(-t*65)*.12)
-wav('chest.wav',1.6,lambda t:(n(t)*.1*math.exp(-t*6)+math.sin(2*math.pi*(170*t-25*t*t))*.13*math.exp(-t*4)+math.sin(2*math.pi*1650*t)*.05*math.exp(-max(0,t-.3)*4))*min(1,t*50))
-wav('ambient.wav',2.0,lambda t:n(t)*.018*math.sin(math.pi*t/2)**2+math.sin(2*math.pi*(1600*t+90*math.sin(t*8)))*.015*max(0,math.sin(t*13))**10)
-print('Created covered heroine and original sound-design bank')
-
-wav('rifle.wav',.12,lambda t:(n(t)*.35+math.sin(2*math.pi*160*t)*.2)*math.exp(-t*42))
-wav('rocket.wav',.5,lambda t:n(t)*.28*math.sin(math.pi*t/.5)**2)
-wav('explosion.wav',.9,lambda t:(n(t)*.4+math.sin(2*math.pi*58*t)*.3)*math.exp(-t*7))
+print('Created original pixel artwork. Sound assets are licensed recordings; see assets/SFX-CREDITS.md')

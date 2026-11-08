@@ -1,0 +1,130 @@
+{
+  "step_grass": {
+    "source_file": "impact-sounds/Audio/footstep_grass_000.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "d0debe9160017f41bf4fc7c2a36b32f074a2e863f80adef9f7e9cf77c5ed168e"
+  },
+  "step_stone": {
+    "source_file": "impact-sounds/Audio/footstep_concrete_000.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "d6652b1710194300ec711b99888e2d5e84387fddea6a403ed37dda209da1a3e4"
+  },
+  "attack": {
+    "source_file": "tube-plastic-whoosh-01.wav",
+    "pack": "Tinysized SFX / Vehicle",
+    "license": "CC0",
+    "sha256": "cae83b3f4fcd467ba3f04fc34aafb669d1851e630bdc89a4fcefef89f9af11a0"
+  },
+  "attack_2": {
+    "source_file": "tube-plastic-whoosh-02.wav",
+    "pack": "Tinysized SFX / Vehicle",
+    "license": "CC0",
+    "sha256": "aaf98901eeb140678e7fdd229ab6d47c01f33ac39f47875022765181830a076a"
+  },
+  "attack_3": {
+    "source_file": "rpg-audio/Audio/knifeSlice.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "9d45954a8c74961c28afcfe73a23b6bf3467065b0153722e7dc916e99897190e"
+  },
+  "sword_hit": {
+    "source_file": "sword-clash-03.wav",
+    "pack": "Tinysized SFX / Vehicle",
+    "license": "CC0",
+    "sha256": "15480e6248e3fd321a44650323ce0fe673dc815e4d44eabcafacf108eca363dd"
+  },
+  "water": {
+    "source_file": "water-pour-01.wav",
+    "pack": "Tinysized SFX / Vehicle",
+    "license": "CC0",
+    "sha256": "8614a0048f7dc6294be00d4af90e081ced494dc786e4afeceeca3ec4a5865365"
+  },
+  "fill": {
+    "source_file": "water-vial-fill-01.wav",
+    "pack": "Tinysized SFX / Vehicle",
+    "license": "CC0",
+    "sha256": "3eb07fefe9aa1dbf18516bcfb2f146ee759857a3df666c45cd719c9136b8ed25"
+  },
+  "paper": {
+    "source_file": "rpg-audio/Audio/bookFlip2.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "241848b76e2f2ba1064a497c61be2dc59ef6b774babc7df336e7812aa9eba4a5"
+  },
+  "ui": {
+    "source_file": "rpg-audio/Audio/metalClick.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "a20099939e6a31bc13aa8e28926c0214ce6d2184745922cb57e2975eb144ec3d"
+  },
+  "chime": {
+    "source_file": "rpg-audio/Audio/handleCoins.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "41fac8dba1e33c73ec00df651e10f1dc2a99e0bc1525bc90bba70f944bcd68ce"
+  },
+  "chest": {
+    "source_file": "rpg-audio/Audio/doorOpen_2.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "866cec4177fc47f28fc4613a43d905f5491385a6434c698920fed13d1939db76"
+  },
+  "hurt": {
+    "source_file": "impact-sounds/Audio/impactSoft_heavy_000.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "b3a28df744c0f9d792316b3a34a311b7a98e054b0d7d865bd8af7a8cb7eed484"
+  },
+  "rocket": {
+    "source_file": "sci-fi-sounds/Audio/thrusterFire_000.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "6dbb2a8e9011e48ba2aca085b5502c17f946714bcaf13da284ddc58a51581324"
+  },
+  "explosion": {
+    "source_file": "sci-fi-sounds/Audio/explosionCrunch_000.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "06fa38e0b12985734d85711e310bddf837ebb25bed18700f540a10c56b8d41b4"
+  },
+  "ambient": {
+    "source_file": "rpg-audio/Audio/creak1.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "d13e396a40908343c08f14b577c14f6dbbec0cd211c0de9869c68cd59f32fa70"
+  },
+  "step_grass_2": {
+    "source_file": "impact-sounds/Audio/footstep_grass_001.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "5317838e5aad1b9fdbf223eda21dcefb5d1287ce35de543c9fc8b7bab0b2ba1e"
+  },
+  "step_stone_2": {
+    "source_file": "impact-sounds/Audio/footstep_concrete_001.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "4ec39a47f4c5dc3fa10864c67c4e9abecf6d0fca3fa4e46abea27b1df1cdb757"
+  },
+  "step_grass_3": {
+    "source_file": "impact-sounds/Audio/footstep_grass_002.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "9a94591ab58ffa0998d91f1285e9b2392e8bdfecb76bb23c2a658f653dce4d21"
+  },
+  "step_stone_3": {
+    "source_file": "impact-sounds/Audio/footstep_concrete_002.ogg",
+    "pack": "Kenney",
+    "license": "CC0",
+    "sha256": "07807fab172879fc58d663005418f9ead68c7ba8e588c6ddff416786a902266e"
+  },
+  "rifle": {
+    "pack": "Gunshot Sounds / Vincent Sevedge (Tabasco)",
+    "source_file": "sounds/sks.wav",
+    "source_url": "https://opengameart.org/content/gunshot-sounds",
+    "license": "CC BY 3.0 (bundled license; OGA page differs)",
+    "changes": "0.28\u20131.03 sec excerpt, mono 44.1kHz, loudness normalization, fade",
+    "sha256": "cecb857f6092b5bb36fcfebe4bf69ba2ec4f91bd120ba865a9be4f10e33cb39e"
+  }
+}

@@ -11,8 +11,8 @@ func run():
 	check(game.fog.visible,'darkness overlay enabled')
 	for obj in game.objects:
 		if obj.id=='flashlight':game.player=obj.pos
-	game.update_new_rooms(.01)
-	check(game.save_data.flashlight,'flashlight picked up in corridor')
+	game.find_nearest();game.interact()
+	check(game.save_data.flashlight,'flashlight taken from corridor pedestal')
 	check(not game.dark_letters_found(),'dark exit requires three letters')
 	for id in ['shade_1','shade_2','shade_3']:game.collect(id);game.clear_modal()
 	check(game.dark_letters_found(),'all dark letters unlock exit')
@@ -34,7 +34,8 @@ func run():
 	game.save_data.shovel=true
 	game.begin_task('dig:dig_0',Vector2.ZERO,2.6);game.update_tasks(2.7)
 	check('buried' not in game.save_data.letters and 'dig_0' in game.save_data.dug,'empty dig spot persists')
-	game.begin_task('dig:dig_6',Vector2.ZERO,2.6);game.update_tasks(2.7)
+	game.save_data.dig_target=[200,200]
+	game.begin_task('dig:200:200',Vector2(200,200),.5);game.update_tasks(.51)
 	check('buried' in game.save_data.letters,'digging finds buried letter')
 	game.clear_modal();game.travel(2)
 	await create_timer(2.7).timeout
