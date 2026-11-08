@@ -104,8 +104,6 @@ func run() -> void:
 	mapfile.store_string(JSON.stringify({"grid":game.grid,"objects":game.objects.map(func(o): return {"id":o.id,"x":o.pos.x,"y":o.pos.y})}))
 	print("COMPLETE: ",checks," checks")
 	mapfile.close()
-	game.music.stop()
-	game.sound.stop()
 	await create_timer(0.1).timeout
 	game.queue_free()
 	game = null

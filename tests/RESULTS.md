@@ -1,3 +1,13 @@
+# Mobile Portrait — 8 ноября 2026
+
+Текущая версия: touch-only, portrait 540×960. Godot 4.7.2 импортирует и экспортирует проект без GDScript errors. В native Compatibility preview проверены вертикальные меню, игровое поле, полностью закрытая героиня, большой сундук и вертикальная открытка.
+
+Один короткий Playwright Chromium smoke test с Android viewport прошёл mobile launch gate. Chromium/SwiftShader этой proot-среды вновь сообщил WebGL INVALID_OPERATION, поэтому проверка отрисовки в нём не засчитывается. Firefox в этой итерации не запускался. Массовый повтор тестов не выполнялся.
+
+По официальной документации проверены iOS Home Screen standalone и отсутствие стандартной Vibration API в WebKit. Реальный iPhone/Safari и аппаратная вибрация Android здесь недоступны. Фактические 60 FPS не подтверждены.
+
+Ниже — историческая проверка механик предыдущей версии. Она подтверждает базовую логику глав, но её screenshots и раскладка относятся к прежнему интерфейсу.
+
 # Проверки 8 ноября 2026
 
 - Godot 4.7.2: импорт, Compatibility renderer, однопоточный Web Release Export выполнены.

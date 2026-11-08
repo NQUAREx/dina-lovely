@@ -24,8 +24,6 @@ func run():
 	await capture("native_final")
 	game.show_card()
 	await capture("native_card")
-	game.music.stop()
-	game.sound.stop()
 	await create_timer(.2).timeout
 	game.queue_free()
 	await process_frame

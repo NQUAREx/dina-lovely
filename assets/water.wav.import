@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://dkpbkmkjvn2as"
-path="res://.godot/imported/garden.wav-2e00d97931783ef0971d49f8a32277c2.sample"
+uid="uid://1mc3uuup7574"
+path="res://.godot/imported/water.wav-79fbea73c2c90c058a7cd62a9249ed98.sample"
 
 [deps]
 
-source_file="res://assets/garden.wav"
-dest_files=["res://.godot/imported/garden.wav-2e00d97931783ef0971d49f8a32277c2.sample"]
+source_file="res://assets/water.wav"
+dest_files=["res://.godot/imported/water.wav-79fbea73c2c90c058a7cd62a9249ed98.sample"]
 
 [params]
 

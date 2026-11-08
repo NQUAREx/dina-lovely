@@ -57,16 +57,21 @@ def stone(d):
  d.rounded_rectangle((3,20,28,43),3,fill='#57516d');d.rectangle((5,22,26,36),fill='#93839b');d.line((6,23,25,23),fill='#d0b3ba');d.rectangle((9,28,22,31),fill='#cab0bb')
 sprite('stone',stone)
 def hero(d,face,frame):
- b=1 if frame%2 else 0;step=2 if frame==1 else -2 if frame==3 else 0
- d.rectangle((10+step,39,14+step,44),fill='#443a53');d.rectangle((18-step,39,22-step,44),fill='#443a53')
- d.polygon([(10,27+b),(22,27+b),(25,39+b),(7,39+b)],fill='#b66c9c');d.line((9,36+b,23,36+b),fill='#efb5c4',width=2)
- d.rectangle((6,28+b,9,34+b),fill='#f5c5ad');d.rectangle((23,28+b,25,34+b),fill='#f5c5ad')
- d.rounded_rectangle((7,10+b,24,28+b),5,fill='#49384d');d.rectangle((10,16+b,21,27+b),fill='#f6cbb2');d.rectangle((8,11+b,23,17+b),fill='#674458');d.rectangle((7,15+b,10,29+b),fill='#674458');d.rectangle((22,14+b,24,29+b),fill='#674458');d.line((10,12+b,19,12+b),fill='#a16b75',width=2)
+ b=frame%2; sway=[0,1,0,-1][frame]
+ # Fully covered silhouette: long dress, gloves, layered scarf and opaque veil.
+ d.polygon([(11,24+b),(22,24+b),(27+sway,44),(5+sway,44)],fill='#302d48')
+ d.polygon([(13,26+b),(19,26+b),(23+sway,43),(9+sway,43)],fill='#55516c')
+ d.line((12,31+b,10+sway,42),fill='#77718a');d.line((20,29+b,24+sway,42),fill='#403c58',width=2)
+ d.line((7+sway,43,25+sway,43),fill='#bd9eaf')
+ d.rounded_rectangle((6,7+b,26,29+b),8,fill='#65576d')
+ d.polygon([(7,15+b),(25,15+b),(28,33+b),(18,30+b),(5,33+b)],fill='#8e7c90')
+ d.line((9,12+b,16,9+b,23,13+b),fill='#c7b0be',width=2)
  if face!=0:
-  for x in ([12,19] if face==2 else [11] if face==1 else [20]):d.rectangle((x,20+b,x+1,22+b),fill='#433849')
-  d.point((16,25+b),fill='#c9848d')
- else:d.rectangle((10,17+b,21,27+b),fill='#674458')
- d.rectangle((20,12+b,25,14+b),fill='#e9a9c1');d.point((23,13+b),fill='#ffe7ac')
+  d.rounded_rectangle((10 if face!=3 else 13,15+b,23 if face!=1 else 20,28+b),3,fill='#373348')
+  d.line((12,25+b,21,26+b),fill='#51495f')
+ else:d.line((15,15+b,17,30+b),fill='#b29baa')
+ d.rectangle((6,31+b,9,35+b),fill='#4a435d');d.rectangle((23,31+b,26,35+b),fill='#4a435d')
+ d.point((23,12+b),fill='#f3d19c')
 for direction in range(4):
  for frame in range(4):sprite(f'hero{direction}_{frame}',lambda d,di=direction,f=frame:hero(d,di,f))
 def enemy(d,kind):
@@ -101,18 +106,28 @@ for x in range(0,540,35):d.ellipse((x-40,250+random.randrange(30),x+65,400),fill
 d.rectangle((130,271,410,283),fill='#aa7d83');d.rectangle((150,304,160,350),fill='#5a4b5d');d.rectangle((380,304,390,350),fill='#5a4b5d');d.rectangle((130,298,410,311),fill='#9b717e')
 for x,c in [(245,'#bd7c9c'),(295,'#7f91b5')]:
  d.ellipse((x-18,210,x+18,246),fill='#e5bba5');d.rounded_rectangle((x-21,240,x+21,299),10,fill=c);d.ellipse((x-20,204,x+20,227),fill='#594555');d.line((x-9,298,x-12,334),fill='#49455c',width=10);d.line((x+9,298,x+14,334),fill='#49455c',width=10)
-d.line((263,254,277,254),fill='#e5bba5',width=9)
+d.polygon([(224,241),(264,241),(273,330),(215,330)],fill='#65576d')
+d.ellipse((222,200,266,245),fill='#8e7c90')
+d.polygon([(223,217),(264,217),(271,258),(219,258)],fill='#8e7c90')
+d.line((263,254,277,254),fill='#51495f',width=9)
 im.save(A/'keepsake.png')
 def wav(name,seconds,sample):
  rate=22050
  with wave.open(str(A/name),'w') as w:
   w.setparams((1,2,rate,0,'NONE','not compressed'));w.writeframes(b''.join(struct.pack('<h',int(max(-1,min(1,sample(i/rate)))*20000)) for i in range(int(seconds*rate))))
-notes=[60,64,67,71,69,67,64,62,57,60,64,67,65,64,60,59,53,57,60,64,62,60,57,55,55,59,62,67,64,62,59,62]
-def music(t):
- beat=.52;i=int(t/beat);u=t%beat;n=notes[i%len(notes)];f=440*2**((n-69)/12);env=min(1,u/.015)*math.exp(-u*4);mel=(math.sin(2*math.pi*f*t)+.25*math.sin(4*math.pi*f*t))*env*.17
- root=[48,45,41,43][(i//8)%4];pad=sum(math.sin(2*math.pi*440*2**((root+j-69)/12)*t) for j in [0,7,12])*.024;fade=min(1,t/.5,(16.64-t)/.5);return (mel+pad)*fade
-wav('garden.wav',16.64,music)
-wav('chime.wav',.7,lambda t:sum(math.sin(2*math.pi*f*t) for f in [659,830,988])*.15*math.exp(-t*7))
-wav('attack.wav',.16,lambda t:math.sin(2*math.pi*(550*t-900*t*t))*.24*(1-t/.16))
-wav('hurt.wav',.2,lambda t:math.sin(2*math.pi*150*t)*.25*(1-t/.2))
-print('Created',len(NAMES),'original sprites')
+# Layered, non-musical sound effects. No background music is generated.
+noise_rng=random.Random(37)
+noise=[noise_rng.uniform(-1,1) for _ in range(44100)]
+def n(t):return noise[int(t*22050)%len(noise)]
+wav('chime.wav',.6,lambda t:math.sin(2*math.pi*1350*t)*math.exp(-t*12)*.12+n(t)*math.exp(-t*24)*.03)
+wav('attack.wav',.24,lambda t:n(t)*math.sin(math.pi*t/.24)**2*.22+math.sin(2*math.pi*(320*t-500*t*t))*.12*math.exp(-t*15))
+wav('hurt.wav',.3,lambda t:(n(t)*.15+math.sin(2*math.pi*95*t)*.2)*math.exp(-t*15))
+wav('step_grass.wav',.18,lambda t:n(t)*math.exp(-t*27)*.18)
+wav('step_stone.wav',.18,lambda t:(n(t)*.12+math.sin(2*math.pi*190*t)*.2)*math.exp(-t*35))
+wav('water.wav',1.1,lambda t:(n(t)*.12+math.sin(2*math.pi*(780*t+25*math.sin(t*33)))*.06)*min(1,t*12)*min(1,(1.1-t)*5))
+wav('fill.wav',1.3,lambda t:(n(t)*.09+math.sin(2*math.pi*(380*t+35*t*t))*.08)*math.sin(math.pi*t/1.3)**2)
+wav('paper.wav',.5,lambda t:n(t)*.12*math.sin(t*85)**2*math.exp(-t*6))
+wav('ui.wav',.08,lambda t:math.sin(2*math.pi*720*t)*math.exp(-t*65)*.12)
+wav('chest.wav',1.6,lambda t:(n(t)*.1*math.exp(-t*6)+math.sin(2*math.pi*(170*t-25*t*t))*.13*math.exp(-t*4)+math.sin(2*math.pi*1650*t)*.05*math.exp(-max(0,t-.3)*4))*min(1,t*50))
+wav('ambient.wav',2.0,lambda t:n(t)*.018*math.sin(math.pi*t/2)**2+math.sin(2*math.pi*(1600*t+90*math.sin(t*8)))*.015*max(0,math.sin(t*13))**10)
+print('Created covered heroine and original sound-design bank')

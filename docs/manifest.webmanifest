@@ -1,0 +1,1 @@
+{"name": "Сад, где живёт любовь", "short_name": "Наш сад", "id": "./", "start_url": "./", "scope": "./", "display": "fullscreen", "orientation": "portrait", "background_color": "#242538", "theme_color": "#242538", "icons": [{"src": "index.apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}]}

@@ -22,3 +22,14 @@ if marker not in s:
 </script>
 </body>''')
  p.write_text(s)
+
+import json, shutil
+root=p.parent.parent
+shutil.copyfile(root/'tools/mobile_shell.js',p.parent/'mobile.js')
+manifest={"name":"Сад, где живёт любовь","short_name":"Наш сад","id":"./","start_url":"./","scope":"./","display":"fullscreen","orientation":"portrait","background_color":"#242538","theme_color":"#242538","icons":[{"src":"index.apple-touch-icon.png","sizes":"180x180","type":"image/png"}]}
+(p.parent/'manifest.webmanifest').write_text(json.dumps(manifest,ensure_ascii=False))
+s=p.read_text()
+if 'mobile.js' not in s:
+ s=s.replace('</head>','<link rel="manifest" href="manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><script src="mobile.js"></script></head>')
+ s=s.replace('engine.startGame({','window.gardenLaunch.then(() => engine.startGame({').replace('}).then(() => {\n\t\t\tsetStatusMode', '})).then(() => {\n\t\t\tsetStatusMode')
+ p.write_text(s)

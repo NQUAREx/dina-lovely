@@ -61,13 +61,19 @@ var attack_button: Button
 var toast: Label
 var toast_time := 0.0
 var nearest := -1
-var music: AudioStreamPlayer
+var audio_pool: Array[AudioStreamPlayer] = []
+var audio_cursor := 0
+var step_clock := 0.0
+var shake := 0.0
+var shake_offset := Vector2.ZERO
+var ambience_clock := 3.0
 var sound: AudioStreamPlayer
 var sound_on := true
-var music_on := true
 var fps_average := 60.0
 var low_fx := false
 var save_error := false
+var browser_paused := false
+var browser_poll := 0.0
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -78,13 +84,13 @@ func _ready() -> void:
 	setup_ui()
 	build_level(2)
 	camera = Vector2(13.5,9.5)*TILE
-	touch_mode = DisplayServer.is_touchscreen_available()
+	touch_mode = true
 	show_menu()
 	get_viewport().size_changed.connect(layout_ui)
 	layout_ui()
 
 func default_save() -> Dictionary:
-	return {"version":1,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"music":true,"sound":true,"started":false}
+	return {"version":1,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -97,11 +103,10 @@ func load_save() -> void:
 			# JSON numbers decode as floats.
 			save_data.level = clampi(int(parsed.get("level", 0)), 0, 3)
 			save_data.water = clampi(int(parsed.get("water", 0)), 0, 3)
-	music_on = save_data.music
 	sound_on = save_data.sound
 
 func persist() -> void:
-	save_data.music = music_on
+	save_data.erase("music")
 	save_data.sound = sound_on
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:
@@ -112,25 +117,23 @@ func persist() -> void:
 		if is_instance_valid(toast): notify("Хранилище недоступно. Не закрывай вкладку до финала.")
 
 func setup_audio() -> void:
-	music = AudioStreamPlayer.new()
-	var track: AudioStreamWAV = load("res://assets/garden.wav")
-	track.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	track.loop_end = int(track.mix_rate * 16.64)
-	music.stream = track
-	music.volume_db = -15
-	add_child(music)
-	sound = AudioStreamPlayer.new()
-	sound.volume_db = -10
-	add_child(sound)
+	for i in range(10):
+		var voice := AudioStreamPlayer.new()
+		voice.volume_db = -12
+		add_child(voice)
+		audio_pool.append(voice)
 
 func sfx(name: String = "chime") -> void:
-	if sound_on:
-		sound.stream = load("res://assets/" + name + ".wav")
-		sound.play()
+	if not sound_on: return
+	var voice := audio_pool[audio_cursor % audio_pool.size()]
+	audio_cursor += 1
+	voice.stream = load("res://assets/" + name + ".wav")
+	voice.pitch_scale = randf_range(.94,1.06)
+	voice.play()
 
-func start_music() -> void:
-	if music_on and not music.playing: music.play()
-	if not music_on: music.stop()
+func haptic(duration: int = 18) -> void:
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("window.gardenHaptic && window.gardenHaptic(" + str(duration) + ")")
 
 func panel_style(color: Color, border: Color = Color("a07890"), radius: int = 12) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -157,7 +160,7 @@ func label(text: String, size: int, color: Color = CREAM, fancy: bool = false) -
 func button(text: String, callback: Callable, width: float = 250) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(width, 40)
+	b.custom_minimum_size = Vector2(minf(width, 420), 60)
 	b.add_theme_font_override("font", body_font)
 	b.add_theme_font_size_override("font_size", 16)
 	b.add_theme_color_override("font_color", CREAM)
@@ -179,26 +182,26 @@ func setup_ui() -> void:
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(hud)
 	var top := Panel.new()
-	top.position = Vector2(18, 16)
-	top.size = Vector2(650, 80)
+	top.position = Vector2(16, 70)
+	top.size = Vector2(508, 100)
 	top.add_theme_stylebox_override("panel", panel_style(Color(0.12,0.14,0.22,0.92)))
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(top)
 	objective = label("", 18)
-	objective.position = Vector2(34, 26)
-	objective.size = Vector2(620, 29)
+	objective.position = Vector2(32, 84)
+	objective.size = Vector2(390, 46)
 	hud.add_child(objective)
 	status = label("", 14, Color("c1bdce"))
-	status.position = Vector2(34, 61)
-	status.size = Vector2(620, 28)
+	status.position = Vector2(32, 132)
+	status.size = Vector2(470, 34)
 	hud.add_child(status)
-	var menu_button := button("Ⅱ  Меню", show_menu, 116)
+	var menu_button := button("Ⅱ", show_menu, 68)
 	menu_button.name = "MenuButton"
 	hud.add_child(menu_button)
 	hint = label("", 15)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hud.add_child(hint)
-	action_button = button("E · Читать", interact, 155)
+	action_button = button("Читать", interact, 155)
 	hud.add_child(action_button)
 	attack_button = button("✦  Атака", func(): attack(), 120)
 	attack_button.button_down.connect(func(): attack_held = true)
@@ -214,7 +217,7 @@ func setup_ui() -> void:
 	bg.color = Color("242538")
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	rotate_overlay.add_child(bg)
-	var tip := label("↻\nПоверни экран\n\nВ этом саду чуть больше места\nдля маленького путешествия вдвоём.", 24, CREAM, true)
+	var tip := label("↻\nВерни телефон вертикально\n\nСад раскрывается в портретном режиме.", 24, CREAM, true)
 	tip.name = "OrientationMessage"
 	tip.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	tip.position = Vector2(-220,-125)
@@ -226,18 +229,19 @@ func setup_ui() -> void:
 func layout_ui() -> void:
 	var size := get_viewport_rect().size
 	if not is_instance_valid(hud): return
-	hud.get_node("MenuButton").position = Vector2(size.x - 142, 22)
-	action_button.position = size - Vector2(185, 85)
-	attack_button.position = size - Vector2(165, 152)
-	hint.position = Vector2(220, size.y - 47)
-	hint.size = Vector2(size.x - 430, 35)
-	toast.position = Vector2(160, 110)
-	toast.size = Vector2(size.x - 320, 60)
-	rotate_overlay.visible = size.y > size.x
+	hud.get_node("MenuButton").position = Vector2(444, 80)
+	action_button.position = Vector2(337, 824)
+	action_button.custom_minimum_size = Vector2(180,76)
+	attack_button.position = Vector2(365, 720)
+	attack_button.custom_minimum_size = Vector2(150,82)
+	hint.position = Vector2(36, 914)
+	hint.size = Vector2(468, 32)
+	toast.position = Vector2(32, 180)
+	toast.size = Vector2(476, 76)
+	rotate_overlay.visible = false
 	var orientation_text: Label = rotate_overlay.get_node("OrientationMessage")
-	orientation_text.add_theme_font_size_override("font_size", 42)
-	orientation_text.position = Vector2(-370,-200)
-	orientation_text.size = Vector2(740,400)
+	orientation_text.position = Vector2(-240,-180)
+	orientation_text.size = Vector2(480,360)
 
 func clear_modal() -> void:
 	if is_instance_valid(modal):
@@ -264,7 +268,7 @@ func modal_box(width: float = 610, height: float = 430, paper: bool = false) -> 
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	modal.add_child(center)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(width, height)
+	panel.custom_minimum_size = Vector2(500, minf(height, 740))
 	panel.add_theme_stylebox_override("panel", panel_style(CREAM if paper else Color("292c42"), Color("c899a4"), 16))
 	center.add_child(panel)
 	var margin := MarginContainer.new()
@@ -306,13 +310,11 @@ func new_game() -> void:
 	playing = true
 	build_level(0)
 	persist()
-	start_music()
 	show_intro()
 
 func resume_game() -> void:
 	playing = true
 	build_level(int(save_data.level))
-	start_music()
 	clear_modal()
 	hud.show()
 
@@ -322,13 +324,12 @@ func show_intro() -> void:
 	box.add_child(label(TITLES[level], 30, CREAM, true))
 	var texts := ["Этот сад хранит три письма. Найди их среди живых изгородей — и арка откроет дорогу дальше. Золотые искорки укажут, где можно что-то прочитать.\n\nНе спеши. Здесь есть и два маленьких секрета.","Немного смелости — и дорога снова открыта. Три волны сонных хранителей хотят поиграть.\n\nПодойди ближе и используй атаку. Розовый круг предупреждает об ударе: отойди! После каждой волны здоровье восстановится.","Когда о саде заботятся, он отвечает цветами. Найди лейку, набери воду у колодца и полей шесть ростков.\n\nЛейки хватит на три цветка. Возвращайся к колодцу, когда вода закончится.","Самый важный подарок уже рядом. Три знака на камнях хранят порядок нашего маленького дня.\n\nНажми их в порядке из писем. Журнал всегда доступен через меню."]
 	box.add_child(label(texts[level], 18))
-	box.add_child(label("WASD / стрелки — идти   ·   E — действие\nМышь — цель   ·   ЛКМ / пробел — атака\nНа телефоне: джойстик слева, кнопки справа.", 14, Color("c1bdce")))
+	box.add_child(label("Слева — джойстик. Справа — действие и атака.\nГероиня сама выбирает ближайшую цель.", 18, Color("c1bdce")))
 	box.add_child(button("Пойдём", func(): clear_modal(); hud.show()))
 
 func show_settings() -> void:
 	var box := modal_box(550, 350)
 	box.add_child(label("Звуки нашего сада", 28, CREAM, true))
-	box.add_child(button("Музыка: " + ("вкл" if music_on else "выкл"), func(): music_on = not music_on; start_music(); persist(); show_settings()))
 	box.add_child(button("Эффекты: " + ("вкл" if sound_on else "выкл"), func(): sound_on = not sound_on; persist(); show_settings()))
 	box.add_child(label("Прогресс хранится в этом браузере. Очистка данных сайта удалит сохранение. В приватном режиме оно может не сохраниться.", 14, Color("c1bdce")))
 	box.add_child(button("Назад", show_menu))
@@ -384,33 +385,34 @@ func collect(id: String) -> void:
 		burst(player, 22, PINK)
 		persist()
 		sfx()
+	sfx("paper")
 	show_letter(id)
 
 func show_card() -> void:
 	var box := modal_box(900, 490, true)
 	box.add_child(label("НАШЕ МАЛЕНЬКОЕ НАВСЕГДА", 12, Color("a26c7e")))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 30)
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
 	box.add_child(row)
 	var left := VBoxContainer.new()
-	left.custom_minimum_size.x = 320
+	left.custom_minimum_size.x = 420
 	row.add_child(left)
 	var picture := TextureRect.new()
 	picture.texture = load(content.photo) if ResourceLoader.exists(content.photo) else preload("res://assets/keepsake.png")
 	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	picture.custom_minimum_size = Vector2(320, 260)
+	picture.custom_minimum_size = Vector2(420, 190)
 	picture.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	left.add_child(picture)
 	left.add_child(label(content.photo_caption, 13, Color("a26c7e"), true))
 	left.add_child(label("♡  " + content.signature, 21, INK, true))
 	var right := VBoxContainer.new()
-	right.custom_minimum_size.x = 450
+	right.custom_minimum_size.x = 420
 	row.add_child(right)
 	right.add_child(label(content.recipient + ",", 19, Color("a26c7e"), true))
 	right.add_child(label(content.card_title, 28, INK, true))
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(450, 240)
+	scroll.custom_minimum_size = Vector2(420, 210)
 	right.add_child(scroll)
 	var text := label(content.card_text, 17, INK)
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -521,7 +523,7 @@ func build_level(index: int) -> void:
 
 func camera_target() -> Vector2:
 	var half := get_viewport_rect().size/2
-	return Vector2(clampf(player.x,half.x-48,grid[0].length()*TILE-half.x+48),clampf(player.y,half.y-110,grid.size()*TILE-half.y+64))
+	return Vector2(clampf(player.x,half.x-48,grid[0].length()*TILE-half.x+48),clampf(player.y,half.y-220,grid.size()*TILE-half.y+64))
 
 func blocked(pos: Vector2) -> bool:
 	for offset in [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]:
@@ -534,6 +536,11 @@ func blocked(pos: Vector2) -> bool:
 func move_player(delta: float, input: Vector2) -> void:
 	moving = input.length()>0.1
 	if not moving: return
+	step_clock -= delta
+	if step_clock<=0:
+		var cell := Vector2i(player/TILE)
+		sfx("step_stone" if level in [1,3] or (level==2 and (cell.x==13 or cell.y==15)) else "step_grass")
+		step_clock = .31
 	var motion := input.limit_length()*SPEED*delta
 	var next := player+Vector2(motion.x,0)
 	if not blocked(next): player = next
@@ -543,20 +550,31 @@ func move_player(delta: float, input: Vector2) -> void:
 	else: direction = 0 if input.y<0 else 2
 
 func _process(delta: float) -> void:
+	browser_poll -= delta
+	if OS.has_feature("web") and browser_poll<=0:
+		browser_paused = bool(JavaScriptBridge.eval("!!window.gardenSuspended"))
+		browser_poll = .25
+		if browser_paused: joy_id = -1; joy_vector = Vector2.ZERO; attack_held = false
 	time += delta
 	toast_time -= delta
 	toast.visible = toast_time>0
 	fps_average = lerpf(fps_average, 1.0/maxf(delta,0.001), 0.01)
-	if time>8: low_fx = fps_average<42
-	if not paused and playing and not rotate_overlay.visible:
-		var input := Vector2(float(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT))-float(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)),float(Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN))-float(Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)))
+	low_fx = false
+	shake = maxf(0,shake-delta*13)
+	shake_offset = Vector2(sin(time*47),cos(time*53))*shake
+	ambience_clock -= delta
+	if ambience_clock<=0 and playing and not paused:
+		sfx("ambient")
+		ambience_clock = randf_range(7,13)
+	if not paused and playing and not browser_paused and not rotate_overlay.visible:
+		var input := Vector2.ZERO
 		if joy_id>=0: input = joy_vector
 		move_player(minf(delta,0.04),input)
 		camera = camera.lerp(camera_target(),1-exp(-delta*9))
 		invincible = maxf(0,invincible-delta)
 		attack_cd -= delta
 		attack_flash = maxf(0,attack_flash-delta)
-		if attack_held or Input.is_physical_key_pressed(KEY_SPACE): attack()
+		if attack_held: attack()
 		if level == 1 and not combat_done: update_combat(minf(delta,0.04))
 		for id in bloom_times: bloom_times[id] = minf(1.0,bloom_times[id]+delta/2.8)
 		find_nearest()
@@ -589,6 +607,8 @@ func _input(event: InputEvent) -> void:
 		var surface: Node = modal if paused and is_instance_valid(modal) else root
 		var target := touch_button_at(surface,event.position)
 		if target:
+			haptic(12)
+			sfx("ui")
 			touch_buttons[event.index] = weakref(target)
 			if target==attack_button: attack_held = true; attack()
 			get_viewport().set_input_as_handled()
@@ -600,16 +620,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ESCAPE:
-			if paused and playing and health>0: clear_modal()
-			else: show_menu()
-		if not paused and event.keycode == KEY_E: interact()
-	if paused or not playing or rotate_overlay.visible: return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.device != InputEvent.DEVICE_ID_EMULATION:
-		if event.pressed:
-			touch_mode = false
-			attack()
+	if paused or not playing: return
 	if event is InputEventScreenTouch:
 		touch_mode = true
 		if event.pressed and event.position.x<get_viewport_rect().size.x*0.48 and joy_id<0:
@@ -675,6 +686,7 @@ func interact() -> void:
 		if not garden_can: notify("Лейка ждёт в юго-западном уголке сада.")
 		else:
 			water = 3
+			sfx("fill")
 			save_data.water = water
 			persist()
 			sfx()
@@ -685,6 +697,8 @@ func interact() -> void:
 		elif water==0: notify("Вода закончилась. Колодец в центре сада.")
 		else:
 			water -= 1
+			sfx("water")
+			haptic(25)
 			watered.append(id)
 			bloom_times[id] = 0.0
 			save_data.water = water
@@ -727,6 +741,9 @@ func next_level() -> void:
 
 func finish_game() -> void:
 	chest_open = true
+	shake = 14
+	haptic(100)
+	sfx("chest")
 	save_data.finished = true
 	if 3 not in save_data.completed_levels: save_data.completed_levels.append(3)
 	persist()
@@ -747,21 +764,21 @@ func update_hud() -> void:
 			for id in REQUIRED:
 				if id in save_data.letters: count+=1
 			status.text = "Письма %d / 3   ·   Секреты %d / 2   ·   %s" % [count,save_data.secrets.size(),"Арка открыта" if count==3 else "Ищи золотые искорки"]
-		1: status.text = "♥ ".repeat(health) + "   Волна %d / 3   ·   %s" % [mini(wave,3),"Открой сундук" if combat_done else "Пробел / ЛКМ — атака"]
+		1: status.text = "♥ ".repeat(health) + "   Волна %d / 3   ·   %s" % [mini(wave,3),"Открой сундук" if combat_done else "Удерживай кнопку атаки"]
 		2: status.text = "Цветы %d / 6   ·   %s" % [watered.size(),"Вода: "+str(water)+" / 3" if garden_can else "Найди лейку на юго-западе"]
 		3: status.text = "Знаки %d / 3   ·   Подсказка в журнале писем" % puzzle.size()
 	action_button.visible = nearest>=0 and playing
-	if nearest>=0: action_button.text = ("" if touch_mode else "E · ")+action_text(objects[nearest])
+	if nearest>=0: action_button.text = ""+action_text(objects[nearest])
 	attack_button.visible = level==1 and not combat_done and playing
-	hint.text = "Проведи слева, чтобы идти" if touch_mode and joy_id<0 else ("WASD · идти     E · действие     Esc · меню" if not touch_mode else "")
+	hint.text = "Коснись слева, чтобы идти" if joy_id<0 else ""
 
 func notify(text: String) -> void:
 	toast.text = text
 	toast_time = 4.0
 
 func burst(pos: Vector2, count: int, color: Color) -> void:
-	for i in range(count/(2 if low_fx else 1)):
-		if particles.size()>=130: break
+	for i in range(count*2):
+		if particles.size()>=420: break
 		particles.append({"pos":pos+Vector2(0,-22),"vel":Vector2(randf_range(-65,65),randf_range(-100,20)),"life":randf_range(.7,1.6),"color":color,"heart":i%4==0})
 
 func spawn_wave() -> void:
@@ -824,9 +841,11 @@ func attack() -> void:
 			if d<closest:
 				closest = d
 				aim = (enemy.pos-player).normalized()
-	else: aim = (get_global_mouse_position()-screen(player)).normalized()
+	else: aim = Vector2.RIGHT
 	if aim.length()<.1: aim=Vector2.RIGHT
 	sfx("attack")
+	shake = 2.5
+	haptic(14)
 	for i in range(enemies.size()-1,-1,-1):
 		var enemy := enemies[i]
 		var diff: Vector2 = enemy.pos-player
@@ -844,6 +863,8 @@ func hurt() -> void:
 	health -= 1
 	invincible = 1.3
 	sfx("hurt")
+	shake = 8
+	haptic(60)
 	burst(player,12,PINK)
 	if health<=0:
 		var box := modal_box(590,330)
@@ -853,7 +874,7 @@ func hurt() -> void:
 		box.add_child(button("Меню", show_menu))
 
 func screen(pos: Vector2) -> Vector2:
-	return (pos-camera+get_viewport_rect().size/2).round()
+	return (pos-camera+get_viewport_rect().size/2+shake_offset).round()
 
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
 	var id := int(sprites.get(name,0))
@@ -918,9 +939,9 @@ func _draw() -> void:
 		var kind: String = item.kind
 		if kind=="player":
 			draw_shadow(p,19)
-			var frame := int(time*9)%4 if moving and not paused else 0
+			var frame := int(time*12)%4 if moving and not paused else 0
 			var color := Color(1,.65,.73) if invincible>0 and int(time*12)%2==0 else Color.WHITE
-			draw_sprite("hero"+str(direction)+"_"+str(frame),p,color)
+			draw_sprite("hero"+str(direction)+"_"+str(frame),p+Vector2(sin(time*9)*1.2 if moving else 0, sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3),color)
 			if attack_flash>0:
 				var angle := aim.angle()
 				draw_arc(p+Vector2(0,-20),88,angle-1.1,angle+1.1,22,Color(1,.84,.75,attack_flash/.19),7)
@@ -939,9 +960,9 @@ func _draw() -> void:
 			if kind=="sprout" and item.id in watered:
 				var growth: float = bloom_times.get(item.id,1.0)
 				draw_sprite("bloom",p,Color.WHITE,0.65+growth*.35)
-			elif kind=="chest" and ((item.id=="final" and chest_open) or item.id in save_data.letters): draw_sprite("chest_open",p)
+			elif kind=="chest": draw_sprite("chest_open" if ((item.id=="final" and chest_open) or item.id in save_data.letters) else "chest",p,Color.WHITE,3.0 if item.id=="final" else 1.0)
 			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4))
-			else: draw_sprite(kind,p)
+			else: draw_sprite(kind,p+Vector2(sin(time*1.3+item.pos.x)*1.3,0) if kind in ["tree","flowers","blueflowers"] else p)
 			if level==3 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("635770"))
 			if kind=="arch":
 				var open: bool = (level==0 and has_maze_letters()) or (level==1 and "courage" in save_data.letters) or (level==2 and "garden" in save_data.letters)
@@ -957,13 +978,20 @@ func _draw() -> void:
 		var p := screen(objects[nearest].pos)+Vector2(0,-88+sin(time*4)*3)
 		draw_colored_polygon(PackedVector2Array([p+Vector2(-6,-5),p+Vector2(6,-5),p+Vector2(0,2)]),Color("ffe4a8"))
 	# Deterministic ambient fireflies and butterflies, no nodes allocated per frame.
-	for i in range(12 if low_fx else 28):
+	for i in range(64):
 		var p := Vector2(fposmod(i*137.7+sin(time*.3+i)*26-camera.x*.13,view.x),fposmod(i*93.3+cos(time*.4+i)*18-camera.y*.13,view.y))
 		var alpha := .25+.4*(sin(time*1.7+i)+1)/2
 		if level==2 and i%3==0:
 			var flap := absf(sin(time*6+i))*5+1
 			draw_rect(Rect2(p-Vector2(flap,2),Vector2(flap*2,4)),Color(.92,.66,.84,alpha))
-		else: draw_rect(Rect2(p,Vector2(2,2)),Color(1,.87,.62,alpha))
+		else:
+			draw_texture_rect(glow,Rect2(p-Vector2(13,13),Vector2(28,28)),false,Color(1,.9,.65,alpha))
+			draw_rect(Rect2(p,Vector2(2,2)),Color(1,.87,.62,alpha))
+		if i%4==0:
+			var petal := p+Vector2(sin(time*.7+i)*20, sin(time*.4+i)*30)
+			draw_set_transform(petal,time*.3+i)
+			draw_rect(Rect2(Vector2(-2,-1),Vector2(4,2)),Color(.95,.65,.78,.35))
+			draw_set_transform(Vector2.ZERO)
 	for part in particles:
 		var c: Color = part.color
 		c.a = minf(1,part.life)
@@ -982,7 +1010,7 @@ func _draw() -> void:
 			draw_circle(p+joy_vector*43,22,Color(.92,.75,.82,.45))
 
 func draw_minimap(view: Vector2) -> void:
-	var origin := Vector2(view.x-150,90)
+	var origin := Vector2(view.x-150,235)
 	draw_style_box(panel_style(Color(.1,.12,.19,.85)),Rect2(origin-Vector2(9,9),Vector2(143,111)))
 	for y in range(grid.size()):
 		for x in range(grid[0].length()):
