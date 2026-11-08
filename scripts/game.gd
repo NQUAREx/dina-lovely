@@ -637,11 +637,9 @@ func move_player(delta: float, input: Vector2) -> void:
 	else: direction = 0 if input.y<0 else 2
 
 func _process(delta: float) -> void:
-	browser_poll -= delta
-	if OS.has_feature("web") and browser_poll<=0:
-		browser_paused = bool(JavaScriptBridge.eval("!!window.gardenSuspended"))
-		browser_poll = .25
-		if browser_paused: joy_id = -1; joy_vector = Vector2.ZERO; attack_held = false
+	# Browser visibility already suspends rendering; the DOM orientation gate
+	# covers landscape. Never gate simulation on a JavaScriptBridge value:
+	# its Variant conversion can disagree with native touch processing on WebKit.
 	time += delta
 	toast_time -= delta
 	toast.visible = toast_time>0
@@ -653,7 +651,7 @@ func _process(delta: float) -> void:
 	if ambience_clock<=0 and playing and not paused:
 		sfx("birds" if level==0 else "crickets" if level==1 else "ambient")
 		ambience_clock = 10.0 if level in [0,1] else randf_range(7,13)
-	if not paused and not transition and playing and not browser_paused and not rotate_overlay.visible:
+	if not paused and not transition and playing and not rotate_overlay.visible:
 		var input := Vector2.ZERO
 		if joy_id>=0: input = joy_vector
 		if task_time<=0: move_player(minf(delta,0.04),input)
