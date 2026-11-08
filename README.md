@@ -32,6 +32,7 @@ godot --path . --editor
 ```bash
 ./tools/godot.sh --headless --import
 ./tools/godot.sh --headless --export-release Web docs/index.html
+python3 tools/finalize_web.py
 ```
 
 В этой рабочей среде редактор установлен в `/root/toolchains/godot/Godot_v4.7.2-stable_linux.arm64`.
@@ -41,6 +42,7 @@ godot --path . --editor
 ```bash
 godot --headless --path . --import
 godot --headless --path . --export-release Web docs/index.html
+python3 tools/finalize_web.py
 python3 -m http.server 8000 --directory docs
 ```
 
@@ -92,3 +94,9 @@ python3 tools/serve.py
 ```
 
 Тест проходит все главы через методы игрового состояния и отдельно проверяет связность лабиринта. Это автоматическая проверка логики, а не замена ручному прохождению. `tools/serve.py` — только локальный статический preview server с gzip; для GitHub Pages он не нужен.
+
+### Браузерная проверка
+
+`python3 tools/build_browser_qa.py` создаёт отдельный проект `../love-browser-qa`, проходящий 51 проверку внутри WebAssembly. Он не публикуется. В production нет тестовых команд или переключения уровней. `tests/firefox_qa.py` проверяет release-интерфейс, IndexedDB, ориентацию и этот отдельный Web QA build. Пути к Firefox и geckodriver в тесте рассчитаны на текущую Linux-среду.
+
+После каждого экспорта запускайте `python3 tools/finalize_web.py`: он добавляет понятную кнопку перезапуска при сетевой ошибке или потере WebGL context. На очистку хранилища браузера этот механизм не влияет.

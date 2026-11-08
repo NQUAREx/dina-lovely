@@ -43,6 +43,7 @@ var chest_open := false
 var playing := false
 var paused := true
 var touch_mode := false
+var touch_buttons: Dictionary = {}
 var joy_id := -1
 var joy_origin := Vector2.ZERO
 var joy_vector := Vector2.ZERO
@@ -214,6 +215,7 @@ func setup_ui() -> void:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	rotate_overlay.add_child(bg)
 	var tip := label("↻\nПоверни экран\n\nВ этом саду чуть больше места\nдля маленького путешествия вдвоём.", 24, CREAM, true)
+	tip.name = "OrientationMessage"
 	tip.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	tip.position = Vector2(-220,-125)
 	tip.size = Vector2(440,250)
@@ -232,6 +234,10 @@ func layout_ui() -> void:
 	toast.position = Vector2(160, 110)
 	toast.size = Vector2(size.x - 320, 60)
 	rotate_overlay.visible = size.y > size.x
+	var orientation_text: Label = rotate_overlay.get_node("OrientationMessage")
+	orientation_text.add_theme_font_size_override("font_size", 42)
+	orientation_text.position = Vector2(-370,-200)
+	orientation_text.size = Vector2(740,400)
 
 func clear_modal() -> void:
 	if is_instance_valid(modal):
@@ -562,10 +568,36 @@ func _process(delta: float) -> void:
 		if particles[i].life<=0: particles.remove_at(i)
 	queue_redraw()
 
+func touch_button_at(node: Node, pos: Vector2) -> Button:
+	var children := node.get_children()
+	children.reverse()
+	for child in children:
+		var found := touch_button_at(child, pos)
+		if found: return found
+	if node is Button and node.is_visible_in_tree() and not node.disabled and node.get_global_rect().has_point(pos):
+		return node
+	return null
+
 func _input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch and not event.pressed and event.index==joy_id:
+	if not event is InputEventScreenTouch: return
+	touch_mode = true
+	if not event.pressed and event.index==joy_id:
 		joy_id = -1
 		joy_vector = Vector2.ZERO
+	if rotate_overlay.visible: return
+	if event.pressed:
+		var surface: Node = modal if paused and is_instance_valid(modal) else root
+		var target := touch_button_at(surface,event.position)
+		if target:
+			touch_buttons[event.index] = weakref(target)
+			if target==attack_button: attack_held = true; attack()
+			get_viewport().set_input_as_handled()
+	elif touch_buttons.has(event.index):
+		var target = touch_buttons[event.index].get_ref()
+		touch_buttons.erase(event.index)
+		attack_held = false
+		if is_instance_valid(target) and target.is_visible_in_tree() and target.get_global_rect().has_point(event.position): target.pressed.emit()
+		get_viewport().set_input_as_handled()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -574,7 +606,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			else: show_menu()
 		if not paused and event.keycode == KEY_E: interact()
 	if paused or not playing or rotate_overlay.visible: return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.device != InputEvent.DEVICE_ID_EMULATION:
 		if event.pressed:
 			touch_mode = false
 			attack()
