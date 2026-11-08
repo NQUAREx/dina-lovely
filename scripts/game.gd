@@ -1502,7 +1502,7 @@ func draw_extra_effects() -> void:
 			var plant: Dictionary = plants.get(obj.id,{"stage":0,"remaining":0.0})
 			var caption := tx("Очистить грядку") if obj.id not in save_data.cleaned else str(mini(2,int(plant.stage)))+"/2"
 			if float(plant.remaining)>0: caption += " · "+str(ceili(plant.remaining))+tx(" с")
-			elif obj.id not in fertilized: caption = tx("Удобрение")
+			elif obj.id not in fertilized and obj.id in save_data.cleaned: caption = tx("Удобрение")
 			draw_string(body_font,screen(obj.pos)+Vector2(-25,-68),caption,HORIZONTAL_ALIGNMENT_LEFT,-1,12,CREAM)
 	if task_time>0:
 		var origin := screen(player)+Vector2(12,-25)
