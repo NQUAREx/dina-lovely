@@ -15,3 +15,5 @@ All in-game audio uses downloaded sound libraries. No procedurally generated osc
 Rustle: qubodup, 20 Rustles of dry leaves, CC0. https://opengameart.org/content/20-rustles-dry-leaves — trimmed and normalized.
 
 Current bush rustle: Moving Leaves Stereo by Augmentality (Brandon Morris), CC0. https://opengameart.org/content/random-sounds-samples — excerpt, normalized and faded.
+
+Eating: StarNinjas, 7 Eating Crunches, CC0, https://opengameart.org/content/7-eating-crunches (normalized). Rake: mix of existing licensed Moving Leaves and Tinysized SFX scrape recordings. Reload: Tinysized SFX metal mechanism recording.

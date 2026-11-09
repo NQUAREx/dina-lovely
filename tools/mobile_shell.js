@@ -8,7 +8,9 @@
  const liveContent=fetch('https://raw.githubusercontent.com/NQUAREx/dina-lovely/main/content/letters.json?fresh='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(8000)}).then(r=>{if(!r.ok)throw Error(r.status);return r.json()}).then(d=>{window.gardenContent=d;return d;}).catch(()=>null);
  let launch;window.gardenLaunch=new Promise(r=>launch=r);
  const style=document.createElement('style');style.textContent=`html,body{margin:0;background:#242538;overscroll-behavior:none;height:100%;touch-action:none}#mobile-gate,#portrait-gate{position:fixed;inset:0;z-index:2000;background:radial-gradient(ellipse at top,#55435d,#242538 75%);color:#f5e3cf;display:grid;place-content:center;padding:max(28px,env(safe-area-inset-top)) 28px max(28px,env(safe-area-inset-bottom));text-align:center;font:17px/1.6 Georgia,serif}#mobile-gate h1{font-size:32px;line-height:1.2;color:#edbdce}#mobile-gate button{padding:18px 28px;border:1px solid #df9eb9;border-radius:18px;color:#fff0dc;background:#76556f;font:18px Georgia;margin-top:24px}#mobile-gate ol{text-align:left;max-width:340px}#portrait-gate{display:none;font-size:24px;z-index:3000}@media(orientation:landscape){#portrait-gate{display:grid}}canvas{touch-action:none}`;document.head.append(style);
- addEventListener('DOMContentLoaded',()=>{
+ addEventListener('DOMContentLoaded',async()=>{
+  const loaded=await liveContent;
+  if(!loaded){const retry=document.createElement('button');retry.textContent='↻';retry.style.cssText='position:fixed;left:45%;top:45%;font-size:48px;background:transparent;color:#edbdce;border:0';retry.onclick=()=>location.reload();document.body.append(retry);return;}
   const gate=document.createElement('section');gate.id='mobile-gate';
   if(!mobile)gate.innerHTML='<h1>Этот сад — в твоём телефоне</h1><p>Открой эту же ссылку на смартфоне.<br>Игра создана для вертикального экрана и касаний.</p>';
   else if(ios&&!standalone)gate.innerHTML='<h1>Сохрани наш сад</h1><p>Открой его как маленькое приложение — без панелей Safari.</p><ol><li>Нажми «Поделиться» в Safari.</li><li>Выбери «На экран Домой».</li><li>Включи «Открывать как веб-приложение», если этот переключатель показан.</li><li>Открой сад через новую иконку.</li></ol><p>После этого начнётся путешествие.</p>';
@@ -21,9 +23,11 @@
    };
   }
   const credits=document.createElement("a");credits.href="audio-credits.html";credits.target="_blank";credits.rel="noopener";credits.textContent="Звуки: авторы и лицензии";credits.style.cssText="color:#c3a7b8;font:12px sans-serif;margin-top:24px";gate.append(credits);
-  document.body.append(gate);
-  liveContent.then(d=>{if(!d)return;document.title=d.game_title||document.title;const title=gate.querySelector('h1');if(title&&mobile&&(!ios||standalone))title.textContent=d.game_title;const walk=n=>{for(const child of n.childNodes){if(child.nodeType===3&&d.ui&&d.ui[child.textContent])child.textContent=d.ui[child.textContent];else if(child.nodeType===1)walk(child);}};walk(gate);});
-  const rotate=document.createElement('div');rotate.id='portrait-gate';rotate.textContent='↻ Верни телефон вертикально';if(!mobile)rotate.style.display='none';document.body.append(rotate);
+  const translate=n=>{for(const child of n.childNodes){if(child.nodeType===3&&/[А-Яа-яЁё]/.test(child.textContent))child.textContent=loaded.ui?.[child.textContent]||'';else if(child.nodeType===1)translate(child);}};translate(gate);
+  const heading=gate.querySelector('h1');if(heading&&mobile&&(!ios||standalone))heading.textContent=loaded.game_title;
+  document.title=loaded.game_title;document.body.append(gate);
+
+  const rotate=document.createElement('div');rotate.id='portrait-gate';rotate.textContent='↻ Верни телефон вертикально';if(!mobile)rotate.style.display='none';translate(rotate);document.body.append(rotate);
  });
  addEventListener('pointerdown',()=>{if(mobile&&!ios&&!document.fullscreenElement&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});},{passive:true});
 })();

@@ -29,7 +29,9 @@ def lamp(d):
  d.ellipse((9,39,22,43),fill='#36394b');d.rectangle((14,22,17,41),fill='#66536a');d.rectangle((10,15,21,26),fill='#473d55');d.rectangle((12,17,19,24),fill='#ffdca0');d.rectangle((13,18,17,22),fill='#fff4ca');d.polygon([(8,15),(15,10),(23,15)],fill='#8b6879')
 sprite('lamp',lamp)
 def note(d):
- d.rectangle((6,28,25,41),fill='#9a6474');d.rectangle((6,27,25,38),fill='#f7e5c8');d.line((6,27,15,34,25,27),fill='#cc9b95');d.polygon([(13,33),(15,35),(18,32),(17,30),(15,31),(14,30)],fill='#ca6c88')
+ d.rectangle((5,26,26,41),fill='#895969');d.rectangle((6,27,25,39),fill='#fff0d9');d.line((6,27,16,34,25,27),fill='#c58b94',width=1)
+ d.polygon([(12,30),(15,30),(16,32),(17,30),(20,30),(21,32),(21,34),(16,39),(11,34),(11,32)],fill='#a53261')
+ d.polygon([(12,31),(14,31),(16,34),(18,31),(20,31),(20,34),(16,38),(12,34)],fill='#ef7092');d.point((13,32),fill='#ffd3d6')
 sprite('note',note)
 def chest(d,opened=False):
  d.rectangle((3,27,28,42),fill='#543c51');d.rectangle((5,29,26,39),fill='#a36269');d.rectangle((5,29,26,31),fill='#e4ae86');d.rectangle((6,34,25,36),fill='#7c4c5b');d.rectangle((8,28,10,41),fill='#dbb580');d.rectangle((23,28,25,41),fill='#dbb580');
@@ -139,6 +141,21 @@ for variant in range(3):
 sprite('berries',lambda d:(d.ellipse((8,24,24,38),fill='#487b50'),d.rectangle((12,25,15,28),fill='#dc7694'),d.rectangle((20,29,23,32),fill='#d95378')))
 sprite('rake',lambda d:(d.line((13,39,20,13),fill='#ae8866',width=2),d.line((12,13,26,17),fill='#c8c5b0',width=2),[d.line((x,14,x-2,20),fill='#c8c5b0') for x in range(13,27,3)]))
 sprite('weeds',lambda d:(d.ellipse((4,34,29,44),fill='#574b41'),[d.line((x,40,x-4,22+(x%4)*3),fill='#64845a',width=3) for x in range(8,28,4)]))
+sprite('note_open',lambda d:(d.polygon([(5,28),(16,16),(26,28)],fill='#e8c8b8'),d.rectangle((5,28,26,41),fill='#d9ad9e'),d.polygon([(6,29),(16,36),(25,29),(25,40),(6,40)],fill='#f6dfc8')))
+for variant in range(6):
+ def blossom(d,v=variant):
+  plant(d,True)
+  colors=['#ef9ab5','#e7c76b','#bdb2ec','#8fced6','#f0ae82','#f5dfe5']
+  x=16; y=17-(v%3)*2
+  for k in range(5+v%3):
+   a=k*math.tau/(5+v%3);cx=x+round(math.cos(a)*(4+v%2));cy=y+round(math.sin(a)*(4+v%2))
+   d.ellipse((cx-3,cy-3,cx+3,cy+3),fill=colors[v])
+  d.rectangle((x-1,y-1,x+1,y+1),fill='#ffe6a1')
+ sprite('bloom'+str(variant),blossom)
+def swing(d):
+ d.line((3,43,7,5,25,5,29,43),fill='#806955',width=3);d.line((6,5,26,5),fill='#d0ad7d',width=3)
+ d.line((11,8,11,32),fill='#c5b394');d.line((22,8,22,32),fill='#c5b394');d.rectangle((8,33,25,36),fill='#b9866b')
+sprite('swing',swing)
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)

@@ -41,5 +41,9 @@ credits=(root/'assets/SFX-CREDITS.md').read_text()
 # Fit the canvas itself, leaving the page-colored area outside Godot.
 s=p.read_text().replace('"canvasResizePolicy":2','"canvasResizePolicy":0')
 s=s.replace('<canvas id="canvas"','<canvas width="540" height="960" id="canvas"')
-s=s.replace('</head>','<style>html,body{background:#242538!important}#canvas{position:fixed!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:min(100vw,56.25dvh)!important;height:min(100dvh,177.777778vw)!important;margin:0!important;display:block}</style></head>')
+s=s.replace('</head>','<style>html,body{background:#242538!important}#status-splash{display:none!important}#canvas{position:fixed!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:min(100vw,56.25dvh)!important;height:min(100dvh,177.777778vw)!important;margin:0!important;display:block}</style></head>')
 p.write_text(s)
+
+# Do not flash a baked title while live content is loading.
+import re
+p.write_text(re.sub(r"<title>.*?</title>","<title></title>",p.read_text(),flags=re.S))

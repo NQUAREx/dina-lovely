@@ -2,7 +2,8 @@ config_version=5
 
 [application]
 config/icon="res://assets/icon.png"
-boot_splash/image="res://assets/cover.png"
+boot_splash/image=""
+boot_splash/show_image=false
 boot_splash/bg_color=Color(0.141, 0.145, 0.22, 1)
 config/name="Тебе. От меня."
 run/main_scene="res://main.tscn"

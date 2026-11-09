@@ -144,5 +144,23 @@
     "source_url": "https://opengameart.org/content/random-sounds-samples",
     "license": "CC0",
     "sha256": "de1b6b883b9b4748b62a084ce73b91903e1a29338170fd746bd2da1d18f6ba38"
+  },
+  "eat": {
+    "pack": "7 Eating Crunches — StarNinjas",
+    "source_url": "https://opengameart.org/content/7-eating-crunches",
+    "license": "CC0",
+    "sha256": "1f01b1de83176d1ea4828a98a1aafea85c2319983912fb80c57572bcf23a0cdd"
+  },
+  "rake": {
+    "pack": "Tinysized SFX / Augmentality — mixed licensed recordings",
+    "source_url": "https://opengameart.org/content/random-sounds-samples",
+    "license": "CC0",
+    "sha256": "2209f63f712779ee122ad98f114e280752d184d25c60051dd43ab37109306d59"
+  },
+  "reload": {
+    "pack": "Tinysized SFX — Jan Schupke",
+    "source_url": "https://opengameart.org/content/50-rpg-sound-effects",
+    "license": "CC0",
+    "sha256": "2659dbd0ecdad1b9194ebf039365f9bd70eb0f40a85218ca50314ac78a34ee10"
   }
 }
