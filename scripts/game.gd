@@ -40,6 +40,10 @@ var room_clock := 0.0
 var held_item := ""
 var magazine := 30
 var reload_time := 0.0
+var rpg_reload := 0.0
+const RPG_RELOAD := 1.62
+var grass_texture: Texture2D
+var generating_paths := false
 var resting := ""
 var rest_anchor := Vector2.ZERO
 var weapon := ""
@@ -203,7 +207,7 @@ func sfx(name: String = "chime") -> void:
 	var sample_name := name
 	if name in ["step_grass","step_stone","attack"]: sample_name += ["","_2","_3"][randi()%3]
 	voice.stream = preload("res://scripts/audio_bank.gd").STREAMS.get(sample_name)
-	voice.volume_db = {"birds":-29,"crickets":-28,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rifle":-13}.get(name,-15)
+	voice.volume_db = {"birds":-29,"crickets":-28,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rpg_launch":-10,"rpg_explosion":-8,"rpg_load":-22,"rifle":-13}.get(name,-15)
 	voice.pitch_scale = randf_range(.98,1.02) if name in ["rifle","water","fill"] else randf_range(.94,1.06)
 	voice.play()
 
@@ -720,6 +724,8 @@ func camera_target() -> Vector2:
 	return Vector2(clampf(player.x,half.x-48,grid[0].length()*TILE-half.x+48),clampf(player.y,half.y-220,grid.size()*TILE-half.y+64))
 
 func blocked(pos: Vector2) -> bool:
+	if level in [1,2,3,4,5] and not level_complete() and not transition and pos.y>(grid.size()-7)*TILE and absf(pos.x-13.5*TILE)<75:return true
+	if level<6 and not level_complete() and pos.y<7*TILE and absf(pos.x-(15.5 if level==0 else 13.5)*TILE)<75:return true
 	for offset in [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]:
 		var c := Vector2i((pos+offset)/TILE)
 		if c.y<0 or c.x<0 or c.y>=grid.size() or c.x>=grid[0].length() or grid[c.y][c.x]==" ": return true
@@ -791,6 +797,11 @@ func _physics_process(delta: float) -> void:
 		else: stuck_seconds = 0.0
 
 func _process(delta: float) -> void:
+	if playing and not paused:
+		var previous := rpg_reload;rpg_reload=maxf(0,rpg_reload-delta)
+		if previous>.3 and rpg_reload<=.3 and weapon=="rpg":sfx("rpg_load")
+	for door in objects:
+		if door.kind=="doorway":door.gate_amount=move_toward(float(door.get("gate_amount",0)),1.0 if door_is_open(str(door.id)) else 0.0,delta*2.5)
 	for i in range(footprints.size()-1,-1,-1):
 		footprints[i].life-=delta
 		if footprints[i].life<=0:footprints.remove_at(i)
@@ -955,7 +966,7 @@ func action_text(obj: Dictionary) -> String:
 	if obj.id=="shovel": return tx("pickup_shovel")
 	if str(obj.id).begins_with("drop_"):return tx("pickup_prefix")+str({"rpg":tx("weapon_rpg"),"rifle":tx("weapon_rifle"),"sword":tx("weapon_sword")}.get(obj.weapon,obj.weapon))
 	if obj.kind=="mound": return tx("dig_action")
-	if obj.id=="back": return tx("back")
+	if obj.id=="back": return tx("back") if door_is_open("back") else tx("gate_locked_action")
 	if obj.id=="fertilizer": return tx("pickup_fertilizer")
 	if obj.id in ["rpg","rifle","sword"]: return {"rpg":tx("pickup_rpg"),"rifle":tx("pickup_rifle"),"sword":tx("pickup_sword")}[obj.id]
 	if obj.id == "exit": return tx("next_room")
@@ -992,7 +1003,9 @@ func interact() -> void:
 		if not save_data.shovel: notify(tx("shovel_required"))
 		else: begin_task("dig:"+id,obj.pos,.25)
 	elif id=="exit": use_exit()
-	elif id=="back": travel(level-1)
+	elif id=="back":
+		if door_is_open("back"):travel(level-1)
+		else:notify(tx("gate_locked"))
 	elif id in ["rpg","rifle","sword"]:
 		return_held_tool()
 		if id in save_data.weapons_taken: return
@@ -1147,7 +1160,7 @@ func spawn_wave() -> void:
 	var count := 1 if wave==6 else 3+wave
 	for i in range(count):
 		var angle := TAU*i/count
-		var pos := Vector2(13.5,9.5)*TILE+Vector2(cos(angle)*390,sin(angle)*235)
+		var pos := Vector2(13.5,14.5)*TILE+Vector2(cos(angle)*390,sin(angle)*235)
 		enemies.append({"pos":pos,"hp":600 if wave==6 else 5+wave*2+(i%3)*2,"max_hp":600 if wave==6 else 5+wave*2+(i%3)*2,"boss":wave==6,"type":2 if wave==6 else i%mini(wave+1,5),"state":"spawn","timer":1.4+float(i)*0.14,"target":player,"cooldown":randf_range(.4,1.2)})
 	notify(tx("boss_announcement") if wave==6 else tx("wave_announcement") % wave)
 
@@ -1199,10 +1212,10 @@ func rifle_muzzle() -> Vector2:
 	return player+Vector2(14,-28)+Vector2(-18.0 if left else 18.0,-1.6).rotated(angle)
 
 func attack() -> void:
-	if paused or level!=4 or combat_done or attack_cd>0 or transition or weapon.is_empty() or reload_time>0: return
+	if paused or level!=4 or combat_done or attack_cd>0 or transition or weapon.is_empty() or reload_time>0 or (weapon=="rpg" and rpg_reload>0): return
 	if weapon=="rifle" and magazine<=0:
 		reload_time=1.8;sfx("reload");return
-	attack_cd = {"sword":.48,"rifle":.13,"rpg":1.35}[weapon]
+	attack_cd = {"sword":.48,"rifle":.13,"rpg":RPG_RELOAD}[weapon]
 	attack_flash = .22
 	var closest := INF
 	for enemy in enemies:
@@ -1213,7 +1226,7 @@ func attack() -> void:
 	if aim.length()<.1: aim = Vector2.UP
 	if absf(aim.x)>absf(aim.y):direction=1 if aim.x<0 else 3
 	else:direction=0 if aim.y<0 else 2
-	sfx("attack" if weapon=="sword" else "rifle" if weapon=="rifle" else "rocket")
+	sfx("attack" if weapon=="sword" else "rifle" if weapon=="rifle" else "rpg_launch")
 	shake = 2.5 if weapon!="rpg" else 5
 	haptic(14)
 	if weapon=="sword":
@@ -1222,7 +1235,8 @@ func attack() -> void:
 			if diff.length()<130 and aim.dot(diff.normalized())>-.35:
 				damage_enemy(i,2,diff.normalized()*28)
 	else:
-		shots.append({"pos":rifle_muzzle() if weapon=="rifle" else player+Vector2(0,-15),"vel":aim*(570 if weapon=="rifle" else 95),"life":1.4 if weapon=="rifle" else 3.2,"kind":weapon,"age":0.0})
+		shots.append({"pos":rifle_muzzle(),"vel":aim*(570 if weapon=="rifle" else 75),"life":1.4 if weapon=="rifle" else 4.5,"kind":weapon,"age":0.0})
+		if weapon=="rpg":rpg_reload=RPG_RELOAD
 		if weapon=="rifle":
 			magazine-=1
 			if magazine==0:reload_time=1.8;sfx("reload")
@@ -1322,7 +1336,8 @@ func _draw() -> void:
 			if level==4 or level==6: tile=2 if (x+y)%3 else 1
 			
 			elif level==0: tile=3
-			draw_texture_rect_region(ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
+			if grass_texture!=null and level not in [4,6]:draw_texture_rect_region(grass_texture,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(x,y)*24,Vector2(24,24)))
+			else:draw_texture_rect_region(ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
 			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
@@ -1349,10 +1364,11 @@ func _draw() -> void:
 		renderables.append(obj)
 	for enemy in enemies: renderables.append({"kind":"enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
-	draw_grass_details()
 	if level==0:
 		for wall in renderables:
-			if wall.get("wall",false):draw_texture_rect(glow,Rect2(screen(wall.pos)+Vector2(-35,-8),Vector2(70,34)),false,Color(0,0,0,.9))
+			if wall.get("wall",false):
+				draw_texture_rect(glow,Rect2(screen(wall.pos)+Vector2(-35,-8),Vector2(70,34)),false,Color(0,0,0,.9))
+				draw_hedge_structure(screen(wall.pos))
 	draw_paths()
 	draw_footprints()
 	for hole in objects:
@@ -1401,7 +1417,8 @@ func _draw() -> void:
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				else:draw_pickup_outline(highlight,p+Vector2(0,-40) if kind=="stand_flashlight" else p,3.0 if kind=="chest" and item.id=="final" else 1.0)
 			if not item.has("wall") and item.id!="buried": draw_shadow(p,20 if kind!="tree" else 30)
-			if item.get("ground_tool",false):
+			if item.get("wall",false) and level==0 and hedge_active(item.cell):pass
+			elif item.get("ground_tool",false):
 				draw_set_transform(p,PI/2);draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 			elif kind=="sprout":
 				var stage := int(plants.get(item.id,{}).get("stage",0))
@@ -1424,7 +1441,7 @@ func _draw() -> void:
 				draw_rect(Rect2(p+Vector2(-17,-20+swing_offset),Vector2(36,7)),Color("aa8066"))
 			elif kind in ["house","pond"]: draw_sprite(kind,p,Color.WHITE,2.0)
 			elif kind=="doorway":
-				draw_sprite("doorpost",p+Vector2(-90,0));draw_sprite("doorpost",p+Vector2(90,0))
+				draw_sprite("doorpost",p+Vector2(-90,0));draw_sprite("doorpost",p+Vector2(90,0));draw_gate(p,float(item.get("gate_amount",1.0 if item.id=="back" else 0.0)))
 			elif kind=="stand_flashlight":
 				draw_sprite("pedestal",p)
 				if not save_data.flashlight: draw_sprite("flashlight",p+Vector2(0,-40))
@@ -1441,9 +1458,12 @@ func _draw() -> void:
 				draw_string(body_font,p+Vector2(-25,-75),{"rpg":tx("weapon_rpg"),"rifle":tx("weapon_rifle"),"sword":tx("weapon_sword")}[item.id],HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
 			if level==6 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("b5a3bb"))
 			if kind in ["arch","doorway"]:
-				var open: bool = (level==1 and dark_letters_found()) or (level==2 and save_data.obstacles.size()==5) or (level==3 and "buried" in save_data.letters) or (level==0 and has_maze_letters()) or (level==4 and "courage" in save_data.letters) or (level==5 and "garden" in save_data.letters)
+				var open: bool = door_is_open(str(item.id))
 				draw_texture_rect(glow,Rect2(p-Vector2(65,110),Vector2(130,150)),false,Color(.9,1,.9,1 if open else .2))
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
+	if level==0:
+		for wall in renderables:
+			if wall.get("wall",false) and hedge_active(wall.cell):draw_hedge_parts(wall.kind,screen(wall.pos))
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
 		if item.kind in ["lamp","candle","note"] or (item.kind=="chest" and chest_open):
@@ -1657,7 +1677,7 @@ func update_shots(delta: float) -> void:
 	for i in range(shots.size()-1,-1,-1):
 		var shot := shots[i]
 		shot.age += delta
-		if shot.kind=="rpg":shot.vel=shot.vel.normalized()*(95.0+525.0*(1.0-exp(-shot.age*3.2)))
+		if shot.kind=="rpg":shot.vel=shot.vel.normalized()*(75.0+425.0*(1.0-exp(-shot.age*2.7)))
 		var start: Vector2 = shot.pos
 		var end: Vector2 = start+shot.vel*delta
 		var segment := end-start
@@ -1691,7 +1711,7 @@ func update_shots(delta: float) -> void:
 		var hit: bool = hit_index>=0 or wall_t<=1 or shot.life<=0
 		if not hit:continue
 		if shot.kind=="rpg":
-			shake=10;sfx("explosion");burst(shot.pos,42,Color("ffd69c"))
+			shake=maxf(shake,10.0*clampf(1-player.distance_to(shot.pos)/750,0,1));sfx_at("rpg_explosion",shot.pos);burst(shot.pos,42,Color("ffd69c"))
 		if hit_index>=0:damage_enemy(hit_index,99 if shot.kind=="rpg" else 1,shot.vel.normalized()*9)
 		shots.remove_at(i)
 
@@ -1715,7 +1735,7 @@ func draw_extra_effects() -> void:
 		var left := aim.x<0
 		var rotation := (aim.angle()+PI/2) if weapon=="sword" else (atan2(-aim.y,-aim.x) if left else aim.angle())
 		draw_set_transform(p,rotation+swing,Vector2(-1 if left and weapon!="sword" else 1,1))
-		draw_sprite("weapon_"+weapon,Vector2(0,0 if weapon=="sword" else 20),Color.WHITE,.6)
+		draw_sprite("weapon_rpg_empty" if weapon=="rpg" and rpg_reload>0 else "weapon_"+weapon,Vector2(0,0 if weapon=="sword" else 20),Color.WHITE,.6)
 		draw_set_transform(Vector2.ZERO)
 		if attack_flash>0 and weapon=="sword":
 			var angle := aim.angle()
@@ -1726,6 +1746,12 @@ func draw_extra_effects() -> void:
 		if attack_flash>0 and weapon!="sword":
 			var muzzle := screen(rifle_muzzle()) if weapon=="rifle" else p+aim*20
 			draw_texture_rect(glow,Rect2(muzzle-Vector2(30,30),Vector2(60,60)),false,Color(1,.8,.5,attack_flash*4))
+	if weapon=="rpg" and rpg_reload>0 and level==4:
+		var bar := screen(player)+Vector2(-25,-95)
+		draw_rect(Rect2(bar,Vector2(50,5)),INK);draw_rect(Rect2(bar,Vector2(50*(1-rpg_reload/RPG_RELOAD),5)),CREAM)
+		if rpg_reload<.3:
+			var insertion := screen(player)+Vector2(14,-28)-aim*(rpg_reload/.3)*26
+			draw_set_transform(insertion,aim.angle());draw_sprite("rocket_item",Vector2(0,16),Color.WHITE,.45);draw_set_transform(Vector2.ZERO)
 	if weapon=="rifle" and level==4:
 		draw_string(body_font,screen(player)+Vector2(6,-55),str(magazine)+"/30",HORIZONTAL_ALIGNMENT_LEFT,-1,11,CREAM)
 		if reload_time>0:
@@ -1971,40 +1997,75 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 			berry_cells[cell]=id
 			put_object("berries",cell,id)
 	if level not in [1,5]:return
-	var entry := Vector2(13.5,grid.size()-6.5)*TILE
-	var exit := Vector2(13.5,7.0)*TILE
-	var spine := continuous_path(sample_line(entry,exit),entry,exit,rng)
-	if spine.size()<2:return
-	paths.append(spine);path_terminals.append(true)
+	# Restore the seeded organic branch generator from 8aa41d9, before the end-fade changes.
+	generating_paths=true
+	var targets: Array[Dictionary] = []
 	for obj in objects:
-		var relevant: bool = (level==5 and (obj.kind=="sprout" or obj.id in ["seat","swing","well","can","rake","fertilizer","garden"])) or (level==1 and (obj.kind in ["house","pond","bench"] or obj.id=="flashlight"))
-		if not relevant:continue
-		var distance := 30.0 if obj.kind=="sprout" else 80.0 if obj.kind in ["house","pond"] else 42.0 if obj.solid else 24.0
-		var end: Vector2 = obj.pos+Vector2(0,distance)
-		var staging := end+Vector2(0,48)
-		if not path_point_safe(staging):staging=end+Vector2(0,24)
-		var start: Vector2 = spine[0];var best := INF
-		for point in spine:
-			var score: float = point.distance_squared_to(staging)
-			if score<best:best=score;start=point
-		var curve := Curve2D.new()
-		curve.add_point(start,Vector2.ZERO,Vector2((staging.x-start.x)*.55,0))
-		curve.add_point(staging,Vector2(0,20),Vector2.ZERO);curve.bake_interval=8
-		var branch := continuous_path(curve.get_baked_points(),start,staging,rng)
-		if branch.size()<1:branch.append(start)
-		var approach := sample_line(branch[-1],end)
-		var clear := true
-		for point in approach:
-			if not path_point_safe(point):clear=false;break
-		if not clear:
-			staging=end+Vector2(0,20)
-			branch=continuous_path(sample_line(start,staging),start,staging,rng)
-			if branch.is_empty():continue
-			approach=sample_line(branch[-1],end)
-		for point in approach:
-			if branch[-1].distance_to(point)>.1:branch.append(point)
-		paths.append(branch);path_terminals.append(true)
-		path_targets.append({"id":str(obj.id) if not str(obj.id).is_empty() else obj.kind,"end":end,"path":paths.size()-1})
+		if (level==5 and (obj.kind=="sprout" or obj.id in ["seat","swing","well","can","rake","fertilizer"])) or (level==1 and (obj.kind in ["house","pond","bench"] or obj.id=="flashlight")):
+			targets.append(obj)
+	var connected: Array[Vector2] = [Vector2(13.5,grid.size()-6.5)*TILE]
+	while not targets.is_empty():
+		var best := INF;var selected := 0;var start := connected[0]
+		for n in range(targets.size()):
+			for anchor in connected:
+				var score: float = anchor.distance_to(targets[n].pos)*rng.randf_range(.8,1.2)
+				if score<best:best=score;selected=n;start=anchor
+		var target: Dictionary = targets[selected];targets.remove_at(selected)
+		var outward: Vector2 = (start-target.pos).normalized()
+		var radius := 80.0 if target.kind in ["house","pond"] else 42.0 if target.solid else 0.0
+		var end: Vector2 = target.pos+outward*radius
+		var side := (end-start).normalized().orthogonal()
+		var amplitude := minf(85.0,start.distance_to(end)*.22)
+		var points: Array[Vector2] = [start]
+		for n in range(1,4):
+			var point := start.lerp(end,float(n)/4)+side*rng.randf_range(-amplitude,amplitude)
+			point.x=clampf(point.x,2*TILE,(grid[0].length()-2)*TILE);point.y=clampf(point.y,7*TILE,(grid.size()-7)*TILE);points.append(point)
+		points.append(end)
+		var curve := Curve2D.new();curve.bake_interval=8
+		for n in range(points.size()):
+			var tangent: Vector2 = (points[mini(n+1,points.size()-1)]-points[maxi(0,n-1)])/6.0
+			if n==points.size()-1 and radius>0:tangent=(target.pos-end).normalized()*minf(32,start.distance_to(end)/5)
+			curve.add_point(points[n],-tangent,tangent)
+		var branch := continuous_path(curve.get_baked_points(),start,end,rng)
+		if branch.size()<2:continue
+		# Merge at the final encounter with the existing network, instead of overdrawing it.
+		var merge_index := 0;var junction := branch[0]
+		for n in range(branch.size()-2):
+			for existing in paths:
+				for point in existing:
+					if branch[n].distance_squared_to(point)<20*20:merge_index=n;junction=point;break
+		var trimmed := PackedVector2Array([junction])
+		for n in range(merge_index+1,branch.size()):trimmed.append(branch[n])
+		if trimmed.size()<2:continue
+		paths.append(trimmed);path_terminals.append(true)
+		path_targets.append({"id":str(target.id),"object":target,"path":paths.size()-1,"end":trimmed[-1]})
+		for n in range(0,maxi(1,trimmed.size()-8),5):connected.append(trimmed[n])
+	generating_paths=false
+	if level==5:
+		for target in path_targets:
+			if target.object.kind!="sprout":continue
+			var path: PackedVector2Array = paths[target.path]
+			var direction := (path[-1]-path[maxi(0,path.size()-4)]).normalized()
+			for attempt in range(60):
+				var angle := 0.0 if attempt==0 else rng.randf_range(-1.1,1.1)
+				var candidate: Vector2 = path[-1]+direction.rotated(angle)*(48 if attempt==0 else rng.randf_range(48,68))
+				if not valid_ground(candidate) or blocked(candidate):continue
+				if objects.any(func(o):return o!=target.object and o.pos.distance_to(candidate)<85):continue
+				var nearest := INF
+				for road in paths:
+					for point in road:nearest=minf(nearest,point.distance_to(candidate))
+				if nearest<45:continue
+				target.object.pos=candidate;break
+	if level==5:
+		for target in path_targets:
+			if target.object.kind!="sprout" or bed_beside_path(target.object.pos,target.object):continue
+			var best := INF;var location: Vector2 = target.object.pos
+			for y in range(-112,113,16):
+				for x in range(-112,113,16):
+					var candidate: Vector2 = target.end+Vector2(x,y)
+					var score := candidate.distance_squared_to(target.end)
+					if score<best and bed_beside_path(candidate,target.object):best=score;location=candidate
+			target.object.pos=location
 	build_path_meshes()
 
 func draw_paths() -> void:
@@ -2058,22 +2119,16 @@ func draw_buried_paper(pos: Vector2, opened: bool) -> void:
 		var source := atlas.get_image()
 		var id: int = sprites[name]
 		var image := Image.create(32,48,false,Image.FORMAT_RGBA8)
-		for y in range(32,43):
-			for x in range(6,27):
-				if Vector2((x-16)/10.0,(y-37)/5.0).length()>.9:continue
-				image.set_pixel(x,y,source.get_pixel(id%16*32+5+(x-6),id/16*48+27+int((y-32)*1.2)))
+		for y in range(16 if opened else 26,43):
+			for x in range(5,28):
+				if y>=37 and Vector2((x-16)/10.0,(y-37)/5.0).length()>.9:continue
+				image.set_pixel(x,y,source.get_pixel(id%16*32+x,id/16*48+y))
 		buried_paper_cache[name]=ImageTexture.create_from_image(image)
 	draw_texture_rect(buried_paper_cache[name],Rect2(pos-Vector2(32,86),Vector2(64,96)),false)
 
 func draw_hedge_parts(name: String, pos: Vector2) -> void:
 	var cell := Vector2i((pos+camera-get_viewport_rect().size/2-shake_offset)/TILE)
 	var key := "h:"+str(cell)+":"
-	# Exposed vertical faces and leafy bridges make one continuous hedge volume.
-	var right := cell.x+1<grid[0].length() and grid[cell.y][cell.x+1]=="#"
-	var down := cell.y+1<grid.size() and grid[cell.y+1][cell.x]=="#"
-	if not down:draw_hedge_layer("hedge_side",pos,Vector2(48,48),Vector2(-24,-32))
-	if right:draw_hedge_layer("hedge_join_h",pos,Vector2(40,42),Vector2(7,-31))
-	if down:draw_hedge_layer("hedge_join_v",pos,Vector2(48,37),Vector2(-24,-5))
 	var active := false
 	for n in range(6):
 		if vegetation.has(key+str(n)):active=true;break
@@ -2149,7 +2204,7 @@ func stone_surface(pos: Vector2) -> bool:
 	return false
 
 func path_point_safe(pos: Vector2) -> bool:
-	return valid_ground(pos) and not blocked(pos) and not objects.any(func(o):return o.kind=="sprout" and Rect2(o.pos+Vector2(-42,-42),Vector2(84,68)).has_point(pos))
+	return valid_ground(pos) and not blocked(pos) and (generating_paths or not objects.any(func(o):return o.kind=="sprout" and o.pos.distance_to(pos)<45))
 
 func continuous_path(points: PackedVector2Array, start: Vector2, end: Vector2, rng: RandomNumberGenerator) -> PackedVector2Array:
 	var safe := true
@@ -2205,11 +2260,75 @@ func prepare_grass_details() -> void:
 	var rng := RandomNumberGenerator.new();rng.seed=int(save_data.seed)+level*3763+9181
 	for y in range(6,grid.size()-5):
 		for x in range(1,grid[0].length()-1):
-			if grid[y][x]!="." or rng.randf()>.72:continue
+			if grid[y][x]!="." or rng.randf()>.34:continue
 			grass_details.append({"pos":Vector2(x,y)*TILE+Vector2(rng.randf_range(5,43),rng.randf_range(6,44)),"kind":"grass_detail"+str(rng.randi_range(0,7))})
+
+	grass_texture=null
+	if level in [4,6]:return
+	var base := ground.get_image();base.convert(Image.FORMAT_RGBA8)
+	var image := Image.create(grid[0].length()*24,grid.size()*24,false,Image.FORMAT_RGBA8)
+	for y in range(grid.size()):
+		for x in range(grid[0].length()):image.blit_rect(base,Rect2i(72 if level==0 else 0,0,24,24),Vector2i(x*24,y*24))
+	var sheet := atlas.get_image();sheet.convert(Image.FORMAT_RGBA8)
+	for detail in grass_details:
+		var id: int = sprites[detail.kind]
+		var stamp := sheet.get_region(Rect2i(id%16*32,id/16*48,32,48));stamp.resize(19,29,Image.INTERPOLATE_NEAREST)
+		image.blend_rect(stamp,Rect2i(0,0,19,29),Vector2i(detail.pos/2)+Vector2i(-10,-20))
+	grass_texture=ImageTexture.create_from_image(image)
 
 func draw_grass_details() -> void:
 	var viewport := get_viewport_rect().grow(55)
 	for detail in grass_details:
 		var p := screen(detail.pos)
 		if viewport.has_point(p):draw_sprite(detail.kind,p+Vector2(0,12),Color.WHITE,.6)
+
+func level_complete() -> bool:
+	match level:
+		0:return has_maze_letters()
+		1:return dark_letters_found()
+		2:return save_data.obstacles.size()>=5 and "crossing" in save_data.letters
+		3:return "buried" in save_data.letters
+		4:return "courage" in save_data.letters
+		5:return "garden" in save_data.letters
+	return save_data.finished
+
+func draw_gate(pos: Vector2, amount: float) -> void:
+	var id: int = sprites["gate_panel"]
+	var width := 72*(1-amount)
+	if width<1:return
+	for side in [-1,1]:
+		var x := -72.0 if side<0 else 72-width
+		draw_texture_rect_region(atlas,Rect2(pos+Vector2(x,-65),Vector2(width,68)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
+
+func hedge_active(cell: Vector2i) -> bool:
+	for n in range(6):
+		if vegetation.has("h:"+str(cell)+":"+str(n)):return true
+	return false
+
+func draw_hedge_structure(pos: Vector2) -> void:
+	var cell := Vector2i((pos+camera-get_viewport_rect().size/2-shake_offset)/TILE)
+	# Exposed vertical faces and leafy bridges make one continuous hedge volume.
+	var right := cell.x+1<grid[0].length() and grid[cell.y][cell.x+1]=="#"
+	var down := cell.y+1<grid.size() and grid[cell.y+1][cell.x]=="#"
+	if not down:draw_hedge_layer("hedge_side",pos,Vector2(48,48),Vector2(-24,-32))
+	if right:draw_hedge_layer("hedge_join_h",pos,Vector2(40,42),Vector2(7,-31))
+	if down:draw_hedge_layer("hedge_join_v",pos,Vector2(48,37),Vector2(-24,-5))
+
+func sfx_at(name: String, pos: Vector2) -> void:
+	if not sound_on or DisplayServer.get_name()=="headless":return
+	var distance := player.distance_to(pos)
+	if distance>1400:return
+	sfx(name)
+	var voice := audio_pool[(audio_cursor-1)%audio_pool.size()]
+	voice.volume_db-=linear_to_db(1.0+distance/180.0)
+
+func bed_beside_path(pos: Vector2, bed: Dictionary) -> bool:
+	if not valid_ground(pos) or blocked(pos):return false
+	if objects.any(func(o):return o!=bed and o.pos.distance_to(pos)<75):return false
+	var nearest := INF
+	for path in paths:
+		for point in path:nearest=minf(nearest,point.distance_to(pos))
+	return nearest>=45 and nearest<=90
+
+func door_is_open(id: String) -> bool:
+	return level_complete() or (id=="back" and (level==6 or transition))

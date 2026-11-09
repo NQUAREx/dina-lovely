@@ -12,7 +12,7 @@ func run():
  for room in range(7):
   g.build_level(room);g.player=Vector2(13.5,12)*48
   if room==5:
-   assert(g.paths.size()==g.path_targets.size()+1)
+   assert(g.paths.size()==g.path_targets.size())
    for path in g.paths:
     for point in path:assert(g.path_point_safe(point))
     for n in range(1,path.size()):assert(path[n].distance_to(path[n-1])<32)

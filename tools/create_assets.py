@@ -316,6 +316,16 @@ for variant in range(8):
    d.ellipse((3,31,29,44),fill=(38,66,49,36) if v==6 else (132,112,74,30))
    for n in range(12):d.point((random.randrange(5,28),random.randrange(33,43)),fill=(141,151,98,45))
  sprite('grass_detail'+str(variant),detail)
+def gate_panel(d):
+ d.rectangle((0,17,31,20),fill='#d9b886');d.rectangle((0,41,31,44),fill='#7b5b62');d.line((0,41,31,41),fill='#d1a885')
+ for x in [2,8,14,20,26,30]:
+  d.rectangle((x,20,x+1,42),fill='#826b79');d.line((x,20,x,39),fill='#c2abb0')
+ d.polygon([(10,28),(13,26),(16,29),(19,26),(22,28),(22,32),(16,37),(10,32)],fill='#c57e96');d.point((12,28),fill='#ffe0c5')
+sprite('gate_panel',gate_panel)
+def empty_rpg(d):
+ weapon(d,'rpg')
+ d.rectangle((25,20,31,34),fill=(0,0,0,0));d.ellipse((23,23,27,31),fill='#363d39');d.line((23,23,25,22,27,25),fill='#acb69c')
+sprite('weapon_rpg_empty',empty_rpg)
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)

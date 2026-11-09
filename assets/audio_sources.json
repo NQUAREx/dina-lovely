@@ -162,5 +162,23 @@
     "source_url": "https://opengameart.org/content/50-rpg-sound-effects",
     "license": "CC0",
     "sha256": "118151e5b61e640cfe0929c75729fe25bd17c50c0d52decaed37c4c46f66c599"
+  },
+  "rpg_launch": {
+    "pack": "Kenney CC0 / Tinysized SFX CC0 (reload)",
+    "license": "CC0",
+    "source_file": "explosionCrunch_004 + short thruster transient",
+    "sha256": "67db786b536e4aa686d18af4cec06c8f60dd3748542b18187a48082656f50bed"
+  },
+  "rpg_explosion": {
+    "pack": "Kenney CC0 / Tinysized SFX CC0 (reload)",
+    "license": "CC0",
+    "source_file": "explosionCrunch_002",
+    "sha256": "75c2d9e5d4977e612a14c2c40ba0763d2a358b1c86caf4bb7a3cedab5c74094d"
+  },
+  "rpg_load": {
+    "pack": "Kenney CC0 / Tinysized SFX CC0 (reload)",
+    "license": "CC0",
+    "source_file": "handcuffs-metal-open-01.wav",
+    "sha256": "7ef65f3edfce09216f87fe6d36c52c0ab648d3d7bd31128096e6d778f5bd914b"
   }
 }
