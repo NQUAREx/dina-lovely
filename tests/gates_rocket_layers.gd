@@ -20,13 +20,18 @@ func run():
  g.build_level(5);assert(g.grass_texture!=null)
  for bed in g.objects:
   if bed.kind=='sprout':assert(g.bed_beside_path(bed.pos,bed))
- print('PASS baked ground texture and beds beside organic paths')
+ print('PASS baked ground texture and connected bed pads')
  g.build_level(0);assert(g.sprites.has('gate_panel') and g.sprites.has('weapon_rpg_empty'));print('PASS gate and empty launcher artwork')
  for seed in [17,2026]:
   g.save_data.seed=seed;g.build_level(5)
   var well=g.objects.filter(func(o):return o.kind=='well')[0]
   for path in g.paths:
-   assert(g.path_pads.any(func(p):return path[-1].distance_to(p.pos)<p.radius-15))
+   var joined=g.path_pads.any(func(p):return path[-1].distance_to(p.pos)<p.radius-15)
+   for other in g.paths:
+    if other==path:continue
+    for point in other:
+     if path[-1].distance_to(point)<4:joined=true
+   assert(joined)
   for bed in g.objects:
    if bed.kind=='sprout':assert(g.bed_beside_path(bed.pos,bed))
  g.build_level(1);assert(g.objects.all(func(o):return o.kind!='lamp'))

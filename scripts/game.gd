@@ -2089,6 +2089,17 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 		spine.add_point(spine_points[n],-tangent,tangent)
 	var main_path:=roughen_path(continuous_path(spine.get_baked_points(),start,end,rng),int(save_data.seed)+level)
 	if main_path.size()>1:paths.append(main_path);path_terminals.append(false)
+	if main_path.size()>12:
+		# A second independent walk reconnects with the main route at both ends.
+		var from:=main_path[int(main_path.size()*.15)]
+		var to:=main_path[int(main_path.size()*.82)]
+		var left_x:=start.x-rng.randf_range(360,420)
+		var knots:Array[Vector2]=[from,Vector2(left_x+rng.randf_range(-25,25),start.lerp(end,.34).y),Vector2(left_x+rng.randf_range(-25,25),start.lerp(end,.69).y),to]
+		var alternate:=Curve2D.new();alternate.bake_interval=6
+		for n in range(knots.size()):
+			var handle:Vector2=(knots[mini(n+1,knots.size()-1)]-knots[maxi(0,n-1)])/5
+			alternate.add_point(knots[n],-handle,handle)
+		paths.append(roughen_path(alternate.get_baked_points(),int(save_data.seed)+9811));path_terminals.append(false)
 	path_pads.append({"pos":start,"radius":43.0})
 	path_pads.append({"pos":end,"radius":43.0})
 	var targets:Array[Dictionary]=[]
@@ -2101,7 +2112,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 	while not targets.is_empty():
 		var best:=INF;var selected:=0;var anchor:=start
 		for n in range(targets.size()):
-			for path in paths:
+			for path in anchor_paths(targets[n]):
 				for point in path:
 					var distance:float=point.distance_to(targets[n].pos)
 					if distance<best:best=distance;selected=n;anchor=point
@@ -2112,29 +2123,33 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 		# around an object. The shortest visible gentle curve wins.
 		var branch:=PackedVector2Array()
 		var approach_cost:=INF
+		var clearance:=path_clearance_grid()
 		var bend_fraction:=rng.randf_range(.34,.52)*(1 if rng.randf()<.5 else -1)
-		for path in paths:
-			for sample in range(0,path.size(),3):
+		for path in anchor_paths(target):
+			for sample in range(0,path.size(),6):
 				var candidate:Vector2=path[sample]
 				var distance:float=candidate.distance_to(target.pos)
 				if distance>=approach_cost:continue
 				var outward:Vector2=(candidate-target.pos).normalized()
 				var tip:Vector2=target.pos+outward*radius*.15
 				var side:Vector2=(tip-candidate).normalized().orthogonal()
-				var bend_amount:=clampf(distance*bend_fraction,-180,180)
-				var curve:=Curve2D.new();curve.bake_interval=6
-				# Broad offset waypoints give a wandering route, not a direct link.
-				var waypoint_a:=candidate.lerp(tip,.34)+side*bend_amount
-				var waypoint_b:=candidate.lerp(tip,.7)+side*bend_amount*.45
-				var knots:Array[Vector2]=[candidate,waypoint_a,waypoint_b,tip]
-				for k in range(knots.size()):
-					var handle:Vector2=(knots[mini(k+1,knots.size()-1)]-knots[maxi(0,k-1)])/5
-					curve.add_point(knots[k],-handle,handle)
-				var points:=roughen_path(curve.get_baked_points(),int(save_data.seed)+selected*137+level*731)
-				var clear:=true
-				for point in points:
-					if not path_point_safe(point):clear=false;break
-				if clear:branch=points;approach_cost=distance
+				for bend_sign in [-1,1]:
+					var bend_amount:=clampf(distance*absf(bend_fraction)*bend_sign,-180,180)
+					var curve:=Curve2D.new();curve.bake_interval=6
+					# Broad offset waypoints give a wandering route, not a direct link.
+					var waypoint_a:=candidate.lerp(tip,.34)+side*bend_amount
+					var waypoint_b:=candidate.lerp(tip,.7)+side*bend_amount*.45
+					var knots:Array[Vector2]=[candidate,waypoint_a,waypoint_b,tip]
+					for k in range(knots.size()):
+						var handle:Vector2=(knots[mini(k+1,knots.size()-1)]-knots[maxi(0,k-1)])/5
+						curve.add_point(knots[k],-handle,handle)
+					var points:=roughen_path(curve.get_baked_points(),int(save_data.seed)+selected*137+level*731)
+					var clear:=true
+					for point in points:
+						if not path_point_safe(point):clear=false;break
+					if clear:
+						var cost:=distance+parallel_path_cost(points,clearance)
+						if cost<approach_cost:branch=points;approach_cost=cost
 		if branch.size()<2:continue
 		# Begin at the last shared contact, so close parallel strips cannot form loops.
 		var merge:=0;var junction:=branch[0]
@@ -2149,6 +2164,37 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 			path_targets.append({"id":target.id,"object":target,"path":paths.size()-1,"end":trimmed[-1]})
 	generating_paths=false
 	build_path_meshes()
+
+func path_clearance_grid() -> Dictionary:
+	var cells:Dictionary={}
+	for path in paths:
+		for n in range(1,path.size()-1,6):
+			var cell:=Vector2i(path[n]/112)
+			if not cells.has(cell):cells[cell]=[]
+			cells[cell].append({"pos":path[n],"tangent":(path[n+1]-path[n-1]).normalized()})
+	return cells
+
+func parallel_path_cost(points: PackedVector2Array, cells: Dictionary) -> float:
+	var penalty:=0.0
+	for n in range(9,points.size()-9,6):
+		var centre:=Vector2i(points[n]/112)
+		var tangent:Vector2=(points[n+1]-points[n-1]).normalized()
+		var nearest:=112.0
+		var shared:=false
+		for y in range(centre.y-1,centre.y+2):
+			for x in range(centre.x-1,centre.x+2):
+				for other in cells.get(Vector2i(x,y),[]):
+					var distance:float=points[n].distance_to(other.pos)
+					if distance<20:nearest=112;shared=true;break
+					if absf(tangent.dot(other.tangent))>.82:nearest=minf(nearest,distance)
+		if not shared:penalty+=maxf(0,112-nearest)*1.5
+	return penalty
+
+func anchor_paths(target: Dictionary) -> Array:
+	# Nearby tools can form a short sequence. Other destinations branch off
+	# the two main walks; some beds may share a smaller branch and a fork.
+	if target.kind in ["can","rake","fertilizer"] or (target.kind=="sprout" and int(target.id)%3==1):return paths
+	return paths.slice(0,mini(2,paths.size()))
 
 func roughen_path(points: PackedVector2Array, path_seed: int) -> PackedVector2Array:
 	if points.size()<3:return points
