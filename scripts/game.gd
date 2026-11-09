@@ -1,6 +1,7 @@
 extends Node2D
 ## All coordinates are world pixels. Artwork is a shared nearest-filtered atlas.
 const TILE := 48.0
+const GROUND_DEPTH := .58
 const SPEED := 150.0
 const SAVE_PATH := "user://garden_save_v1.json"
 const TITLES := ["room_maze", "room_darkness", "room_obstacles", "room_digging", "room_combat", "room_garden", "room_final"]
@@ -2113,7 +2114,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 				var distance:float=candidate.distance_to(target.pos)
 				if distance>=approach_cost:continue
 				var outward:Vector2=(candidate-target.pos).normalized()
-				var tip:Vector2=target.pos+outward*radius*.4
+				var tip:Vector2=target.pos+outward*radius*.15
 				var side:Vector2=(tip-candidate).normalized().orthogonal()
 				var bend_amount:=clampf(distance*bend_fraction,-75,75)
 				var curve:=Curve2D.new();curve.bake_interval=6
@@ -2230,16 +2231,16 @@ func build_path_meshes() -> void:
 				var radius:=7.5*(sqrt(clampf(left/42,0,1)) if terminal else 1.0)
 				for y in range(maxi(0,int(point.y-9)),mini(size.y,int(point.y+10))):
 					for x in range(maxi(0,int(point.x-9)),mini(size.x,int(point.x+10))):
-						var distance:=Vector2(x+.5,y+.5).distance_to(point)
+						var distance:=((Vector2(x+.5,y+.5)-point)/Vector2(1,GROUND_DEPTH)).length()
 						var value:=radius-distance
 						coverage[y*size.x+x]=maxf(coverage[y*size.x+x],value+.01)
 	# Pads and walks share the same union field and the same opaque soil pixels.
 	for pad in path_pads:
 		var centre:Vector2=pad.pos/2
 		var radius:float=pad.radius/2
-		for y in range(maxi(0,int(centre.y-radius-1)),mini(size.y,int(centre.y+radius+2))):
+		for y in range(maxi(0,int(centre.y-radius*GROUND_DEPTH-1)),mini(size.y,int(centre.y+radius*GROUND_DEPTH+2))):
 			for x in range(maxi(0,int(centre.x-radius-1)),mini(size.x,int(centre.x+radius+2))):
-				var value:=radius-Vector2(x+.5,y+.5).distance_to(centre)
+				var value:=radius-((Vector2(x+.5,y+.5)-centre)/Vector2(1,GROUND_DEPTH)).length()
 				coverage[y*size.x+x]=maxf(coverage[y*size.x+x],value)
 	var image:=Image.create(size.x,size.y,false,Image.FORMAT_RGBA8)
 	for y in range(size.y):
@@ -2248,7 +2249,10 @@ func build_path_meshes() -> void:
 			if value<=0:continue
 			var noise:=posmod((x/2)*73+(y/2)*137+int(save_data.seed),17)
 			if value<.75 and noise<6:continue
-			var color:=Color("82613f") if value<1.1 else Color("ac8050") if value<2.3 else Color("bc925d")
+			var above:=coverage[maxi(0,y-1)*size.x+x]
+			var below:=coverage[mini(size.y-1,y+1)*size.x+x]
+			var rim:=Color("795b3e") if above>below+.2 else Color("c39b65") if below>above+.2 else Color("967047")
+			var color:=rim if value<1.25 else Color("ac8050") if value<2.3 else Color("bc925d")
 			if value>2.3 and posmod(x*97+y*71,43)==0:color=Color("cda572")
 			image.set_pixel(x,y,color)
 	path_texture=ImageTexture.create_from_image(image)
