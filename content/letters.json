@@ -960,6 +960,42 @@
     "gate_ready": {
       "_comment": "Все письма лабиринта найдены, но замок ещё надо открыть кнопкой у ворот.",
       "text": "Пора открыть ворота"
+    },
+    "wear_accessory": {
+      "_comment": "Короткая кнопка подбора и немедленного надевания аксессуара.",
+      "text": "Надеть"
+    },
+    "accessory_found": {
+      "_comment": "Уведомление после подбора аксессуара; %s — название.",
+      "text": "%s — тебе идёт."
+    },
+    "accessory_wreath": {
+      "_comment": "Название надеваемого аксессуара wreath.",
+      "text": "Цветочный венок"
+    },
+    "accessory_veil": {
+      "_comment": "Название надеваемого аксессуара veil.",
+      "text": "Тёмная вуаль"
+    },
+    "accessory_crown": {
+      "_comment": "Название надеваемого аксессуара crown.",
+      "text": "Золотая корона"
+    },
+    "accessory_rose_scarf": {
+      "_comment": "Название надеваемого аксессуара rose_scarf.",
+      "text": "Розовый платок"
+    },
+    "accessory_peach_dress": {
+      "_comment": "Название надеваемого аксессуара peach_dress.",
+      "text": "Персиковое платье"
+    },
+    "accessory_brooch": {
+      "_comment": "Название надеваемого аксессуара brooch.",
+      "text": "Цветочная брошь"
+    },
+    "accessory_heart_tiara": {
+      "_comment": "Название надеваемого аксессуара heart_tiara.",
+      "text": "Тиара с сердцем"
     }
   },
   "schema_version": 2,

@@ -2,6 +2,8 @@ extends Node2D
 ## All coordinates are world pixels. Artwork is a shared nearest-filtered atlas.
 const TILE := 48.0
 const GROUND_DEPTH := .58
+const ACCESSORIES := ["wreath","veil","crown","rose_scarf","peach_dress","brooch","heart_tiara"]
+const HEAD_ACCESSORIES := ["wreath","crown","heart_tiara"]
 const SPEED := 150.0
 const SAVE_PATH := "user://garden_save_v1.json"
 const TITLES := ["room_maze", "room_darkness", "room_obstacles", "room_digging", "room_combat", "room_garden", "room_final"]
@@ -10,6 +12,7 @@ const CREAM := Color("f5e3cf")
 const PINK := Color("e5a6bd")
 const INK := Color("45394f")
 var atlas: Texture2D = preload("res://assets/atlas.png")
+var romance_ground: Texture2D = preload("res://assets/ground_romance.png")
 var ground: Texture2D = preload("res://assets/ground.png")
 var glow: Texture2D = preload("res://assets/glow.png")
 var body_font: Font = preload("res://assets/body.ttf")
@@ -61,6 +64,12 @@ var fertilized: Array = []
 var has_fertilizer := false
 var task_time := 0.0
 var task_duration := 1.0
+var task_return_direction := 2
+var task_return_facing := Vector2.DOWN
+var task_return_aim := Vector2.RIGHT
+var walk_facing := Vector2.DOWN
+var food_hearts_left := 0
+var food_heart_clock := .3
 var task_kind := ""
 var task_target := Vector2.ZERO
 var transition := false
@@ -156,7 +165,7 @@ func _ready() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"accessories":[],"wearing":[],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -409,7 +418,7 @@ func confirm_new() -> void:
 	box.add_child(button(tx("back"), show_menu))
 
 func new_game() -> void:
-	room_remains.clear()
+	room_remains.clear();food_hearts_left=0
 	save_data = default_save()
 	held_item="";sync_hands()
 	save_data.started = true
@@ -730,6 +739,7 @@ func build_level(index: int) -> void:
 		if id not in save_data.cleaned:save_data.cleaned.append(id)
 		if id not in fertilized:fertilized.append(id)
 		if not plants.has(id): plants[id] = {"stage":2,"remaining":0.0}
+	place_accessory(rng)
 	prepare_foliage_and_paths(rng)
 	prepare_room_details(rng)
 	prepare_grass_details()
@@ -769,6 +779,7 @@ func blocked(pos: Vector2) -> bool:
 func move_player(delta: float, input: Vector2) -> void:
 	moving = input.length()>0.1
 	if not moving: return
+	walk_facing=input.normalized()
 	var before := player
 	var motion := input.limit_length()*SPEED*delta
 	var next := player+Vector2(motion.x,0)
@@ -834,7 +845,9 @@ func _process(delta: float) -> void:
 			if not rocket_voice.playing:rocket_voice.play()
 		else:rocket_voice.stop()
 	for door in objects:
-		if door.kind=="doorway":door.gate_amount=move_toward(float(door.get("gate_amount",0)),1.0 if door_is_open(str(door.id)) else 0.0,delta*2.5)
+		if door.kind=="doorway":
+			door.gate_amount=move_toward(float(door.get("gate_amount",0)),1.0 if door_is_open(str(door.id)) else 0.0,delta*2.5)
+			if door.id=="exit" and door_is_open("exit"):resolve_gate_overlap(door)
 	for i in range(footprints.size()-1,-1,-1):
 		footprints[i].life-=delta
 		if footprints[i].life<=0:footprints.remove_at(i)
@@ -856,6 +869,7 @@ func _process(delta: float) -> void:
 		sfx("birds" if level==0 else "crickets" if level==1 else "ambient")
 		ambience_clock = 10.0 if level in [0,1] else randf_range(7,13)
 	if not paused and not transition and playing and not rotate_overlay.visible:
+		update_food_hearts(delta)
 		update_new_rooms(delta)
 		update_tasks(delta)
 		if level==5: update_plants(delta)
@@ -960,6 +974,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.kind=="accessory":return obj.accessory not in save_data.accessories
 	if obj.kind=="doorway":return obj.id=="exit" and not door_is_open("exit")
 	if obj.id in ["rpg","rifle","sword"]: return obj.id not in save_data.weapons_taken
 	if obj.id in ["seat","swing"]:return true
@@ -996,6 +1011,7 @@ func find_nearest() -> void:
 				nearest = i
 
 func action_text(obj: Dictionary) -> String:
+	if obj.kind=="accessory":return tx("wear_accessory")
 	if not resting.is_empty():return tx("stand_action")
 	if obj.id=="seat": return tx("sit_action")
 	if obj.id=="swing": return tx("swing_action")
@@ -1023,21 +1039,22 @@ func action_text(obj: Dictionary) -> String:
 func interact() -> void:
 	if paused or transition: return
 	if not resting.is_empty(): stand_up();return
-	if level==3 and save_data.shovel and task_time<=0 and (nearest<0 or objects[nearest].id not in ["exit","back","buried"]):
+	if level==3 and save_data.shovel and task_time<=0 and (nearest<0 or (objects[nearest].id not in ["exit","back","buried"] and objects[nearest].kind!="accessory")):
 		dig_here()
 		return
 	if nearest<0: return
 	var obj := objects[nearest]
 	var id: String = obj.id
 	if task_time>0: return
+	if obj.kind=="accessory":
+		collect_accessory(str(obj.accessory));return
 	if id in ["seat","swing"]:
 		resting=id;rest_anchor=obj.pos;player=obj.pos+Vector2(0,8);direction=2;joy_active=false;joy_vector=Vector2.ZERO
 	elif id in ["rake","can","fertilizer","shovel","flashlight"]:
 		equip_tool(id);persist();sfx("ui")
 	elif obj.kind in ["berries","tree_apples"]:
 		save_data.eaten.append(id);health=mini(8,health+2);sfx("eat");persist()
-		var first := particles.size();burst(player,12,Color("ef436b"))
-		for i in range(first,particles.size()):particles[i].heart=true
+		food_hearts_left=10;food_heart_clock=.3
 	elif obj.kind=="mound":
 		if not save_data.shovel: notify(tx("shovel_required"))
 		else: begin_task("dig:"+id,obj.pos,.25)
@@ -1183,7 +1200,7 @@ func update_hud() -> void:
 	action_button.disabled = task_time>0
 	action_button.visible = (nearest>=0 or (level==3 and save_data.shovel)) and playing
 	if nearest>=0: action_button.text = ""+action_text(objects[nearest])
-	if level==3 and save_data.shovel and (nearest<0 or objects[nearest].id not in ["exit","back","buried"]): action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
+	if level==3 and save_data.shovel and (nearest<0 or (objects[nearest].id not in ["exit","back","buried"] and objects[nearest].kind!="accessory")): action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
 	switch_button.visible = false
 	attack_button.visible = level==4 and not combat_done and playing
 	hint.text = (tx("hedge_collision_prefix") + str(Vector2i(player/TILE))) if stuck_seconds>.8 else (tx("movement_hint") if not joy_active else "")
@@ -1395,7 +1412,7 @@ func _draw() -> void:
 			
 			elif level==0: tile=3
 			if grass_texture!=null and level not in [4,6]:draw_texture_rect_region(grass_texture,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(x,y)*24,Vector2(24,24)))
-			else:draw_texture_rect_region(ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
+			else:draw_texture_rect_region(romance_ground if level==6 else ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
 			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
@@ -1407,6 +1424,7 @@ func _draw() -> void:
 				renderables.append({"kind":kind,"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":cell,"berry_id":berry_id})
 
 	for obj in objects:
+		if obj.kind=="accessory" and obj.accessory in save_data.accessories:continue
 		if obj.get("integrated_hedge",false):continue
 		var p := screen(obj.pos)
 		if p.x < -100 or p.y < -100 or p.x>view.x+100 or p.y>view.y+150: continue
@@ -1436,6 +1454,10 @@ func _draw() -> void:
 				draw_hedge_structure(screen(wall.pos))
 	draw_paths()
 	draw_footprints()
+	for part in particles:
+		if part.get("ground",false) and shadow_floor_cell(Vector2i(part.pos/TILE)):
+			var dust_color:Color=part.color;dust_color.a=minf(1,part.life*2)
+			draw_rect(Rect2(screen(part.pos),Vector2(3,3)),dust_color)
 	for remains in room_remains.get(level,[]):
 		draw_sprite(remains.kind,screen(remains.pos),Color.WHITE,float(remains.get("scale",1.0)))
 	for hole in objects:
@@ -1463,7 +1485,8 @@ func _draw() -> void:
 			var frame := int(time*12)%4 if moving and not paused else 0
 			if not resting.is_empty():p+=Vector2(0,-18+sin(time*2.4)*12 if resting=="swing" else -18)
 			var color := Color(1,.65,.73) if invincible>0 and int(time*12)%2==0 else Color.WHITE
-			draw_sprite("hero"+str(direction)+"_"+str(frame),p+Vector2(sin(time*9)*1.2 if moving else 0, sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3),color)
+			var hero_pos:=p+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
+			draw_player_outfit(hero_pos,frame,color)
 			if attack_flash>0 and weapon=="sword":
 				var angle := aim.angle()
 				draw_arc(p+Vector2(0,-20),88,angle-1.1,angle+1.1,22,Color(1,.84,.75,attack_flash/.19),7)
@@ -1483,12 +1506,12 @@ func _draw() -> void:
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width*float(enemy.hp)/float(enemy.get("max_hp",enemy.hp)),5)),PINK)
 		else:
 			if task_time<=0 and not item.has("wall") and available(item) and item.pos.distance_to(player)<95 and kind not in ["doorway","arch","sprout","well","stone"]:
-				var highlight := "dug" if item.id=="buried" else "flashlight" if kind=="stand_flashlight" else kind
+				var highlight := "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else "flashlight" if kind=="stand_flashlight" else kind
 				if item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				else:draw_pickup_outline(highlight,p+Vector2(0,-40) if kind=="stand_flashlight" else p,3.0 if kind=="chest" and item.id=="final" else 1.0)
 			if not item.has("wall") and item.id!="buried":
-				if kind in ["tree","tree_apples","crate","column","well","bench"]:draw_cast_shadow(kind,p,1.0)
+				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
 				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
 			if item.get("ground_tool",false):
 				draw_set_transform(p,PI/2);draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
@@ -1528,6 +1551,7 @@ func _draw() -> void:
 			elif kind=="note_open" and item.id=="buried":draw_buried_paper(p,true)
 			elif kind in ["flowers","blueflowers"]:
 				draw_sprite(kind+"_pressed_"+str(clampi(roundi(float(item.get("press",0))*2),0,2)),p)
+			elif kind=="accessory":draw_sprite("accessory_"+str(item.accessory),p+Vector2(0,sin(time*2)*2))
 			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4+25*(1-clampf((time-float(item.get("rise_start",time-1)))/.45,0,1))))
 			else: draw_sprite(kind,p)
 			if item.get("wall",false) and level not in [1,2,4] and not kind.begins_with("hedge_tree"):draw_hedge_connections(p)
@@ -1551,11 +1575,11 @@ func _draw() -> void:
 
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
-		if item.kind in ["lamp","candle","note"] or (item.kind=="chest" and chest_open):
+		if item.kind in ["lamp","candle","candle_heart","heart_stand","note"] or (item.kind=="chest" and chest_open):
 			var p := screen(item.pos)-Vector2(0,42)
 			var size := 150.0+sin(time*3+item.pos.x)*5
 			draw_texture_rect(glow,Rect2(p-Vector2.ONE*size/2,Vector2.ONE*size),false)
-	if nearest>=0 and playing and not paused:
+	if nearest>=0 and playing and not paused and objects[nearest].kind!="sprout":
 		var p := screen(objects[nearest].pos)+Vector2(0,-88+sin(time*4)*3)
 		draw_colored_polygon(PackedVector2Array([p+Vector2(-6,-5),p+Vector2(6,-5),p+Vector2(0,2)]),Color("ffe4a8"))
 	# Deterministic ambient fireflies and butterflies, no nodes allocated per frame.
@@ -1577,6 +1601,7 @@ func _draw() -> void:
 			draw_rect(Rect2(Vector2(-2,-1),Vector2(4,2)),Color(.95,.65,.78,.35))
 			draw_set_transform(Vector2.ZERO)
 	for part in particles:
+		if part.get("ground",false):continue
 		var c: Color = part.color
 		c.a = minf(1,part.life)
 		if part.heart: draw_heart(screen(part.pos),1.2,c)
@@ -1683,6 +1708,7 @@ func travel(destination: int) -> void:
 
 func corridor_position(pos: Vector2) -> void:
 	var travel_direction := (pos-player).normalized()
+	if travel_direction.length()>.1:walk_facing=travel_direction
 	stride_distance+=pos.distance_to(player)
 	player = pos
 	if stride_distance>=24 and travel_direction.length()>.1:
@@ -1690,12 +1716,14 @@ func corridor_position(pos: Vector2) -> void:
 	camera = camera_target()
 
 func begin_task(kind: String, target: Vector2, duration: float) -> void:
+	task_return_direction=direction;task_return_facing=walk_facing;task_return_aim=aim
 	task_kind = kind
 	task_target = target
 	task_time = duration
 	task_duration = duration
 	moving = false
 	var toward := target-player
+	walk_facing=toward.normalized()
 	if absf(toward.x)>absf(toward.y):direction=1 if toward.x<0 else 3
 	else:direction=0 if toward.y<0 else 2
 	sfx("rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "step_grass" if kind.begins_with("dig:") else "paper" if kind.begins_with("fertilize:") else "water")
@@ -1730,6 +1758,7 @@ func update_tasks(delta: float) -> void:
 		save_data.cleaned.append(task_kind.trim_prefix("rake:"));burst(task_target,8,Color("8ca465"))
 	elif task_kind.begins_with("fertilize:"):
 		fertilized.append(task_kind.trim_prefix("fertilize:"));burst(task_target,10,Color("c8aa7d"))
+	direction=task_return_direction;walk_facing=task_return_facing;aim=task_return_aim
 	persist()
 
 func update_plants(delta: float) -> void:
@@ -1851,50 +1880,24 @@ func draw_extra_effects() -> void:
 		if reload_time>0:
 			var bar := screen(player)+Vector2(-28,-102)
 			draw_rect(Rect2(bar,Vector2(56,6)),INK);draw_rect(Rect2(bar,Vector2(56*(1-reload_time/1.8),6)),CREAM)
-	if level==5 and held_item in ["rake","fertilizer"] and task_time<=0:draw_sprite(held_item,screen(player)+Vector2(15,-1+sin(time*8)*1.5),Color.WHITE,.7)
-	if level==5 and garden_can and task_time<=0:
-		var hand := screen(player)+Vector2(-10,-35+sin(time*(9 if moving else 3))*1.5)
-		draw_set_transform(hand,sin(time*8)*.08 if moving else -.1)
-		draw_sprite("can",Vector2(0,25),Color.WHITE,.65)
+	if held_item in ["can","rake","fertilizer","shovel","flashlight"]:
+		var pose:=held_tool_pose()
+		var texture:String="fertilizer_open" if task_time>0 and task_kind.begins_with("fertilize:") else held_item
+		draw_set_transform(screen(pose.hand),pose.angle,pose.flip)
+		var id:int=sprites[texture]
+		draw_texture_rect_region(atlas,Rect2(-pose.anchor*pose.scale,Vector2(32,48)*pose.scale),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)))
 		draw_set_transform(Vector2.ZERO)
-	if level==3 and save_data.shovel and task_time<=0: draw_sprite("shovel",screen(player)+Vector2(-14,12),Color.WHITE,.65)
-	if level==5:
-		for obj in objects:
-			if obj.kind!="sprout" or obj.id in watered: continue
-			var plant: Dictionary = plants.get(obj.id,{"stage":0,"remaining":0.0})
-			var caption := tx("clean_bed") if obj.id not in save_data.cleaned else str(mini(2,int(plant.stage)))+"/2"
-			if float(plant.remaining)>0: caption += " · "+str(ceili(plant.remaining))+tx("seconds_suffix")
-			elif obj.id not in fertilized and obj.id in save_data.cleaned: caption = tx("fertilizer_label")
-			draw_string(body_font,screen(obj.pos)+Vector2(-25,-68),caption,HORIZONTAL_ALIGNMENT_LEFT,-1,12,CREAM)
 	if task_time>0:
-		var origin := screen(player)+Vector2(12,-25)
-		var target := screen(task_target)+Vector2(0,-10)
-		if task_kind=="fill":
-			draw_set_transform(origin,-.1)
-			draw_sprite("can",Vector2(0,25),Color.WHITE,.65)
-			draw_set_transform(Vector2.ZERO)
-			origin = target+Vector2(0,-45)
-			target = screen(player)+Vector2(12,-15)
-		elif task_kind.begins_with("water:"):
-			origin = screen(player)+Vector2(-10,-35)
-			var left := task_target.x<player.x
-			var angle := (target-origin).angle()-Vector2(-18.2 if left else 18.2,5.5).angle()
-			draw_set_transform(origin,angle,Vector2(-1 if left else 1,1))
-			draw_sprite("can",Vector2(0,25),Color.WHITE,.65)
-			draw_set_transform(Vector2.ZERO)
-			origin += Vector2(-18.2 if left else 18.2,5.5).rotated(angle)
-		elif task_kind.begins_with("dig:"):
-			draw_set_transform(origin,sin(time*9)*.6)
-			draw_sprite("shovel",Vector2(0,40),Color.WHITE,.8)
-			draw_set_transform(Vector2.ZERO)
-		elif task_kind.begins_with("rake:"):
-			draw_set_transform(origin,sin(time*12)*.35);draw_sprite("rake",Vector2(0,20),Color.WHITE,.8);draw_set_transform(Vector2.ZERO)
-		else: draw_sprite("fertilizer",origin+Vector2(0,sin(time*8)*3),Color.WHITE,.7)
-		for i in range(22 if task_kind=="fill" or task_kind.begins_with("water:") else 8):
-			var progress := fposmod(time*2.1+i*.047,1.0)
-			var p := origin.lerp(target,progress)+Vector2(sin(i*3.1)*6,progress*progress*12)
-			draw_circle(p,1.5,Color("b8e8ed") if task_kind=="fill" or task_kind.begins_with("water:") else Color("8b9c61") if task_kind.begins_with("rake:") else Color("bb9270"))
-		var bar := screen(player)+Vector2(-25,-93)
+		var pose:=held_tool_pose()
+		var origin:=screen(pose.tip)
+		var target:=screen(task_target)+Vector2(0,-10)
+		if task_kind=="fill":origin=target+Vector2(0,-45);target=screen(pose.hand)+Vector2(0,10)
+		var watering:=task_kind=="fill" or task_kind.begins_with("water:")
+		for i in range(22 if watering else 12):
+			var progress:=fposmod((task_duration-task_time)*2.1+i*.047,1.0)
+			var drop:=origin.lerp(target,progress)+Vector2(sin(i*3.1)*2,progress*progress*8)
+			draw_rect(Rect2(drop,Vector2(2,3) if watering else Vector2(2,2)),Color("b8e8ed") if watering else Color("8b9c61") if task_kind.begins_with("rake:") else Color("e4c99d"))
+		var bar:=screen(player)+Vector2(-25,-93)
 		draw_rect(Rect2(bar,Vector2(50,5)),INK)
 		draw_rect(Rect2(bar,Vector2(50*clampf(1-task_time/maxf(.01,task_duration),0,1),5)),PINK)
 
@@ -1931,9 +1934,9 @@ void fragment(){
 func update_fog() -> void:
 	if not is_instance_valid(fog) or not fog.visible: return
 	var material: ShaderMaterial = fog.material
-	var facing: Vector2 = [Vector2.UP,Vector2.LEFT,Vector2.DOWN,Vector2.RIGHT][direction]
+	var facing: Vector2 = walk_facing.normalized()
 	if joy_vector.length()>.2: facing=joy_vector.normalized()
-	material.set_shader_parameter("light_pos",screen(player)+Vector2(14,-33))
+	material.set_shader_parameter("light_pos",screen(held_tool_pose().tip) if held_item=="flashlight" else screen(player)+Vector2(14,-33))
 	material.set_shader_parameter("view_size",get_viewport_rect().size)
 	material.set_shader_parameter("light_dir",facing)
 	material.set_shader_parameter("enabled",save_data.flashlight)
@@ -1964,7 +1967,7 @@ func update_new_rooms(delta: float) -> void:
 		if skull_clock<=0:
 			skull_clock=randf_range(2.0,3.5)
 			if held_item=="flashlight":
-				var facing: Vector2 = [Vector2.UP,Vector2.LEFT,Vector2.DOWN,Vector2.RIGHT][direction]
+				var facing: Vector2 = walk_facing.normalized()
 				if joy_vector.length()>.2:facing=joy_vector.normalized()
 				for attempt in range(6):
 					var pos := player+Vector2(14,-33)+facing.rotated(randf_range(-.25,.25))*randf_range(75,145)
@@ -1988,7 +1991,6 @@ func draw_new_rooms() -> void:
 	if level==1:
 		for skull in skulls:
 			draw_sprite("skull",screen(skull.pos),Color(1,1,1,minf(1,skull.life)))
-		if save_data.flashlight: draw_sprite("flashlight",screen(player)+Vector2(14,-10),Color.WHITE,.5)
 	elif level==2:
 		for i in range(5):
 			var rect := obstacle_rect(i)
@@ -2122,7 +2124,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 	path_pads.append({"pos":end,"radius":43.0})
 	var targets:Array[Dictionary]=[]
 	for obj in objects:
-		if obj.kind in ["sprout","well","bench","swing","can","rake","fertilizer","note","stand_flashlight","house","pond"]:
+		if obj.kind in ["sprout","well","bench","swing","can","rake","fertilizer","note","stand_flashlight","house","pond","accessory"]:
 			var radius:=90.0 if obj.kind=="house" else 80.0 if obj.kind=="pond" else 52.0 if obj.kind in ["well","bench","swing"] else 42.0 if obj.kind=="sprout" else 30.0
 			obj.path_pad_radius=radius
 			path_pads.append({"pos":obj.pos,"radius":radius})
@@ -2362,15 +2364,15 @@ func leave_footprint(direction: Vector2) -> void:
 	if footprints.size()>150:footprints.pop_front()
 	for n in range(8):
 		if particles.size()>=420:break
-		particles.append({"pos":position+Vector2(randf_range(-3,3),0),"vel":-direction*randf_range(5,14)+Vector2(randf_range(-9,9),randf_range(-12,-3)),"life":randf_range(.25,.5),"color":Color("b6ab9b") if stone else Color("a6b786"),"heart":false})
+		particles.append({"pos":position+Vector2(randf_range(-3,3),0),"vel":-direction*randf_range(5,14)+Vector2(randf_range(-9,9),randf_range(-12,-3)),"life":randf_range(.25,.5),"color":Color("b6ab9b") if stone else Color("a6b786"),"heart":false,"ground":true})
 
 func draw_footprints() -> void:
+	var id:int=sprites["footprint"]
 	for footprint in footprints:
 		draw_set_transform(screen(footprint.pos),footprint.rotation)
-		var color := Color("b8ab9a") if footprint.stone else Color("263e35")
-		color.a=.42*minf(1.0,footprint.life/2)
-		draw_rect(Rect2(Vector2(-2,-5),Vector2(4,6)),color)
-		draw_rect(Rect2(Vector2(-1,3),Vector2(3,2)),color)
+		var color:=Color("74583f") if footprint.stone and level==5 else Color("b8ab9a") if footprint.stone else Color("243a2d")
+		color.a=(.78 if level==5 else .56)*minf(1.0,footprint.life/2)
+		draw_texture_rect_region(atlas,Rect2(Vector2(-4,-7),Vector2(8,14)),Rect2(Vector2(id%16*32+12,id/16*48+32),Vector2(8,14)),color)
 	draw_set_transform(Vector2.ZERO)
 
 func stone_surface(pos: Vector2) -> bool:
@@ -2543,7 +2545,7 @@ func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
 	var light := origin+Vector2(-180,-240)
 	var nearest_light := INF
 	for obj in objects:
-		if obj.kind not in ["lamp","candle"]:continue
+		if obj.kind not in ["lamp","candle","candle_heart","heart_stand"]:continue
 		var d := origin.distance_squared_to(obj.pos)
 		if d<nearest_light:nearest_light=d;light=obj.pos-Vector2(0,50)
 	if level==1 and save_data.flashlight:light=player+aim*30
@@ -2590,6 +2592,11 @@ func prepare_room_details(rng: RandomNumberGenerator) -> void:
 		for x in [4,8,19,23]:
 			var row := 6 if rng.randf()<.5 else grid.size()-7
 			if grid[row][x]=="#":put_object("tree",Vector2i(x,row),"",false)
+	if level==6:
+		for obj in objects:
+			if obj.kind=="column":obj.kind="column_wreath"
+			elif obj.kind=="candle":obj.kind="candle_heart"
+		for cell in [Vector2i(9,10),Vector2i(17,10),Vector2i(8,20),Vector2i(18,20)]:put_object("heart_stand",cell,"",true)
 	var index := 0
 	for obj in objects:
 		if obj.kind!="tree":continue
@@ -2634,3 +2641,68 @@ func draw_floor_shadow(polygon: PackedVector2Array, color: Color, projection: Tr
 						var local:Vector2=projection.affine_inverse()*point/scale_factor+Vector2(32,86)
 						uv.append((Vector2(sprite_id%16*32,sprite_id/16*48)+local/2)/Vector2(atlas.get_size()))
 					draw_polygon(clipped,PackedColorArray([color]),uv,atlas)
+
+func resolve_gate_overlap(door: Dictionary) -> void:
+	var relative:Vector2=player-door.pos
+	if absf(relative.y)>16 or absf(relative.x)>86 or not blocked(player):return
+	for radius in range(4,101,4):
+		for normal in [Vector2.DOWN,Vector2.UP,Vector2.RIGHT,Vector2.LEFT,Vector2(1,1).normalized(),Vector2(-1,1).normalized(),Vector2(1,-1).normalized(),Vector2(-1,-1).normalized()]:
+			var candidate:Vector2=player+normal*radius
+			if not blocked(candidate):player=candidate;return
+
+func held_tool_pose() -> Dictionary:
+	var toward:Vector2=walk_facing.normalized()
+	if toward.length()<.1:toward=[Vector2.UP,Vector2.LEFT,Vector2.DOWN,Vector2.RIGHT][direction]
+	var using:=task_time>0
+	if using:toward=(task_target-player).normalized()
+	var hand:=player+Vector2(toward.x*16 if absf(toward.x)>.2 else 12,-21+toward.y*3)
+	if moving and not using:hand.y+=sin(time*12)*1.2
+	if using:toward=(task_target+Vector2(0,-55 if task_kind=="fill" else -10)-hand).normalized()
+	var anchors:Dictionary={"can":Vector2(14,24),"rake":Vector2(16,31),"fertilizer":Vector2(16,32),"shovel":Vector2(16,29),"flashlight":Vector2(16,32)}
+	var tips:Dictionary={"can":Vector2(30,28),"rake":Vector2(19,14),"fertilizer":Vector2(16,23),"shovel":Vector2(16,45),"flashlight":Vector2(16,21)}
+	var anchor:Vector2=anchors.get(held_item,Vector2(16,32));var tip:Vector2=tips.get(held_item,Vector2(25,23))
+	var scale_factor:=1.3 if held_item!="flashlight" else 1.0
+	var local_tip:Vector2=(tip-anchor)*scale_factor
+	var flip:=Vector2(-1,1) if toward.x<0 else Vector2.ONE
+	var angle:=toward.angle()-(local_tip*flip).angle()
+	if using and task_kind.begins_with("fertilize:"):angle+=sin(time*16)*.07
+	if using and task_kind.begins_with("rake:"):hand+=toward*sin(time*13)*9
+	if using and task_kind.begins_with("dig:"):angle+=sin((task_duration-task_time)/task_duration*PI)*.6
+	return {"hand":hand,"angle":angle,"flip":flip,"anchor":anchor,"scale":scale_factor,"tip":hand+(local_tip*flip).rotated(angle)}
+
+func place_accessory(rng: RandomNumberGenerator) -> void:
+	var choices:Array[Vector2]=[]
+	for y in range(8,grid.size()-7):
+		for x in range(2,grid[0].length()-2):
+			var point:=(Vector2(x,y)+Vector2(.5,.5))*TILE
+			if not valid_ground(point) or blocked(point):continue
+			if level==2 and y<30:continue
+			if level in [4,6]:
+				var reserved:=[Vector2i(3,10),Vector2i(23,10),Vector2i(22,19),Vector2i(4,19),Vector2i(4,11),Vector2i(22,18),Vector2i(5,8),Vector2i(21,8),Vector2i(3,20),Vector2i(23,20),Vector2i(9,10),Vector2i(17,10),Vector2i(8,20),Vector2i(18,20)]
+				if reserved.any(func(cell):return point.distance_to((Vector2(cell)+Vector2(.5,.5))*TILE)<80):continue
+			if objects.any(func(o):return o.pos.distance_to(point)<80):continue
+			choices.append(point)
+	if choices.is_empty():choices.append(player+Vector2(35,0))
+	var pos:Vector2=choices[rng.randi_range(0,choices.size()-1)]
+	objects.append({"kind":"accessory","id":"accessory_"+str(level),"accessory":ACCESSORIES[level],"pos":pos,"solid":false})
+
+func collect_accessory(item: String) -> void:
+	if item not in ACCESSORIES or item in save_data.accessories:return
+	save_data.accessories.append(item)
+	if item in HEAD_ACCESSORIES:
+		save_data.wearing=save_data.wearing.filter(func(old):return old not in HEAD_ACCESSORIES)
+	if item not in save_data.wearing:save_data.wearing.append(item)
+	persist();sfx("chime");burst(player,8,PINK)
+	notify(tx("accessory_found") % tx("accessory_"+item))
+
+func draw_player_outfit(pos: Vector2, frame: int, color: Color) -> void:
+	draw_sprite("hero"+str(direction)+"_"+str(frame),pos,color)
+	for item in ["peach_dress","rose_scarf","veil","brooch","wreath","crown","heart_tiara"]:
+		if item in save_data.wearing:draw_sprite("wear_"+item+"_"+str(direction)+"_"+str(frame),pos,color)
+
+func update_food_hearts(delta: float) -> void:
+	if food_hearts_left<=0:return
+	food_heart_clock-=delta
+	while food_heart_clock<=0 and food_hearts_left>0:
+		food_heart_clock+=.3;food_hearts_left-=1
+		particles.append({"pos":player+Vector2(randf_range(-5,5),-48),"vel":Vector2(randf_range(-4,4),-23),"life":1.8,"color":Color("ef436b"),"heart":true})

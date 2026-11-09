@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw
 import random, math, wave, struct, json
 from pathlib import Path
 R=Path(__file__).resolve().parents[1]; A=R/'assets'; random.seed(17)
-NAMES=[]; atlas=Image.new('RGBA',(32*16,48*16))
+NAMES=[]; atlas=Image.new('RGBA',(32*16,48*32))
 def sprite(name,fn):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);fn(d);i=len(NAMES);NAMES.append(name);atlas.paste(im,((i%16)*32,(i//16)*48))
 def leaf(d,x,y,r=6):
@@ -395,6 +395,92 @@ for name in ['weeds']+['seedling'+str(v) for v in range(6)]+['bloom'+str(v) for 
   for x in range(32):
    if im.getpixel((x,y))[:3] in soil_colors:im.putpixel((x,y),(0,0,0,0))
  i=len(NAMES);NAMES.append(name+'_plant');atlas.paste(im,((i%16)*32,(i//16)*48))
+# Dedicated romantic room artwork and correctly aligned wearable animation layers.
+def tiny_heart(d,x,y,c='#db8ca6'):
+ d.polygon([(x-3,y-1),(x-1,y-3),(x,y-1),(x+2,y-3),(x+4,y-1),(x+3,y+1),(x,y+4),(x-3,y+1)],fill=c)
+def romantic_candle(d):
+ candle(d);tiny_heart(d,15,33,'#ba728d')
+sprite('candle_heart',romantic_candle)
+def romantic_column(d):
+ column(d)
+ for n in range(9):
+  a=n*math.tau/9;x=16+round(math.cos(a)*7);y=23+round(math.sin(a)*7)
+  d.ellipse((x-2,y-1,x+2,y+1),fill='#6a956b');d.point((x,y-1),fill='#b5c48b')
+ d.line((12,29,10,36),fill='#d18aa2',width=2);d.line((20,29,23,35),fill='#b57895',width=2);tiny_heart(d,16,29)
+sprite('column_wreath',romantic_column)
+def heart_stand(d):
+ d.ellipse((5,39,27,46),fill='#494253');d.rectangle((14,22,18,41),fill='#907479');d.line((14,26,14,39),fill='#d5b29a')
+ d.polygon([(5,13),(9,9),(13,10),(16,14),(20,9),(25,10),(28,14),(26,20),(16,29),(6,21)],fill='#75495f')
+ d.polygon([(7,13),(10,11),(13,13),(16,17),(21,11),(25,12),(26,15),(24,19),(16,26),(8,20)],fill='#d892ac')
+ d.line((10,13,12,14),fill='#ffd4d4',width=2)
+ d.line((10,28,7,36),fill='#d9b38e');d.line((22,27,25,35),fill='#ad7c96')
+sprite('heart_stand',heart_stand)
+def footprint(d):
+ d.ellipse((12,32,19,39),fill='#fff4dd');d.rectangle((13,36,18,41),fill='#fff4dd');d.rectangle((13,43,18,45),fill='#fff4dd')
+ d.point((13,33),fill=(0,0,0,0));d.point((18,44),fill=(0,0,0,0))
+sprite('footprint',footprint)
+ACCESSORIES=['wreath','veil','crown','rose_scarf','peach_dress','brooch','heart_tiara']
+def head_piece(d,item,b=0,shift=0):
+ if item=='wreath':
+  for x,y in [(7,13),(9,10),(13,9),(18,9),(23,11),(25,14)]:
+   d.ellipse((x-2,y-1+b,x+2,y+1+b),fill='#739b68');d.point((x,y-1+b),fill='#b0c78b')
+  for x,y in [(10,10),(20,10),(25,13)]:d.rectangle((x-1,y-1+b,x+1,y+1+b),fill='#efa4be');d.point((x,y+b),fill='#ffe0ac')
+ elif item=='crown':
+  d.polygon([(8,7+b),(12,11+b),(16,4+b),(20,11+b),(25,7+b),(23,15+b),(10,15+b)],fill='#9e7544')
+  d.polygon([(9,8+b),(12,12+b),(16,6+b),(20,12+b),(24,9+b),(22,13+b),(11,13+b)],fill='#ebc66f');d.point((16,10+b),fill='#f2a4ac')
+ elif item=='heart_tiara':
+  d.arc((7,5+b,26,21+b),180,350,fill='#e5c1bc',width=2);tiny_heart(d,16,6+b,'#db85a4')
+  for x in [8,11,21,25]:d.rectangle((x,11+b,x+1,12+b),fill='#fff0c7')
+def accessory_pickup(d,item):
+ if item in ['wreath','crown','heart_tiara']:
+  im=Image.new('RGBA',(32,48));head_piece(ImageDraw.Draw(im),item)
+  # Translate the head ornament onto the ground icon baseline.
+  for y in range(22):
+   for x in range(32):
+    c=im.getpixel((x,y))
+    if c[3]:d.point((x,y+22),fill=c)
+ elif item=='veil':
+  d.polygon([(10,23),(23,23),(26,42),(7,42)],fill='#675268');d.line((11,25,22,25),fill='#b991aa',width=2);d.line((13,29,11,40),fill='#856b84')
+ elif item=='rose_scarf':
+  d.polygon([(8,25),(23,22),(27,40),(17,36),(8,42),(5,34)],fill='#bc8097');d.line((9,27,20,25,23,36),fill='#edb2c0',width=2)
+ elif item=='peach_dress':
+  d.polygon([(12,22),(20,22),(23,29),(20,29),(27,44),(5,44),(12,29),(8,29)],fill='#a96976');d.line((14,25,12,41),fill='#df9c9a',width=2);d.line((7,43,25,43),fill='#edc4b5')
+ else:
+  for n in range(5):
+   a=n*math.tau/5;x=16+round(math.cos(a)*5);y=34+round(math.sin(a)*5);d.ellipse((x-3,y-3,x+3,y+3),fill='#d28da9')
+  d.ellipse((14,32,18,36),fill='#ffe2a1');d.line((16,39,20,42),fill='#89a478',width=2)
+for item in ACCESSORIES:sprite('accessory_'+item,lambda d,item=item:accessory_pickup(d,item))
+DRESS_COLORS={'302d48':'593a4b','55516c':'a96872','77718a':'d99c99','403c58':'83505f','bd9eaf':'e3b2a7'}
+SCARF_COLORS={'65576d':'7d4a62','8e7c90':'b4758d','c7b0be':'e8afbb','b29baa':'c994aa'}
+for item in ACCESSORIES:
+ for direction in range(4):
+  for frame in range(4):
+   im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);b=frame%2
+   if item in ['peach_dress','rose_scarf']:
+    base=NAMES.index('hero'+str(direction)+'_'+str(frame));base=atlas.crop(((base%16)*32,(base//16)*48,(base%16+1)*32,(base//16+1)*48))
+    palette={tuple(bytes.fromhex(k)):tuple(bytes.fromhex(v)) for k,v in (DRESS_COLORS if item=='peach_dress' else SCARF_COLORS).items()}
+    for y in range(48):
+     for x in range(32):
+      c=base.getpixel((x,y))
+      if c[:3] in palette and c[3]:im.putpixel((x,y),palette[c[:3]]+(c[3],))
+   elif item=='veil' and direction!=0:
+    d.rounded_rectangle((10 if direction!=3 else 13,15+b,23 if direction!=1 else 20,28+b),3,fill='#4e4057');d.line((12 if direction!=3 else 15,24+b,20,24+b),fill='#79627b')
+   elif item=='brooch' and direction!=0:
+    x=11 if direction==1 else 23 if direction==3 else 20;y=31+b
+    for dx,dy in [(-2,0),(2,0),(0,-2),(0,2)]:d.rectangle((x+dx-1,y+dy-1,x+dx+1,y+dy+1),fill='#d99ab2')
+    d.point((x,y),fill='#ffe3a3')
+   elif item in ['wreath','crown','heart_tiara']:head_piece(d,item,b)
+   i=len(NAMES);NAMES.append('wear_'+item+'_'+str(direction)+'_'+str(frame));atlas.paste(im,((i%16)*32,(i//16)*48))
+# Subtle engraved hearts live in the final floor texture itself.
+romance=Image.open(A/'ground.png').convert('RGB');rd=ImageDraw.Draw(romance)
+for tile in [1,3]:
+ base=romance.getpixel((tile*24+10,10));color=tuple(min(255,c+v) for c,v in zip(base,(9,4,8)))
+ x=tile*24+12;y=11
+ rd.polygon([(x-3,y-1),(x-1,y-2),(x,y),(x+2,y-2),(x+4,y),(x,y+4),(x-3,y+1)],fill=color)
+romance.save(A/'ground_romance.png')
+i=NAMES.index('fertilizer');im=atlas.crop(((i%16)*32,(i//16)*48,(i%16+1)*32,(i//16+1)*48));fd=ImageDraw.Draw(im)
+fd.polygon([(8,24),(16,20),(24,24),(16,28)],fill='#e4cea1');fd.ellipse((11,22,22,25),fill='#6d563e');fd.point((16,24),fill='#c5aa7c')
+i=len(NAMES);NAMES.append('fertilizer_open');atlas.paste(im,((i%16)*32,(i//16)*48))
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)
