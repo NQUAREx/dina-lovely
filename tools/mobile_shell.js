@@ -13,15 +13,16 @@
   if(!loaded){const retry=document.createElement('button');retry.textContent='↻';retry.style.cssText='position:fixed;left:45%;top:45%;font-size:48px;background:transparent;color:#edbdce;border:0';retry.onclick=()=>location.reload();document.body.append(retry);return;}
   const t=key=>loaded.ui?.[key]?.text||'';
   let loadingTimer=null;
+  let loadProgress=0;window.gardenLoadProgress=(current,total)=>{const bar=document.getElementById('garden-progress');if(!bar)return;if(total>0)loadProgress=Math.max(loadProgress,Math.min(.99,current/total));bar.value=loadProgress;};
   window.gardenHideLoading=()=>{clearInterval(loadingTimer);document.getElementById('garden-loading')?.remove();};
   window.gardenShowLoading=()=>{
    window.gardenHideLoading();const screen=document.createElement('section');screen.id='garden-loading';
    screen.style.cssText='position:fixed;inset:0;z-index:1900;background:radial-gradient(ellipse at top,#55435d,#242538 75%);display:grid;place-content:center;text-align:center;padding:32px;color:#f5e3cf;font:20px/1.6 Georgia';
    const sprout=document.createElement('div');sprout.textContent='✦';sprout.style.cssText='font-size:52px;color:#e5a6bd;animation:garden-pulse 1.2s ease-in-out infinite alternate';screen.append(sprout);
-   const phrase=document.createElement('p');screen.append(phrase);const keys=loaded.loading_phrases||[];let index=Math.floor(Math.random()*keys.length);
+   const progress=document.createElement('progress');progress.id='garden-progress';progress.max=1;progress.value=loadProgress;progress.style.cssText='width:min(300px,75vw);height:14px;accent-color:#e5a6bd;border:1px solid #a07890;border-radius:8px;margin:22px auto 0;background:#342c42';progress.setAttribute('aria-label','%');screen.append(progress);const phrase=document.createElement('p');screen.append(phrase);const keys=loaded.loading_phrases||[];let index=Math.floor(Math.random()*keys.length);
    const update=()=>{phrase.textContent=t(keys[index++%keys.length]);};update();loadingTimer=setInterval(update,1300);document.body.append(screen);
   };
-  const animation=document.createElement('style');animation.textContent='@keyframes garden-pulse{to{transform:scale(1.2) rotate(20deg);opacity:.5}}';document.head.append(animation);
+  const animation=document.createElement('style');animation.textContent='#garden-progress{appearance:none;-webkit-appearance:none;overflow:hidden}#garden-progress::-webkit-progress-bar{background:#342c42;border-radius:8px}#garden-progress::-webkit-progress-value{background:linear-gradient(90deg,#a7789b,#efbdd0);border-radius:8px}#garden-progress::-moz-progress-bar{background:#e5a6bd}@keyframes garden-pulse{to{transform:scale(1.2) rotate(20deg);opacity:.5}}';document.head.append(animation);
   const gate=document.createElement('section');gate.id='mobile-gate';
   const add=(tag,key,parent=gate)=>{const node=document.createElement(tag);node.textContent=t(key);parent.append(node);return node;};
   if(!mobile){add('h1','desktop_title');add('p','desktop_open_phone');add('p','desktop_controls');}

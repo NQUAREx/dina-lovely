@@ -65,3 +65,11 @@ s=s[:match.start(1)]+json.dumps(config,separators=(',',':'))+s[match.end(1):]
 js_version=hashlib.sha256((p.parent/'mobile.js').read_bytes()).hexdigest()[:12]
 s=re.sub(r'<script src="mobile\.js(?:\?[^"]*)?"></script>','<script src="mobile.js?v='+js_version+'"></script>',s)
 p.write_text(s)
+
+# Forward measured download bytes to the mobile loading overlay, once.
+s=p.read_text()
+callback="window.gardenLoadProgress?.(current,total);"
+s=re.sub(r"(?:\s*window\.gardenLoadProgress\?\.\(current,total\);)+", "\n\t\t\t\t"+callback, s)
+if callback not in s:
+ s=s.replace("'onProgress': function (current, total) {", "'onProgress': function (current, total) {\n\t\t\t\t"+callback)
+p.write_text(s)

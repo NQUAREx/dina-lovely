@@ -180,5 +180,11 @@
     "license": "CC0",
     "source_file": "handcuffs-metal-open-01.wav",
     "sha256": "7ef65f3edfce09216f87fe6d36c52c0ab648d3d7bd31128096e6d778f5bd914b"
+  },
+  "rpg_flight": {
+    "pack": "Kenney Sci-Fi Sounds",
+    "license": "CC0",
+    "source_file": "thrusterFire_003.ogg",
+    "sha256": "66b217a8a0a8cb21a5a76f749734ea0c04869eb5d05ec20554935984c6a6f9b5"
   }
 }

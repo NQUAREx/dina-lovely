@@ -20,6 +20,8 @@ var save_data: Dictionary
 var fog: ColorRect
 var skulls: Array[Dictionary] = []
 var damage_numbers: Array[Dictionary] = []
+var room_remains: Dictionary = {}
+var rocket_voice: AudioStreamPlayer
 var path_meshes: Array = []
 var grass_details: Array[Dictionary] = []
 var path_targets: Array[Dictionary] = []
@@ -148,7 +150,7 @@ func _ready() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -188,6 +190,12 @@ func persist() -> void:
 		if is_instance_valid(toast): notify(tx("storage_unavailable"))
 
 func setup_audio() -> void:
+	rocket_voice=AudioStreamPlayer.new()
+	var flight := preload("res://assets/rpg_flight.wav").duplicate() as AudioStreamWAV
+	flight.loop_mode=AudioStreamWAV.LOOP_FORWARD;flight.loop_begin=0;flight.loop_end=int(flight.get_length()*flight.mix_rate)
+	rocket_voice.stream=flight
+	if OS.has_feature("web"):rocket_voice.playback_type=AudioServer.PLAYBACK_TYPE_SAMPLE
+	add_child(rocket_voice)
 	foliage_voice = AudioStreamPlayer.new()
 	foliage_voice.stream = preload("res://assets/rustle.wav")
 	foliage_voice.volume_db = -21
@@ -395,6 +403,7 @@ func confirm_new() -> void:
 	box.add_child(button(tx("back"), show_menu))
 
 func new_game() -> void:
+	room_remains.clear()
 	save_data = default_save()
 	held_item="";sync_hands()
 	save_data.started = true
@@ -550,6 +559,7 @@ func set_cell(x: int, y: int, value: String) -> void:
 
 func build_level(index: int) -> void:
 	level = index
+	if not save_data.has("open_gates"):save_data.open_gates=[]
 	vegetation.clear();berry_cells.clear();paths.clear();grass_details.clear();path_targets.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;obstacle_specs.clear();damage_numbers.clear()
 	skull_clock=2.0
 	skulls.clear()
@@ -714,6 +724,7 @@ func build_level(index: int) -> void:
 		if id not in fertilized:fertilized.append(id)
 		if not plants.has(id): plants[id] = {"stage":2,"remaining":0.0}
 	prepare_foliage_and_paths(rng)
+	prepare_room_details(rng)
 	prepare_grass_details()
 	camera = camera_target()
 	nearest = -1
@@ -724,7 +735,7 @@ func camera_target() -> Vector2:
 	return Vector2(clampf(player.x,half.x-48,grid[0].length()*TILE-half.x+48),clampf(player.y,half.y-220,grid.size()*TILE-half.y+64))
 
 func blocked(pos: Vector2) -> bool:
-	if level<6 and not level_complete() and pos.y<7*TILE and absf(pos.x-(15.5 if level==0 else 13.5)*TILE)<75:return true
+	if level<6 and not door_is_open("exit") and pos.y<7*TILE and absf(pos.x-(15.5 if level==0 else 13.5)*TILE)<75:return true
 	for offset in [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]:
 		var c := Vector2i((pos+offset)/TILE)
 		if c.y<0 or c.x<0 or c.y>=grid.size() or c.x>=grid[0].length() or grid[c.y][c.x]==" ": return true
@@ -799,6 +810,14 @@ func _process(delta: float) -> void:
 	if playing and not paused:
 		var previous := rpg_reload;rpg_reload=maxf(0,rpg_reload-delta)
 		if previous>.3 and rpg_reload<=.3 and weapon=="rpg":sfx("rpg_load")
+	if is_instance_valid(rocket_voice):
+		var distance := INF
+		for shot in shots:
+			if shot.kind=="rpg":distance=minf(distance,player.distance_to(shot.pos))
+		if sound_on and playing and not paused and distance<1400:
+			rocket_voice.volume_db=-20-linear_to_db(1+distance/160)
+			if not rocket_voice.playing:rocket_voice.play()
+		else:rocket_voice.stop()
 	for door in objects:
 		if door.kind=="doorway":door.gate_amount=move_toward(float(door.get("gate_amount",0)),1.0 if door_is_open(str(door.id)) else 0.0,delta*2.5)
 	for i in range(footprints.size()-1,-1,-1):
@@ -826,7 +845,7 @@ func _process(delta: float) -> void:
 		update_tasks(delta)
 		if level==5: update_plants(delta)
 		if level==4: update_shots(delta)
-		if player.y<2.8*TILE: use_exit()
+		if player.y<2.8*TILE: use_exit(true)
 		elif level>0 and player.y>(grid.size()-2.8)*TILE: travel(level-1)
 		camera = camera.lerp(camera_target(),1-exp(-delta*9))
 		invincible = maxf(0,invincible-delta)
@@ -925,7 +944,7 @@ func available(obj: Dictionary) -> bool:
 	if obj.id in ["seat","swing"]:return true
 	if obj.id=="rake": return held_item!="rake"
 	if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>54:return false
-	if obj.kind=="berries": return obj.id not in save_data.eaten
+	if obj.kind in ["berries","tree_apples"]: return obj.id not in save_data.eaten
 	if obj.id=="flashlight": return held_item!="flashlight"
 	if obj.id=="shovel": return held_item!="shovel"
 	if obj.kind=="mound": return obj.id not in save_data.dug
@@ -960,7 +979,7 @@ func action_text(obj: Dictionary) -> String:
 	if obj.id=="seat": return tx("sit_action")
 	if obj.id=="swing": return tx("swing_action")
 	if obj.id=="rake": return tx("pickup_rake")
-	if obj.kind=="berries": return tx("eat_berries")
+	if obj.kind in ["berries","tree_apples"]: return tx("eat_apple") if obj.kind=="tree_apples" else tx("eat_berries")
 	if obj.id=="flashlight": return tx("pickup_flashlight")
 	if obj.id=="shovel": return tx("pickup_shovel")
 	if str(obj.id).begins_with("drop_"):return tx("pickup_prefix")+str({"rpg":tx("weapon_rpg"),"rifle":tx("weapon_rifle"),"sword":tx("weapon_sword")}.get(obj.weapon,obj.weapon))
@@ -968,7 +987,7 @@ func action_text(obj: Dictionary) -> String:
 	if obj.id=="back": return tx("back") if door_is_open("back") else tx("gate_locked_action")
 	if obj.id=="fertilizer": return tx("pickup_fertilizer")
 	if obj.id in ["rpg","rifle","sword"]: return {"rpg":tx("pickup_rpg"),"rifle":tx("pickup_rifle"),"sword":tx("pickup_sword")}[obj.id]
-	if obj.id == "exit": return tx("next_room")
+	if obj.id == "exit": return tx("open_gate") if not door_is_open("exit") else tx("next_room")
 	if obj.id == "well": return tx("fill_water")
 	if obj.id == "can": return tx("pickup_can")
 	if obj.kind == "sprout":
@@ -994,7 +1013,7 @@ func interact() -> void:
 		resting=id;rest_anchor=obj.pos;player=obj.pos+Vector2(0,8);direction=2;joy_active=false;joy_vector=Vector2.ZERO
 	elif id in ["rake","can","fertilizer","shovel","flashlight"]:
 		equip_tool(id);persist();sfx("ui")
-	elif obj.kind=="berries":
+	elif obj.kind in ["berries","tree_apples"]:
 		save_data.eaten.append(id);health=mini(8,health+2);sfx("eat");persist()
 		var first := particles.size();burst(player,12,Color("ef436b"))
 		for i in range(first,particles.size()):particles[i].heart=true
@@ -1088,8 +1107,14 @@ func has_maze_letters() -> bool:
 		if id not in save_data.letters: return false
 	return true
 
-func use_exit() -> void:
-	if transition: return
+func use_exit(walking: bool = false) -> void:
+	if transition:return
+	if level_complete() and level<6 and not door_is_open("exit"):
+		if walking:return
+		save_data.open_gates.append(level);persist();sfx("reload");haptic(30)
+		for door in objects:
+			if door.kind=="doorway" and door.id=="exit":door.unlock_time=time
+		return
 	if level==0 and not has_maze_letters(): notify(tx("maze_notes_required"))
 	elif level==1 and not dark_letters_found(): notify(tx("darkness_notes_required"))
 	elif level==2 and (save_data.obstacles.size()<5 or "crossing" not in save_data.letters): notify(tx("obstacles_required"))
@@ -1128,7 +1153,7 @@ func update_hud() -> void:
 			var count := 0
 			for id in REQUIRED:
 				if id in save_data.letters: count+=1
-			status.text = tx("maze_status") % [count,save_data.secrets.size(),tx("maze_exit_open") if count==3 else tx("maze_search_hint")]
+			status.text = tx("maze_status") % [count,save_data.secrets.size(),(tx("maze_exit_open") if door_is_open("exit") else tx("gate_ready")) if count==3 else tx("maze_search_hint")]
 		1: status.text = tx("darkness_status") % [dark_letter_count(),tx("flashlight_on") if save_data.flashlight else tx("flashlight_location")]
 		2: status.text = tx("obstacles_status") % save_data.obstacles.size()
 		3: status.text = tx("buried_note_found") if "buried" in save_data.letters else (tx("digging_hint") if save_data.shovel else tx("shovel_location"))
@@ -1235,7 +1260,12 @@ func attack() -> void:
 				damage_enemy(i,2,diff.normalized()*28)
 	else:
 		shots.append({"pos":rifle_muzzle(),"vel":aim*(570 if weapon=="rifle" else 75),"life":1.4 if weapon=="rifle" else 4.5,"kind":weapon,"age":0.0})
-		if weapon=="rpg":rpg_reload=RPG_RELOAD
+		if weapon=="rpg":
+			rpg_reload=RPG_RELOAD
+			for step in range(12):
+				var recoil := player-aim*6
+				if blocked(recoil):break
+				player=recoil
 		if weapon=="rifle":
 			magazine-=1
 			if magazine==0:reload_time=1.8;sfx("reload")
@@ -1370,6 +1400,8 @@ func _draw() -> void:
 				draw_hedge_structure(screen(wall.pos))
 	draw_paths()
 	draw_footprints()
+	for remains in room_remains.get(level,[]):
+		draw_sprite(remains.kind,screen(remains.pos),Color.WHITE,float(remains.get("scale",1.0)))
 	for hole in objects:
 		if hole.kind=="dug":draw_sprite("dug",screen(hole.pos))
 	renderables.sort_custom(func(a,b):
@@ -1380,7 +1412,7 @@ func _draw() -> void:
 		return a.pos.y<b.pos.y)
 	for item in renderables:
 		var p := screen(item.pos)
-		var kind: String = item.kind
+		var kind: String = "tree" if item.kind=="tree_apples" and item.id in save_data.eaten else item.kind
 		if item.has("cell") and level==0:
 			var key := "h:"+str(item.cell)
 			pass
@@ -1388,6 +1420,7 @@ func _draw() -> void:
 		elif kind in ["flowers","blueflowers"]:
 			pass
 		if kind=="player":
+			draw_cast_shadow("hero"+str(direction)+"_0",p,1.0)
 			draw_shadow(p,19)
 			var frame := int(time*12)%4 if moving and not paused else 0
 			if not resting.is_empty():p+=Vector2(0,-18+sin(time*2.4)*12 if resting=="swing" else -18)
@@ -1403,8 +1436,9 @@ func _draw() -> void:
 				draw_circle(p,125 if enemy.get("boss",false) else 70,Color(.91,.43,.58,.19))
 				draw_arc(p,125 if enemy.get("boss",false) else 70,0,TAU,32,PINK,2)
 				draw_string(body_font,p+Vector2(-5,-69),"!",HORIZONTAL_ALIGNMENT_LEFT,-1,24,CREAM)
+			draw_cast_shadow(kind,p,1.8 if enemy.get("boss",false) else 1.0)
 			draw_shadow(p,20)
-			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,.65,.75,.45 if enemy.state=="spawn" else 1) if enemy.get("boss",false) else (Color(.65,1,.85) if enemy.type==3 else Color(.75,.8,1) if enemy.type==4 else Color.WHITE),1.8 if enemy.get("boss",false) else 1.2 if enemy.type==4 else .85 if enemy.type==3 else 1.0)
+			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,.2,.25) if time<float(enemy.get("hit_until",0)) else Color(1,.65,.75,.45 if enemy.state=="spawn" else 1) if enemy.get("boss",false) else (Color(.65,1,.85) if enemy.type==3 else Color(.75,.8,1) if enemy.type==4 else Color.WHITE),1.8 if enemy.get("boss",false) else 1.2 if enemy.type==4 else .85 if enemy.type==3 else 1.0)
 			if enemy.get("boss",false): draw_string(body_font,p+Vector2(-62,-115),tx("boss_name"),HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
 			var bar_width := 100.0 if enemy.get("boss",false) else 36.0
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width,5)),INK)
@@ -1415,7 +1449,9 @@ func _draw() -> void:
 				if item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				else:draw_pickup_outline(highlight,p+Vector2(0,-40) if kind=="stand_flashlight" else p,3.0 if kind=="chest" and item.id=="final" else 1.0)
-			if not item.has("wall") and item.id!="buried": draw_shadow(p,20 if kind!="tree" else 30)
+			if not item.has("wall") and item.id!="buried":
+				if kind in ["tree","tree_apples","crate","column","well","bench"]:draw_cast_shadow(kind,p,1.0)
+				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
 			if item.get("ground_tool",false):
 				draw_set_transform(p,PI/2);draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 			elif kind=="sprout":
@@ -1462,10 +1498,8 @@ func _draw() -> void:
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
 	if level==0:
 		for wall in renderables:
-			if wall.get("wall",false) and hedge_active(wall.cell):
-				# Southern approach: keep the canopy behind her upper body, over her legs.
-				var waist := screen(player).y-26 if player.y>wall.pos.y else -INF
-				draw_hedge_parts(wall.kind,screen(wall.pos),waist)
+			if wall.get("wall",false) and hedge_active(wall.cell) and player.y<=wall.pos.y:
+				draw_hedge_parts(wall.kind,screen(wall.pos))
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
 		if item.kind in ["lamp","candle","note"] or (item.kind=="chest" and chest_open):
@@ -1665,7 +1699,12 @@ func damage_enemy(index: int, damage: int, push: Vector2) -> void:
 	var enemy := enemies[index]
 	if enemy.state=="spawn": return
 	damage_numbers.append({"pos":enemy.pos+Vector2(randf_range(-10,10),-65),"value":mini(damage,int(enemy.hp)),"life":.85})
-	for n in range(7):particles.append({"pos":enemy.pos+Vector2(0,-28),"vel":Vector2(randf_range(-65,65),randf_range(-85,0)),"life":randf_range(.3,.6),"color":Color("c74960"),"heart":false})
+	enemy.hit_until=time+.18
+	if not room_remains.has(level):room_remains[level]=[]
+	var pool := Vector2(roundf(enemy.pos.x/28)*28,roundf(enemy.pos.y/28)*28)
+	if not room_remains[level].any(func(r):return r.kind=="blood_pool" and r.pos.distance_to(pool)<20):
+		room_remains[level].append({"kind":"blood_pool","pos":pool+Vector2(0,5),"scale":randf_range(1.0,1.5)})
+	for n in range(22):particles.append({"pos":enemy.pos+Vector2(0,-28),"vel":Vector2(randf_range(-65,65),randf_range(-85,0)),"life":randf_range(.3,.6),"color":Color("c74960"),"heart":false})
 	if weapon=="sword": sfx("sword_hit")
 	enemy.hp -= damage
 	enemy.state = "rest"
@@ -1673,7 +1712,9 @@ func damage_enemy(index: int, damage: int, push: Vector2) -> void:
 	var target: Vector2 = enemy.pos+push
 	if not blocked(target): enemy.pos=target
 	burst(enemy.pos,8,Color("e9c2d5"))
-	if enemy.hp<=0: enemies.remove_at(index)
+	if enemy.hp<=0:
+		room_remains[level].append({"kind":"corpse"+str(5 if enemy.get("boss",false) else int(enemy.type)),"pos":enemy.pos,"scale":1.8 if enemy.get("boss",false) else 1.0})
+		enemies.remove_at(index)
 
 func update_shots(delta: float) -> void:
 	for i in range(shots.size()-1,-1,-1):
@@ -1732,7 +1773,7 @@ func draw_extra_effects() -> void:
 			draw_texture_rect(glow,Rect2(p-Vector2(25,25),Vector2(50,50)),false,Color(1,.7,.35,.6))
 		else: draw_line(p,p-shot.vel.normalized()*20,Color("ffe3a7"),3)
 	if level==4 and not weapon.is_empty():
-		var p := screen(player)+Vector2(14,-28)
+		var p := screen(player)+Vector2(14,-28)-aim*(attack_flash/.22)*(14 if weapon=="rpg" else 8)
 		var swing := sin((1-attack_flash/.22)*PI)*1.5 if weapon=="sword" and attack_flash>0 else 0.0
 		var left := aim.x<0
 		var rotation := (aim.angle()+PI/2) if weapon=="sword" else (atan2(-aim.y,-aim.x) if left else aim.angle())
@@ -2014,7 +2055,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 				if score<best:best=score;selected=n;start=anchor
 		var target: Dictionary = targets[selected];targets.remove_at(selected)
 		var outward: Vector2 = (start-target.pos).normalized()
-		var radius := 80.0 if target.kind in ["house","pond"] else 42.0 if target.solid else 0.0
+		var radius := 120.0 if target.kind in ["house","pond"] else 85.0 if target.kind=="well" else 64.0 if target.solid else 0.0
 		var end: Vector2 = target.pos+outward*radius
 		var side := (end-start).normalized().orthogonal()
 		var amplitude := minf(85.0,start.distance_to(end)*.22)
@@ -2079,7 +2120,7 @@ func draw_paths() -> void:
 		if mesh.terminal:
 			draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round()+mesh.end,mesh.direction.angle()+PI/2)
 			var id: int = sprites["path_end"]
-			draw_texture_rect_region(atlas,Rect2(Vector2(-16,-24),Vector2(32,32)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
+			draw_texture_rect_region(atlas,Rect2(Vector2(-24,-8),Vector2(48,72)),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)))
 			draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
 	draw_set_transform(Vector2.ZERO)
 
@@ -2154,9 +2195,10 @@ func build_path_meshes() -> void:
 	path_meshes.clear()
 	for path_index in range(paths.size()):
 		var path: PackedVector2Array = paths[path_index]
-		var terminal := path_index<path_terminals.size() and path_terminals[path_index]
+		var terminal := is_path_terminal(path_index)
 		var remaining: Array[float] = [];remaining.resize(path.size());remaining[-1]=0
 		for n in range(path.size()-2,-1,-1):remaining[n]=remaining[n+1]+path[n].distance_to(path[n+1])
+		if remaining[0]<72:terminal=false
 		var mesh := {"layers":[],"stones":[],"terminal":terminal,"end":path[-1],"direction":(path[-1]-path[maxi(0,path.size()-2)]).normalized()}
 		for layer in range(3):
 			var left := PackedVector2Array();var right := PackedVector2Array();var left_colors := PackedColorArray();var right_colors := PackedColorArray()
@@ -2168,12 +2210,15 @@ func build_path_meshes() -> void:
 				left_colors.append(color);right_colors.append(color)
 			var vertices := PackedVector3Array();var colors := PackedColorArray()
 			for n in range(path.size()-1):
+				if terminal and remaining[n]<52:continue
 				for pair in [[left[n],left_colors[n]],[right[n],right_colors[n]],[left[n+1],left_colors[n+1]],[right[n],right_colors[n]],[right[n+1],right_colors[n+1]],[left[n+1],left_colors[n+1]]]:
 					vertices.append(Vector3(pair[0].x,pair[0].y,0));colors.append(pair[1])
 			var arrays := [];arrays.resize(Mesh.ARRAY_MAX);arrays[Mesh.ARRAY_VERTEX]=vertices;arrays[Mesh.ARRAY_COLOR]=colors
 			var strip := ArrayMesh.new();strip.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
 			mesh.layers.append({"mesh":strip})
-		for n in range(0,path.size(),3):mesh.stones.append({"pos":path[n]+Vector2(sin(n*5.2)*7,14),"kind":n%3,"alpha":.65})
+		for n in range(0,path.size(),3):
+			if terminal and remaining[n]<52:continue
+			mesh.stones.append({"pos":path[n]+Vector2(sin(n*5.2)*7,14),"kind":n%3,"alpha":.65})
 		path_meshes.append(mesh)
 
 func is_path_terminal(index: int) -> bool:
@@ -2212,7 +2257,7 @@ func stone_surface(pos: Vector2) -> bool:
 	return false
 
 func path_point_safe(pos: Vector2) -> bool:
-	return valid_ground(pos) and not blocked(pos) and (generating_paths or not objects.any(func(o):return o.kind=="sprout" and o.pos.distance_to(pos)<45))
+	return valid_ground(pos) and not blocked(pos) and not objects.any(func(o):return o.solid and pos.distance_to(o.pos)<(110 if o.kind in ["house","pond"] else 72 if o.kind=="well" else 48)) and (generating_paths or not objects.any(func(o):return o.kind=="sprout" and o.pos.distance_to(pos)<45))
 
 func continuous_path(points: PackedVector2Array, start: Vector2, end: Vector2, rng: RandomNumberGenerator) -> PackedVector2Array:
 	var safe := true
@@ -2301,11 +2346,18 @@ func level_complete() -> bool:
 	return save_data.finished
 
 func draw_gate(pos: Vector2, amount: float) -> void:
-	var id: int = sprites["gate_panel"]
-	var width := lerpf(72,26,clampf(amount,0,1))
-	for side in [-1,1]:
-		var x := lerpf(-72,-106,amount) if side<0 else lerpf(0,80,amount)
-		draw_texture_rect_region(atlas,Rect2(pos+Vector2(x,-65),Vector2(width,68)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
+	draw_gate_leaf("gate_panel",pos+Vector2(-72,-65))
+	draw_gate_leaf("gate_ajar" if amount>.25 else "gate_panel",pos+Vector2(0,-65))
+	if amount<=0:
+		draw_sprite("lock_closed",pos+Vector2(0,-23),Color.WHITE,.55)
+	else:
+		var fall := clampf(amount*2,0,1)
+		var lock_pos := pos+Vector2(8*fall,lerpf(-23,30,fall*fall))
+		draw_sprite("lock_open",lock_pos,Color.WHITE,.55)
+
+func draw_gate_leaf(name: String, pos: Vector2) -> void:
+	var id: int = sprites[name]
+	draw_texture_rect_region(atlas,Rect2(pos,Vector2(72,68)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
 
 func hedge_active(cell: Vector2i) -> bool:
 	for n in range(6):
@@ -2338,4 +2390,44 @@ func bed_beside_path(pos: Vector2, bed: Dictionary) -> bool:
 	return nearest>=45 and nearest<=90
 
 func door_is_open(id: String) -> bool:
-	return id=="back" or level_complete()
+	return id=="back" or level in save_data.get("open_gates",[])
+
+func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
+	var origin := pos+camera-get_viewport_rect().size/2-shake_offset
+	var light := origin+Vector2(-180,-240)
+	var nearest_light := INF
+	for obj in objects:
+		if obj.kind not in ["lamp","candle"]:continue
+		var d := origin.distance_squared_to(obj.pos)
+		if d<nearest_light:nearest_light=d;light=obj.pos-Vector2(0,50)
+	if level==1 and save_data.flashlight:light=player+aim*30
+	var away := (origin-light).normalized()
+	var stretch := .25+clampf(origin.distance_to(light)/900,0,.35)
+	var flicker := .02*sin(time*4+origin.x*.01)
+	draw_set_transform_matrix(Transform2D(Vector2(1,0),Vector2(-away.x*(.55+flicker),-away.y*stretch),pos+Vector2(0,3)))
+	draw_sprite(name,Vector2.ZERO,Color(.06,.055,.1,.28),scale_factor)
+	draw_set_transform(Vector2.ZERO)
+
+func prepare_room_details(rng: RandomNumberGenerator) -> void:
+	if level in [4,6]:
+		objects.assign(objects.filter(func(o):return o.kind not in ["flowers","blueflowers","tree"]))
+		for spec in [["crate",Vector2i(3,10)],["column",Vector2i(23,10)],["crate",Vector2i(22,19)],["column",Vector2i(4,19)]]:
+			if valid_ground((Vector2(spec[1])+Vector2(.5,.5))*TILE):put_object(spec[0],spec[1],"",true)
+	if level==1:
+		for obj in objects:
+			if obj.kind=="lamp":obj.kind="lamp_off"
+	if level==0:
+		var candidates: Array[Vector2i] = []
+		for cell in berry_cells:
+			if not objects.any(func(o):return o.kind=="tree" and o.pos.distance_to((Vector2(cell)+Vector2(.5,.5))*TILE)<130):candidates.append(cell)
+		for n in range(mini(5,candidates.size())):put_object("tree",candidates[n],"",false)
+	if level==5:
+		for x in [4,8,19,23]:
+			var row := 6 if rng.randf()<.5 else grid.size()-7
+			if grid[row][x]=="#":put_object("tree",Vector2i(x,row),"",false)
+	var index := 0
+	for obj in objects:
+		if obj.kind!="tree":continue
+		if rng.randf()<.55:
+			obj.kind="tree_apples";obj.id="apple_%d_%d"%[level,index]
+		index+=1

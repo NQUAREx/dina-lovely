@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw
 import random, math, wave, struct, json
 from pathlib import Path
 R=Path(__file__).resolve().parents[1]; A=R/'assets'; random.seed(17)
-NAMES=[]; atlas=Image.new('RGBA',(32*16,48*12))
+NAMES=[]; atlas=Image.new('RGBA',(32*16,48*16))
 def sprite(name,fn):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);fn(d);i=len(NAMES);NAMES.append(name);atlas.paste(im,((i%16)*32,(i//16)*48))
 def leaf(d,x,y,r=6):
@@ -297,11 +297,12 @@ for name in ['hedge_join_h','hedge_join_v']:
    for x in [4,12,20,28]:leaf(d,x,y,6)
  sprite(name,joined)
 def path_end(d):
- for y in range(16,48):
-  density=max(0,min(1,(y-17)/22))
-  for x in range(3,29):
-   edge=min(x-2,29-x)/4
-   if random.random()<density*min(1,edge):d.point((x,y),fill=random.choice(['#a47a4d','#b58a57','#c29a63','#86633f']))
+ # Three-pixel islands, with equal scale on both axes in the game.
+ for y in range(0,48,3):
+  density=max(0,min(1,(y-2)/38))
+  for x in range(6,27,3):
+   edge=min(x-5,29-x)/4
+   if random.random()<density*min(1,edge):d.rectangle((x,y,x+2,y+2),fill=random.choice(['#a47a4d','#b58a57','#c29a63','#86633f']))
 sprite('path_end',path_end)
 for variant in range(8):
  def detail(d,v=variant):
@@ -326,6 +327,48 @@ def empty_rpg(d):
  weapon(d,'rpg')
  d.rectangle((25,20,31,34),fill=(0,0,0,0));d.ellipse((23,23,27,31),fill='#363d39');d.line((23,23,25,22,27,25),fill='#acb69c')
 sprite('weapon_rpg_empty',empty_rpg)
+# Separate perspective artwork: no runtime squashing of the closed gate.
+def gate_ajar(d):
+ d.polygon([(31,17),(15,26),(15,47),(31,43)],fill='#503e56')
+ d.polygon([(31,17),(15,26),(15,29),(31,20)],fill='#d9b886')
+ d.polygon([(15,44),(31,40),(31,43),(15,47)],fill='#aa7e70')
+ for x in [16,20,24,28,31]:
+  top=26-int((x-15)*.56);bottom=45-int((x-15)*.25)
+  d.line((x,top,x,bottom),fill='#c2abb0',width=1)
+ d.polygon([(20,32),(22,30),(24,32),(26,29),(28,31),(25,37),(21,38)],fill='#ce8da3')
+sprite('gate_ajar',gate_ajar)
+def padlock(d,opened=False):
+ d.arc((11,25,23,39),175 if opened else 180,330 if opened else 360,fill='#e9c686',width=3)
+ d.rectangle((10,34,23,44),fill='#6d4654');d.rectangle((11,34,22,42),fill='#d9ac67');d.line((12,35,20,35),fill='#ffe0a0');d.rectangle((16,37,17,40),fill='#69474d')
+sprite('lock_closed',lambda d:padlock(d));sprite('lock_open',lambda d:padlock(d,True))
+def lamp_off(d):
+ lamp(d);d.rectangle((12,17,19,24),fill='#333443');d.line((13,18,16,20,14,22,17,24),fill='#7d7880')
+sprite('lamp_off',lamp_off)
+def crate(d):
+ d.polygon([(4,24),(23,21),(29,26),(10,30)],fill='#a78165');d.polygon([(4,24),(10,30),(10,44),(4,39)],fill='#69504c');d.rectangle((10,29,28,44),fill='#89634f')
+ for x in [11,19,27]:d.line((x,30,x,43),fill='#4c4247')
+ d.line((11,31,26,42),fill='#c19a72',width=2);d.line((11,42,26,31),fill='#a78061',width=2)
+sprite('crate',crate)
+def column(d):
+ d.ellipse((5,38,27,46),fill='#343445');d.rectangle((7,37,25,42),fill='#696575');d.rectangle((10,12,22,38),fill='#7f7a89');d.rectangle((11,13,14,37),fill='#aca0a4');d.rectangle((20,13,22,37),fill='#555468');d.rectangle((7,9,25,14),fill='#b1a0a6');d.line((8,10,24,10),fill='#d2bdb8')
+sprite('column',column)
+for k in range(6):
+ def corpse(d,k=k):
+  color=['#7f8bb9','#9d7da5','#bd8285','#75a68e','#939abe','#a66c83'][k]
+  if k%3==1:d.polygon([(6,35),(3,24),(13,33),(24,31),(30,27),(27,40)],fill=color)
+  d.ellipse((3,34,29,45),fill='#393444');d.ellipse((4,31,28,42),fill=color);d.line((8,33,16,32),fill='#b5a4c1')
+  for x in [11,21]:d.line((x-2,35,x+2,39),fill='#3e3042');d.line((x-2,39,x+2,35),fill='#3e3042')
+  d.line((14,41,18,41),fill='#633e50')
+ sprite('corpse'+str(k),corpse)
+def blood(d):
+ for x,y,r in [(15,35,8),(7,39,4),(24,33,3),(23,42,3)]:d.ellipse((x-r,y-r//2,x+r,y+r//2),fill='#783e50')
+ for x,y in [(3,31),(29,40),(21,27),(8,45)]:d.rectangle((x,y,x+1,y+1),fill='#a64c60')
+sprite('blood_pool',blood)
+def apple_tree(d):
+ tree(d)
+ for x,y in [(9,15),(22,18),(14,27),(19,9)]:
+  d.rectangle((x-2,y-1,x+2,y+2),fill='#9b3d53');d.rectangle((x-1,y-2,x+1,y+1),fill='#d56468');d.point((x-1,y-1),fill='#ffd19c');d.line((x,y-3,x+1,y-4),fill='#b8bc74')
+sprite('tree_apples',apple_tree)
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)
