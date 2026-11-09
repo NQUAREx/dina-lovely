@@ -140,10 +140,11 @@
     "sha256": "25185bd83369c40678de6d467e186d4c0cd1634015a431cdaefd090193b5a168"
   },
   "rustle": {
-    "pack": "Random Sounds Samples — Augmentality (Brandon Morris)",
-    "source_url": "https://opengameart.org/content/random-sounds-samples",
+    "source_file": "Moving Leaves Stereo / tools/audio_source/moving_leaves.ogg",
+    "pack": "Augmentality / Brandon Morris",
     "license": "CC0",
-    "sha256": "de1b6b883b9b4748b62a084ce73b91903e1a29338170fd746bd2da1d18f6ba38"
+    "processing": "Mono, filtered, 180ms equal-power cyclic crossfade; runtime gain envelope",
+    "sha256": "d9dd90ab822f37ae7e1375ee76be9f5ee70d6973b3dd2ee0507b20d70a240c72"
   },
   "eat": {
     "pack": "7 Eating Crunches — StarNinjas",

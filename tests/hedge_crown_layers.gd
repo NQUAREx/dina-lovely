@@ -10,20 +10,19 @@ func _initialize() -> void:
 	var centre:=Vector2(10.5,10.5)*48
 	for n in range(16):
 		var player:=centre+Vector2.from_angle(n*TAU/16)*23
-		var front_started:=false
+		for step in range(24):field.update(.016,player)
 		for index in field.draw_order:
 			var node:Dictionary=field.crowns[index]
-			if field.crown_behind_hero(index,player):
-				assert(not front_started,"Crown order changed across heroine insertion")
-			else:
-				front_started=true
-				var top:float=node.base.y-6-16-roundf(node.radius*1.48)
-				assert(top>=player.y-28,"Whole foreground crown extends above waist")
+			if field.crown_in_contact(index,player):assert(not field.crown_behind_hero(index,player),"Contacting crown went behind heroine")
+			if not field.crown_behind_hero(index,player):
+				var pose:Vector3=field.crown_pose(index,player)
+				assert(pose.y-pose.z>=player.y-28,"Whole foreground crown extends above waist")
 		var bounds:=Rect2(player-Vector2(200,300),Vector2(400,600))
 		var expected:=PackedInt32Array()
 		for index in field.draw_order:
 			if bounds.has_point(field.crowns[index].base):expected.append(index)
 		assert(field.visible_ids(bounds)==expected,"Spatial visibility cache changed painter order")
+	field.build(map,541,{}, {})
 	field.update(.016,centre+Vector2(23,0))
 	for node in field.crowns:
 		if node.base.distance_to(centre+Vector2(23,0))>52:assert(node.offset==Vector2.ZERO)

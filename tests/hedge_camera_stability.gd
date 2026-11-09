@@ -3,7 +3,6 @@ extends SceneTree
 class CanopyView extends "res://scripts/game.gd":
 	func _draw() -> void:
 		if hedge_field==null:return
-		for tree in hedge_trees.values():draw_sprite("hedge_tree",screen(tree.pos))
 		draw_hedge_canopy(hedge_field.visible_ids(Rect2(Vector2.ZERO,Vector2(10000,10000))))
 
 		for tree in hedge_trees.values():draw_hedge_tree_top("hedge_tree",tree.pos)
@@ -23,10 +22,15 @@ func run() -> void:
 	root.add_child(game)
 	await process_frame
 	game.new_game();game.clear_modal();game.sound_on=false
-	game.save_data.seed=541;game.build_level(0);game.set_process(false)
+	game.save_data.seed=541;game.build_level(0);game.set_process(false);game.set_physics_process(false)
 	for child in game.get_children():
 		if child is CanvasLayer:child.hide()
 	var origin:=Vector2(600.1,700.1)
+	var closest:Dictionary=game.hedge_field.crowns[0]
+	for node in game.hedge_field.crowns:
+		if node.base.distance_squared_to(origin)<closest.base.distance_squared_to(origin):closest=node
+	game.player=closest.base+Vector2(23,0)
+	for n in range(32):game.hedge_field.update(.016,game.player)
 	var a:Image=await capture(game,origin)
 	var b:Image=await capture(game,origin+Vector2(.2,.2))
 	assert(a.get_data()==b.get_data(),"Fractional camera movement changed relative crown pixels")

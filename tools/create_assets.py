@@ -452,10 +452,15 @@ for name in NAMES:
 for target,source_name in [('hedge_tree','tree'),('hedge_tree_apples','tree_apples')]:
  old=NAMES.index(source_name);new=NAMES.index(target)
  atlas.paste(atlas.crop(((old%16)*32,(old//16)*48,(old%16+1)*32,(old//16+1)*48)),((new%16)*32,(new//16)*48))
-# Bake 3:2 tree scaling once: fractional nearest sampling otherwise shimmers on camera moves.
+# Bake full-size, cooler tree variants once; never resample their pixels at runtime.
 for name in ['hedge_tree','hedge_tree_apples']:
  i=NAMES.index(name)
- atlas.crop(((i%16)*32,(i//16)*48,(i%16+1)*32,(i//16+1)*48)).resize((48,72),Image.Resampling.NEAREST).save(A/(name+'.png'))
+ im=atlas.crop(((i%16)*32,(i//16)*48,(i%16+1)*32,(i//16+1)*48))
+ for y in range(35):
+  for x in range(32):
+   r,g,b,a=im.getpixel((x,y))
+   if a and g>r and g>b:im.putpixel((x,y),(round(r*.86),round(g*.98),min(255,round(b*1.12)),a))
+ im.resize((64,96),Image.Resampling.NEAREST).save(A/(name+'.png'))
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)

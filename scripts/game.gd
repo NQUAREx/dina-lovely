@@ -131,7 +131,8 @@ var audio_pool: Array[AudioStreamPlayer] = []
 var audio_cursor := 0
 var step_clock := 0.0
 var foliage_voice: AudioStreamPlayer
-var rustle_clock := 0.0
+var foliage_gain:=0.0
+var foliage_motion:=0.0
 var hedge_contact := false
 var shake := 0.0
 var shake_offset := Vector2.ZERO
@@ -216,8 +217,10 @@ func setup_audio() -> void:
 	if OS.has_feature("web"):rocket_voice.playback_type=AudioServer.PLAYBACK_TYPE_SAMPLE
 	add_child(rocket_voice)
 	foliage_voice = AudioStreamPlayer.new()
-	foliage_voice.stream = preload("res://assets/rustle.wav")
-	foliage_voice.volume_db = -21
+	var leaves:=preload("res://assets/rustle.wav").duplicate() as AudioStreamWAV
+	leaves.loop_mode=AudioStreamWAV.LOOP_FORWARD;leaves.loop_begin=0;leaves.loop_end=int(leaves.get_length()*leaves.mix_rate)
+	foliage_voice.stream=leaves
+	foliage_voice.volume_db = -80
 	if OS.has_feature("web"):foliage_voice.playback_type=AudioServer.PLAYBACK_TYPE_SAMPLE
 	add_child(foliage_voice)
 	for i in range(10):
@@ -818,14 +821,9 @@ func _physics_process(delta: float) -> void:
 		if joy_vector.length()>.2:stand_up()
 		else:return
 	if playing and not paused and not transition and task_time<=0:
-		rustle_clock = maxf(0,rustle_clock-delta)
 		var before := player
 		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
-		var contact := pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
-		if contact and (not hedge_contact or (moving and rustle_clock<=0)):
-			if sound_on: foliage_voice.play()
-			rustle_clock = .65
-		hedge_contact = contact
+		hedge_contact=pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
 		if joy_vector.length()>.2 and player.distance_to(before)<.01:
 			stuck_seconds += delta
 			if stuck_seconds>.8:
@@ -833,6 +831,7 @@ func _physics_process(delta: float) -> void:
 		else: stuck_seconds = 0.0
 
 func _process(delta: float) -> void:
+	update_foliage_audio(delta)
 	if playing and not paused:
 		var previous := rpg_reload;rpg_reload=maxf(0,rpg_reload-delta)
 		if previous>.3 and rpg_reload<=.3 and weapon=="rpg":sfx("rpg_load")
@@ -1346,7 +1345,7 @@ func screen(pos: Vector2) -> Vector2:
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
 	var id := int(sprites.get(name,0))
 	if name in ["hedge_tree","hedge_tree_apples"]:
-		draw_texture_rect(hedge_tree_textures[name],Rect2(pos+Vector2(-24,-90)*scale_factor,Vector2(48,72)*scale_factor),false,color)
+		draw_texture_rect(hedge_tree_textures[name],Rect2(pos+Vector2(-32,-96)*scale_factor,Vector2(64,96)*scale_factor),false,color)
 		return
 	var size := Vector2(64,96)*scale_factor
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
@@ -1475,9 +1474,7 @@ func _draw() -> void:
 			var pos:=screen(crown.base+crown.offset)
 			draw_texture_rect(glow,Rect2(pos-Vector2(r+8,r*.85),Vector2(r*2+16,r*1.8+8)),false,Color(0,0,0,.65))
 		draw_hedge_body(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
-		# Trunks are grounded behind the shrub tops. Their upper crowns are drawn last.
-		for item in renderables:
-			if item.get("integrated_tree",false):draw_sprite(item.kind,screen(item.pos))
+		# Each tree has one visible crown/trunk layer, sorted with the heroine below.
 		draw_hedge_canopy(visible_crowns,-1)
 
 	renderables.sort_custom(func(a,b):
@@ -1487,7 +1484,6 @@ func _draw() -> void:
 			return a.pos.x<b.pos.x
 		return a.pos.y<b.pos.y)
 	for item in renderables:
-		if item.get("integrated_tree",false):continue
 		var p := screen(item.pos)
 		var kind: String = "tree" if item.kind=="tree_apples" and item.id in save_data.eaten else item.kind
 		if kind=="player":
@@ -1505,6 +1501,8 @@ func _draw() -> void:
 				draw_arc(p+Vector2(0,-20),101,angle-.8,angle+.8,18,Color(1,.65,.79,attack_flash/.19),3)
 			if hedge_field!=null:
 				draw_hedge_canopy(visible_crowns,1)
+		elif item.get("integrated_tree",false):
+			draw_hedge_tree_top(item.kind,item.pos)
 		elif item.has("enemy"):
 			var enemy: Dictionary = item.enemy
 			if enemy.state=="warn":
@@ -1576,10 +1574,6 @@ func _draw() -> void:
 				var open: bool = door_is_open(str(item.id))
 				draw_texture_rect(glow,Rect2(p-Vector2(65,110),Vector2(130,150)),false,Color(.9,1,.9,1 if open else .2))
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
-	# Tree crowns sit above the continuous hedge; lower trunks stay buried.
-	for item in renderables:
-		if not item.get("integrated_tree",false):continue
-		draw_hedge_tree_top(item.kind,item.pos)
 
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
@@ -2251,10 +2245,20 @@ func update_vegetation(delta: float) -> void:
 		var target := clampf((25-away.length())/15,0,1)
 		if away.length()<25:contact=true
 		if target>.01 or obj.has("press"):obj.press=lerpf(float(obj.get("press",0)),target,1-exp(-delta*11))
-	if contact and (not foliage_contact or (moving and rustle_clock<=0)):
-		if sound_on:foliage_voice.play()
-		rustle_clock=.42
 	foliage_contact=contact
+	var intent:=joy_vector.length() if joy_active else 0.0
+	foliage_motion=maxf(hedge_field.contact_strength if hedge_field!=null else 0.0,1.0 if contact else 0.0)*minf(1,intent*2)
+	if hedge_field!=null:foliage_motion=maxf(foliage_motion,clampf((hedge_field.motion_strength-3)/90,0,1)*.3)
+
+func update_foliage_audio(delta: float) -> void:
+	if not is_instance_valid(foliage_voice):return
+	var target:=foliage_motion if sound_on and playing and not paused and not transition and task_time<=0 else 0.0
+	# One continuous recording, with gain envelopes. No periodic play()/stop() retriggers.
+	foliage_gain=move_toward(foliage_gain,target,delta*(12 if target>foliage_gain else 5))
+	if foliage_gain>.001:
+		foliage_voice.volume_db=-22+linear_to_db(foliage_gain)
+		if not foliage_voice.playing:foliage_voice.play()
+	elif foliage_voice.playing:foliage_voice.stop()
 
 var buried_paper_cache: Dictionary = {}
 func draw_buried_paper(pos: Vector2, opened: bool) -> void:
@@ -2641,7 +2645,7 @@ func update_food_hearts(delta: float) -> void:
 
 func draw_hedge_tree_top(kind: String, position: Vector2) -> void:
 	# Native-size pixels preserve the full ordinary canopy without scaling shimmer.
-	draw_texture_rect_region(hedge_tree_textures[kind],Rect2(screen(position)+Vector2(-24,-90),Vector2(48,53)),Rect2(Vector2.ZERO,Vector2(48,53)))
+	draw_texture_rect_region(hedge_tree_textures[kind],Rect2(screen(position)+Vector2(-32,-96),Vector2(64,80)),Rect2(Vector2.ZERO,Vector2(64,80)))
 
 func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 	# Quantize the camera once, not each overlapping crown independently.
@@ -2657,8 +2661,9 @@ func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 
 func draw_leaf_crown(index: int) -> void:
 	var node:Dictionary=hedge_field.crowns[index]
-	var radius:float=roundf(node.radius*1.48*(1-node.press*.07))
-	var centre:Vector2=(node.base+node.offset).round()-Vector2(0,HEDGE_LIFT)
+	var pose:Vector3=hedge_field.crown_pose(index,player)
+	var radius:float=pose.z
+	var centre:=Vector2(pose.x,pose.y)
 	var berry:bool=not str(node.berry).is_empty() and node.berry not in save_data.eaten
 	var texture_name:="crown_berry_" if berry else "crown_leaf_"
 	texture_name+=str(node.variant)
