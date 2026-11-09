@@ -284,6 +284,38 @@ for v in range(6):
      c=['#bd597e','#c7aa48','#9680c8','#d88d52','#8ab3c4','#d9c5d6'][v]
      d.ellipse((x-2,y-3,x+2,y+3),fill=c);d.line((x,y-3,x+1,y+2),fill='#aac08b')
   sprite(('seedling' if stage==0 else 'flower_bud')+str(v),plant_state)
+def hedge_side(d):
+ d.polygon([(0,32),(5,30),(26,30),(31,33),(31,41),(27,46),(4,46),(0,42)],fill='#173c35')
+ for y,c in [(33,'#416b48'),(36,'#345e40'),(39,'#284f3a'),(42,'#1f4435')]:
+  d.line((2,y,29,y),fill=c,width=3)
+ for n in range(30):
+  x=random.randrange(2,30);y=random.randrange(32,44);d.line((x,y,x+1,y-2),fill=random.choice(['#527b4d','#37613e','#294d35']))
+sprite('hedge_side',hedge_side)
+for name in ['hedge_join_h','hedge_join_v']:
+ def joined(d):
+  for y in [23,30,36]:
+   for x in [4,12,20,28]:leaf(d,x,y,6)
+ sprite(name,joined)
+def path_end(d):
+ for y in range(16,48):
+  density=max(0,min(1,(y-17)/22))
+  for x in range(3,29):
+   edge=min(x-2,29-x)/4
+   if random.random()<density*min(1,edge):d.point((x,y),fill=random.choice(['#a47a4d','#b58a57','#c29a63','#86633f']))
+sprite('path_end',path_end)
+for variant in range(8):
+ def detail(d,v=variant):
+  if v<2:
+   for x,y in [(10,38),(17,39),(22,36)]:d.line((x,y,x-1,y-3-v),fill=['#64866a','#78956f'][v]);d.point((x+1,y),fill='#3e6654')
+  elif v<4:
+   for x,y in [(12,37),(22,40)]:d.polygon([(x-2,y),(x,y-2),(x+3,y-1),(x+2,y+2),(x-1,y+2)],fill='#46605b');d.line((x-1,y-1,x+1,y-1),fill=['#8d9580','#a3997c'][v-2])
+  elif v<6:
+   for x,y in [(10,35),(21,39)]:
+    d.line((x,y+3,x,y),fill='#668f67');d.point((x,y),fill=['#d9ba83','#c7aed2'][v-4]);d.point((x+1,y),fill='#edf0c1')
+  else:
+   d.ellipse((3,31,29,44),fill=(38,66,49,36) if v==6 else (132,112,74,30))
+   for n in range(12):d.point((random.randrange(5,28),random.randrange(33,43)),fill=(141,151,98,45))
+ sprite('grass_detail'+str(variant),detail)
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)

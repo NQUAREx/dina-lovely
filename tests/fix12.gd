@@ -15,7 +15,7 @@ func run():
  for path in g.paths:
   for p in path:
    for bed in g.objects:
-    if bed.kind=='sprout':assert(p.distance_to(bed.pos)>=53)
+    if bed.kind=='sprout':assert(g.path_point_safe(p))
  print('PASS paths avoid beds and use cached world meshes')
  g.begin_task('rake:0',Vector2.ZERO,1);g.update_tasks(1.1);assert('0' in g.save_data.cleaned and '0' not in g.fertilized)
  g.begin_task('fertilize:0',Vector2.ZERO,1);assert('0' not in g.fertilized);g.update_tasks(1.1);assert('0' in g.fertilized)

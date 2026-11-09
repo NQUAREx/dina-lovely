@@ -12,7 +12,7 @@ func run():
  for room in range(7):
   g.build_level(room);g.player=Vector2(13.5,12)*48
   if room==5:
-   assert(g.paths.size()==9)
+   assert(g.paths.size()==g.path_targets.size()+1)
    for path in g.paths:
     for point in path:assert(g.path_point_safe(point))
     for n in range(1,path.size()):assert(path[n].distance_to(path[n-1])<32)
@@ -23,6 +23,6 @@ func run():
  for i in range(2):
   var colors=g.path_meshes[i].layers[0].mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
   for c in colors:assert(c.a==1)
- var final=g.path_meshes[2].layers[0].mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR];assert(final[-1].a==0)
- print('PASS internal path joins stay opaque; only true tip fades')
+ var final=g.path_meshes[2].layers[0].mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR];assert(final[-1].a==1 and g.sprites.has("path_end"))
+ print('PASS internal path joins stay opaque; tips use pixel end textures')
  g.queue_free();await process_frame;quit()

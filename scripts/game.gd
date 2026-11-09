@@ -21,6 +21,8 @@ var fog: ColorRect
 var skulls: Array[Dictionary] = []
 var damage_numbers: Array[Dictionary] = []
 var path_meshes: Array = []
+var grass_details: Array[Dictionary] = []
+var path_targets: Array[Dictionary] = []
 var path_navigation: AStarGrid2D
 var path_terminals: Array[bool] = []
 var footprints: Array[Dictionary] = []
@@ -139,6 +141,7 @@ func _ready() -> void:
 	show_menu()
 	get_viewport().size_changed.connect(layout_ui)
 	layout_ui()
+	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
 	return {"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
@@ -543,7 +546,7 @@ func set_cell(x: int, y: int, value: String) -> void:
 
 func build_level(index: int) -> void:
 	level = index
-	vegetation.clear();berry_cells.clear();paths.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;obstacle_specs.clear();damage_numbers.clear()
+	vegetation.clear();berry_cells.clear();paths.clear();grass_details.clear();path_targets.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;obstacle_specs.clear();damage_numbers.clear()
 	skull_clock=2.0
 	skulls.clear()
 	room_clock = 0
@@ -707,6 +710,7 @@ func build_level(index: int) -> void:
 		if id not in fertilized:fertilized.append(id)
 		if not plants.has(id): plants[id] = {"stage":2,"remaining":0.0}
 	prepare_foliage_and_paths(rng)
+	prepare_grass_details()
 	camera = camera_target()
 	nearest = -1
 	update_hud()
@@ -775,10 +779,10 @@ func _physics_process(delta: float) -> void:
 		rustle_clock = maxf(0,rustle_clock-delta)
 		var before := player
 		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
-		var contact := touching_hedge(player)
+		var contact := pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
 		if contact and (not hedge_contact or (moving and rustle_clock<=0)):
 			if sound_on: foliage_voice.play()
-			rustle_clock = .42
+			rustle_clock = .65
 		hedge_contact = contact
 		if joy_vector.length()>.2 and player.distance_to(before)<.01:
 			stuck_seconds += delta
@@ -1345,6 +1349,10 @@ func _draw() -> void:
 		renderables.append(obj)
 	for enemy in enemies: renderables.append({"kind":"enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
+	draw_grass_details()
+	if level==0:
+		for wall in renderables:
+			if wall.get("wall",false):draw_texture_rect(glow,Rect2(screen(wall.pos)+Vector2(-35,-8),Vector2(70,34)),false,Color(0,0,0,.9))
 	draw_paths()
 	draw_footprints()
 	for hole in objects:
@@ -1963,39 +1971,40 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 			berry_cells[cell]=id
 			put_object("berries",cell,id)
 	if level not in [1,5]:return
-	var destinations: Array[Vector2] = []
+	var entry := Vector2(13.5,grid.size()-6.5)*TILE
+	var exit := Vector2(13.5,7.0)*TILE
+	var spine := continuous_path(sample_line(entry,exit),entry,exit,rng)
+	if spine.size()<2:return
+	paths.append(spine);path_terminals.append(true)
 	for obj in objects:
-		if (level==5 and (obj.kind=="sprout" or obj.id in ["seat","swing","well"])) or (level==1 and (obj.kind in ["house","pond","bench"] or obj.id=="exit")):
-			destinations.append(obj.pos+Vector2(0,65 if obj.kind=="sprout" else 80 if obj.kind in ["house","pond"] else 40 if obj.solid else 0))
-	var connected: Array[Vector2] = [Vector2(13.5,grid.size()-6.5)*TILE]
-	while not destinations.is_empty():
-		var best := INF
-		var selected := 0
-		var start := connected[0]
-		for n in range(destinations.size()):
-			for anchor in connected:
-				var score: float = anchor.distance_to(destinations[n])*rng.randf_range(.9,1.1)
-				if score<best:best=score;selected=n;start=anchor
-		var end: Vector2 = destinations[selected];destinations.remove_at(selected)
-		var direction := (end-start).normalized()
-		var side := direction.orthogonal()
-		var amplitude := minf(55.0,start.distance_to(end)*.18)
+		var relevant: bool = (level==5 and (obj.kind=="sprout" or obj.id in ["seat","swing","well","can","rake","fertilizer","garden"])) or (level==1 and (obj.kind in ["house","pond","bench"] or obj.id=="flashlight"))
+		if not relevant:continue
+		var distance := 30.0 if obj.kind=="sprout" else 80.0 if obj.kind in ["house","pond"] else 42.0 if obj.solid else 24.0
+		var end: Vector2 = obj.pos+Vector2(0,distance)
+		var staging := end+Vector2(0,48)
+		if not path_point_safe(staging):staging=end+Vector2(0,24)
+		var start: Vector2 = spine[0];var best := INF
+		for point in spine:
+			var score: float = point.distance_squared_to(staging)
+			if score<best:best=score;start=point
 		var curve := Curve2D.new()
-		var points: Array[Vector2] = [start]
-		for n in range(1,4):
-			var p := start.lerp(end,float(n)/4)+side*rng.randf_range(-amplitude,amplitude)
-			p.x=clampf(p.x,2*TILE,(grid[0].length()-2)*TILE);p.y=clampf(p.y,7*TILE,(grid.size()-7)*TILE)
-			points.append(p)
-		points.append(end)
-		for n in range(points.size()):
-			var tangent: Vector2 = (points[mini(n+1,points.size()-1)]-points[maxi(0,n-1)])/6.0
-			curve.add_point(points[n],-tangent,tangent)
-		curve.bake_interval=9
-		var samples := continuous_path(curve.get_baked_points(),start,end,rng)
-		if samples.size()<2:continue
-		paths.append(samples);path_terminals.append(true)
-		for n in range(0,samples.size(),5):connected.append(samples[n])
-		connected.append(samples[-1])
+		curve.add_point(start,Vector2.ZERO,Vector2((staging.x-start.x)*.55,0))
+		curve.add_point(staging,Vector2(0,20),Vector2.ZERO);curve.bake_interval=8
+		var branch := continuous_path(curve.get_baked_points(),start,staging,rng)
+		if branch.size()<1:branch.append(start)
+		var approach := sample_line(branch[-1],end)
+		var clear := true
+		for point in approach:
+			if not path_point_safe(point):clear=false;break
+		if not clear:
+			staging=end+Vector2(0,20)
+			branch=continuous_path(sample_line(start,staging),start,staging,rng)
+			if branch.is_empty():continue
+			approach=sample_line(branch[-1],end)
+		for point in approach:
+			if branch[-1].distance_to(point)>.1:branch.append(point)
+		paths.append(branch);path_terminals.append(true)
+		path_targets.append({"id":str(obj.id) if not str(obj.id).is_empty() else obj.kind,"end":end,"path":paths.size()-1})
 	build_path_meshes()
 
 func draw_paths() -> void:
@@ -2004,6 +2013,11 @@ func draw_paths() -> void:
 	for mesh in path_meshes:
 		for layer in mesh.layers:draw_mesh(layer.mesh,null)
 		for stone in mesh.stones:draw_sprite("path_stone"+str(stone.kind),stone.pos,Color(1,1,1,stone.alpha),.35)
+		if mesh.terminal:
+			draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round()+mesh.end,mesh.direction.angle()+PI/2)
+			var id: int = sprites["path_end"]
+			draw_texture_rect_region(atlas,Rect2(Vector2(-16,-24),Vector2(32,32)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
+			draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
 	draw_set_transform(Vector2.ZERO)
 
 func update_vegetation(delta: float) -> void:
@@ -2029,8 +2043,8 @@ func update_vegetation(delta: float) -> void:
 	for obj in objects:
 		if obj.kind not in ["flowers","blueflowers"]:continue
 		var away: Vector2 = obj.pos-player
-		var target := clampf((37-away.length())/20,0,1)
-		if away.length()<37:contact=true
+		var target := clampf((25-away.length())/15,0,1)
+		if away.length()<25:contact=true
 		if target>.01 or obj.has("press"):obj.press=lerpf(float(obj.get("press",0)),target,1-exp(-delta*11))
 	if contact and (not foliage_contact or (moving and rustle_clock<=0)):
 		if sound_on:foliage_voice.play()
@@ -2054,6 +2068,12 @@ func draw_buried_paper(pos: Vector2, opened: bool) -> void:
 func draw_hedge_parts(name: String, pos: Vector2) -> void:
 	var cell := Vector2i((pos+camera-get_viewport_rect().size/2-shake_offset)/TILE)
 	var key := "h:"+str(cell)+":"
+	# Exposed vertical faces and leafy bridges make one continuous hedge volume.
+	var right := cell.x+1<grid[0].length() and grid[cell.y][cell.x+1]=="#"
+	var down := cell.y+1<grid.size() and grid[cell.y+1][cell.x]=="#"
+	if not down:draw_hedge_layer("hedge_side",pos,Vector2(48,48),Vector2(-24,-32))
+	if right:draw_hedge_layer("hedge_join_h",pos,Vector2(40,42),Vector2(7,-31))
+	if down:draw_hedge_layer("hedge_join_v",pos,Vector2(48,37),Vector2(-24,-5))
 	var active := false
 	for n in range(6):
 		if vegetation.has(key+str(n)):active=true;break
@@ -2071,22 +2091,16 @@ func build_path_meshes() -> void:
 	path_meshes.clear()
 	for path_index in range(paths.size()):
 		var path: PackedVector2Array = paths[path_index]
-		var terminal := is_path_terminal(path_index)
-		var fade_distance := 55.0
-		if terminal:
-			for other in range(paths.size()):
-				if other==path_index:continue
-				for point in paths[other]:fade_distance=minf(fade_distance,maxf(1,path[-1].distance_to(point)-25))
+		var terminal := path_index<path_terminals.size() and path_terminals[path_index]
 		var remaining: Array[float] = [];remaining.resize(path.size());remaining[-1]=0
 		for n in range(path.size()-2,-1,-1):remaining[n]=remaining[n+1]+path[n].distance_to(path[n+1])
-		var mesh := {"layers":[],"stones":[],"terminal":terminal}
+		var mesh := {"layers":[],"stones":[],"terminal":terminal,"end":path[-1],"direction":(path[-1]-path[maxi(0,path.size()-2)]).normalized()}
 		for layer in range(3):
 			var left := PackedVector2Array();var right := PackedVector2Array();var left_colors := PackedColorArray();var right_colors := PackedColorArray()
 			for n in range(path.size()):
 				var tangent: Vector2 = (path[mini(n+1,path.size()-1)]-path[maxi(0,n-1)]).normalized()
-				var fade := smoothstep(0,fade_distance,remaining[n]) if terminal else 1.0
-				var width := (13.0-layer*3+sin(path[n].x*.17+path[n].y*.11)*1.3)*(.8+.2*fade)
-				var color: Color = [Color("5e4b37"),Color("a47a4d"),Color("b58a57")][layer];color.a=fade
+				var width := 13.0-layer*3+sin(path[n].x*.17+path[n].y*.11)*1.3
+				var color: Color = [Color("5e4b37"),Color("a47a4d"),Color("b58a57")][layer]
 				left.append(path[n]+tangent.orthogonal()*width);right.append(path[n]-tangent.orthogonal()*width)
 				left_colors.append(color);right_colors.append(color)
 			var vertices := PackedVector3Array();var colors := PackedColorArray()
@@ -2096,7 +2110,7 @@ func build_path_meshes() -> void:
 			var arrays := [];arrays.resize(Mesh.ARRAY_MAX);arrays[Mesh.ARRAY_VERTEX]=vertices;arrays[Mesh.ARRAY_COLOR]=colors
 			var strip := ArrayMesh.new();strip.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
 			mesh.layers.append({"mesh":strip})
-		for n in range(0,path.size(),3):mesh.stones.append({"pos":path[n]+Vector2(sin(n*5.2)*7,14),"kind":n%3,"alpha":.65*(smoothstep(0,fade_distance,remaining[n]) if terminal else 1.0)})
+		for n in range(0,path.size(),3):mesh.stones.append({"pos":path[n]+Vector2(sin(n*5.2)*7,14),"kind":n%3,"alpha":.65})
 		path_meshes.append(mesh)
 
 func is_path_terminal(index: int) -> bool:
@@ -2114,7 +2128,7 @@ func leave_footprint(direction: Vector2) -> void:
 	var position := player-direction*5+direction.orthogonal()*(5 if left_foot else -5)
 	footprints.append({"pos":position,"rotation":direction.angle()+PI/2,"life":9.0,"stone":stone})
 	if footprints.size()>150:footprints.pop_front()
-	for n in range(3):
+	for n in range(8):
 		if particles.size()>=420:break
 		particles.append({"pos":position+Vector2(randf_range(-3,3),0),"vel":-direction*randf_range(5,14)+Vector2(randf_range(-9,9),randf_range(-12,-3)),"life":randf_range(.25,.5),"color":Color("b6ab9b") if stone else Color("a6b786"),"heart":false})
 
@@ -2135,7 +2149,7 @@ func stone_surface(pos: Vector2) -> bool:
 	return false
 
 func path_point_safe(pos: Vector2) -> bool:
-	return valid_ground(pos) and not blocked(pos) and not objects.any(func(o):return o.kind=="sprout" and o.pos.distance_to(pos)<53)
+	return valid_ground(pos) and not blocked(pos) and not objects.any(func(o):return o.kind=="sprout" and Rect2(o.pos+Vector2(-42,-42),Vector2(84,68)).has_point(pos))
 
 func continuous_path(points: PackedVector2Array, start: Vector2, end: Vector2, rng: RandomNumberGenerator) -> PackedVector2Array:
 	var safe := true
@@ -2172,3 +2186,30 @@ func nearest_path_node(pos: Vector2) -> Vector2i:
 				if d<distance:distance=d;best=id
 		if best.x>=0:return best
 	return Vector2i(-1,-1)
+
+func sample_line(start: Vector2, end: Vector2) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	var count := maxi(1,ceili(start.distance_to(end)/8))
+	for n in range(count+1):points.append(start.lerp(end,float(n)/count))
+	return points
+
+func pushing_hedge(pos: Vector2, input: Vector2) -> bool:
+	if level!=0 or input.length()<.35:return false
+	return touching_hedge(pos) and blocked(pos+input.normalized()*7)
+
+func draw_hedge_layer(name: String, pos: Vector2, size: Vector2, offset: Vector2) -> void:
+	var id: int = sprites[name]
+	draw_texture_rect_region(atlas,Rect2(pos+offset,size),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
+
+func prepare_grass_details() -> void:
+	var rng := RandomNumberGenerator.new();rng.seed=int(save_data.seed)+level*3763+9181
+	for y in range(6,grid.size()-5):
+		for x in range(1,grid[0].length()-1):
+			if grid[y][x]!="." or rng.randf()>.72:continue
+			grass_details.append({"pos":Vector2(x,y)*TILE+Vector2(rng.randf_range(5,43),rng.randf_range(6,44)),"kind":"grass_detail"+str(rng.randi_range(0,7))})
+
+func draw_grass_details() -> void:
+	var viewport := get_viewport_rect().grow(55)
+	for detail in grass_details:
+		var p := screen(detail.pos)
+		if viewport.has_point(p):draw_sprite(detail.kind,p+Vector2(0,12),Color.WHITE,.6)

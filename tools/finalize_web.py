@@ -8,6 +8,7 @@ if marker not in s:
 (()=>{
  const canvas=document.getElementById('canvas');
  function recover(message){
+  window.gardenHideLoading?.();
   if(document.getElementById('garden-recovery'))return;
   const box=document.createElement('div');box.id='garden-recovery';
   Object.assign(box.style,{position:'fixed',inset:'0',zIndex:'1000',background:'#242538',color:'#f5e3cf',display:'grid',placeContent:'center',textAlign:'center',padding:'32px',font:'18px sans-serif'});
