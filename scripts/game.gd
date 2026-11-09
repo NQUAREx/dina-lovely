@@ -1498,7 +1498,7 @@ func _draw() -> void:
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
 	if level==0:
 		for wall in renderables:
-			if wall.get("wall",false) and hedge_active(wall.cell) and player.y<=wall.pos.y:
+			if wall.get("wall",false) and hedge_active(wall.cell) and hedge_in_foreground(wall.pos):
 				draw_hedge_parts(wall.kind,screen(wall.pos))
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
@@ -2358,6 +2358,12 @@ func draw_gate(pos: Vector2, amount: float) -> void:
 func draw_gate_leaf(name: String, pos: Vector2) -> void:
 	var id: int = sprites[name]
 	draw_texture_rect_region(atlas,Rect2(pos,Vector2(72,68)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
+
+func hedge_in_foreground(wall_pos: Vector2) -> bool:
+	# Only the southern face stays behind her. Side contacts can sit slightly
+	# below the cell centre and must retain the full foreground canopy.
+	var relative := player-wall_pos
+	return relative.y<=absf(relative.x)
 
 func hedge_active(cell: Vector2i) -> bool:
 	for n in range(6):
