@@ -974,8 +974,8 @@
       "text": "Цветочный венок"
     },
     "accessory_veil": {
-      "_comment": "Название надеваемого аксессуара veil.",
-      "text": "Тёмная вуаль"
+      "_comment": "Название аксессуара veil над предметом и в уведомлении.",
+      "text": "Тёмная паранжа"
     },
     "accessory_crown": {
       "_comment": "Название надеваемого аксессуара crown.",
@@ -989,13 +989,101 @@
       "_comment": "Название надеваемого аксессуара peach_dress.",
       "text": "Персиковое платье"
     },
-    "accessory_brooch": {
-      "_comment": "Название надеваемого аксессуара brooch.",
-      "text": "Цветочная брошь"
-    },
     "accessory_heart_tiara": {
       "_comment": "Название надеваемого аксессуара heart_tiara.",
       "text": "Тиара с сердцем"
+    },
+    "accessory_white_scarf": {
+      "_comment": "Название аксессуара white_scarf над предметом и в уведомлении.",
+      "text": "Белый платок"
+    },
+    "accessory_white_dress": {
+      "_comment": "Название аксессуара white_dress над предметом и в уведомлении.",
+      "text": "Белое платье"
+    },
+    "accessory_daisy_wreath": {
+      "_comment": "Название аксессуара daisy_wreath над предметом и в уведомлении.",
+      "text": "Венок из ромашек"
+    },
+    "accessory_silver_crown": {
+      "_comment": "Название аксессуара silver_crown над предметом и в уведомлении.",
+      "text": "Серебряная корона"
+    },
+    "accessory_rose_wreath": {
+      "_comment": "Название аксессуара rose_wreath над предметом и в уведомлении.",
+      "text": "Венок из роз"
+    },
+    "accessory_lavender_dress": {
+      "_comment": "Название аксессуара lavender_dress над предметом и в уведомлении.",
+      "text": "Сиреневое платье"
+    },
+    "accessory_white_veil": {
+      "_comment": "Название аксессуара white_veil над предметом и в уведомлении.",
+      "text": "Белая паранжа"
+    },
+    "accessory_pink_watch": {
+      "_comment": "Название аксессуара pink_watch над предметом и в уведомлении.",
+      "text": "Розовые часы"
+    },
+    "item_can": {
+      "_comment": "Название предмета can при приближении.",
+      "text": "Лейка"
+    },
+    "item_rake": {
+      "_comment": "Название предмета rake при приближении.",
+      "text": "Грабли"
+    },
+    "item_fertilizer": {
+      "_comment": "Название предмета fertilizer при приближении.",
+      "text": "Удобрение"
+    },
+    "item_shovel": {
+      "_comment": "Название предмета shovel при приближении.",
+      "text": "Лопата"
+    },
+    "item_flashlight": {
+      "_comment": "Название предмета flashlight при приближении.",
+      "text": "Фонарик"
+    },
+    "item_berries": {
+      "_comment": "Название предмета berries при приближении.",
+      "text": "Ягоды"
+    },
+    "item_apple": {
+      "_comment": "Название предмета apple при приближении.",
+      "text": "Яблоко"
+    },
+    "item_well": {
+      "_comment": "Название предмета well при приближении.",
+      "text": "Колодец"
+    },
+    "item_bench": {
+      "_comment": "Название предмета bench при приближении.",
+      "text": "Лавочка"
+    },
+    "item_swing": {
+      "_comment": "Название предмета swing при приближении.",
+      "text": "Качели"
+    },
+    "item_letter": {
+      "_comment": "Название предмета letter при приближении.",
+      "text": "Письмо"
+    },
+    "item_chest": {
+      "_comment": "Название предмета chest при приближении.",
+      "text": "Сундук с письмом"
+    },
+    "item_final_chest": {
+      "_comment": "Название предмета final_chest при приближении.",
+      "text": "Последний подарок"
+    },
+    "item_gate": {
+      "_comment": "Название предмета gate при приближении.",
+      "text": "Калитка"
+    },
+    "item_puzzle_reset": {
+      "_comment": "Название предмета puzzle_reset при приближении.",
+      "text": "Сброс узора"
     }
   },
   "schema_version": 2,

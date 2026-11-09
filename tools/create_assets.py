@@ -367,57 +367,78 @@ def footprint(d):
  d.ellipse((12,32,19,39),fill='#fff4dd');d.rectangle((13,36,18,41),fill='#fff4dd');d.rectangle((13,43,18,45),fill='#fff4dd')
  d.point((13,33),fill=(0,0,0,0));d.point((18,44),fill=(0,0,0,0))
 sprite('footprint',footprint)
-ACCESSORIES=['wreath','veil','crown','rose_scarf','peach_dress','brooch','heart_tiara']
-def head_piece(d,item,b=0,shift=0):
- if item=='wreath':
+ACCESSORIES=['wreath','veil','crown','rose_scarf','peach_dress','heart_tiara','pink_watch','white_scarf','white_dress','daisy_wreath','silver_crown','rose_wreath','lavender_dress','white_veil']
+HEAD_ITEMS=['wreath','crown','heart_tiara','daisy_wreath','silver_crown','rose_wreath']
+DRESS_PALETTES={
+ 'peach_dress':{'302d48':'593a4b','55516c':'a96872','77718a':'d99c99','403c58':'83505f','bd9eaf':'e3b2a7'},
+ 'white_dress':{'302d48':'9992a4','55516c':'d9d4da','77718a':'fff5eb','403c58':'b7adbd','bd9eaf':'fff9ee'},
+ 'lavender_dress':{'302d48':'514565','55516c':'8b77a6','77718a':'bfafd7','403c58':'6a597d','bd9eaf':'e0cce6'}}
+SCARF_PALETTES={
+ 'rose_scarf':{'65576d':'7d4a62','8e7c90':'b4758d','c7b0be':'e8afbb','b29baa':'c994aa'},
+ 'white_scarf':{'65576d':'aba5b4','8e7c90':'ddd8df','c7b0be':'fff7ee','b29baa':'eee8e5'}}
+def head_piece(d,item,b=0):
+ if item in ['wreath','daisy_wreath','rose_wreath']:
   for x,y in [(7,13),(9,10),(13,9),(18,9),(23,11),(25,14)]:
-   d.ellipse((x-2,y-1+b,x+2,y+1+b),fill='#739b68');d.point((x,y-1+b),fill='#b0c78b')
-  for x,y in [(10,10),(20,10),(25,13)]:d.rectangle((x-1,y-1+b,x+1,y+1+b),fill='#efa4be');d.point((x,y+b),fill='#ffe0ac')
- elif item=='crown':
-  d.polygon([(8,7+b),(12,11+b),(16,4+b),(20,11+b),(25,7+b),(23,15+b),(10,15+b)],fill='#9e7544')
-  d.polygon([(9,8+b),(12,12+b),(16,6+b),(20,12+b),(24,9+b),(22,13+b),(11,13+b)],fill='#ebc66f');d.point((16,10+b),fill='#f2a4ac')
+   d.ellipse((x-2,y-1+b,x+2,y+1+b),fill='#628b68');d.point((x,y-1+b),fill='#b0c78b')
+  for x,y in [(9,12),(15,9),(23,12)]:
+   if item=='daisy_wreath':
+    for dx,dy in [(-2,0),(2,0),(0,-2),(0,2)]:d.rectangle((x+dx,y+dy+b,x+dx+1,y+dy+1+b),fill='#fff2db')
+    d.rectangle((x,y+b,x+1,y+1+b),fill='#e3b562')
+   elif item=='rose_wreath':
+    d.ellipse((x-2,y-2+b,x+2,y+2+b),fill='#ab486b');d.rectangle((x-1,y-1+b,x+1,y+1+b),fill='#e98c9c');d.point((x,y+b),fill='#ffd1bc')
+   else:d.rectangle((x-1,y-1+b,x+1,y+1+b),fill='#efa4be');d.point((x,y+b),fill='#ffe0ac')
+ elif item in ['crown','silver_crown']:
+  dark,light,gem=('#766e94','#e0dde9','#aa8ed0') if item=='silver_crown' else ('#9e7544','#ebc66f','#f2a4ac')
+  d.polygon([(8,7+b),(12,11+b),(16,4+b),(20,11+b),(25,7+b),(23,15+b),(10,15+b)],fill=dark)
+  d.polygon([(9,8+b),(12,12+b),(16,6+b),(20,12+b),(24,9+b),(22,13+b),(11,13+b)],fill=light);d.rectangle((15,9+b,17,11+b),fill=gem)
+  if item=='silver_crown':
+   for x in [9,16,24]:d.point((x,7+b if x!=16 else 4+b),fill='#fff6e4')
  elif item=='heart_tiara':
   d.arc((7,5+b,26,21+b),180,350,fill='#e5c1bc',width=2);tiny_heart(d,16,6+b,'#db85a4')
   for x in [8,11,21,25]:d.rectangle((x,11+b,x+1,12+b),fill='#fff0c7')
 def accessory_pickup(d,item):
- if item in ['wreath','crown','heart_tiara']:
+ if item in HEAD_ITEMS:
   im=Image.new('RGBA',(32,48));head_piece(ImageDraw.Draw(im),item)
-  # Translate the head ornament onto the ground icon baseline.
   for y in range(22):
    for x in range(32):
     c=im.getpixel((x,y))
     if c[3]:d.point((x,y+22),fill=c)
- elif item=='veil':
-  d.polygon([(10,23),(23,23),(26,42),(7,42)],fill='#675268');d.line((11,25,22,25),fill='#b991aa',width=2);d.line((13,29,11,40),fill='#856b84')
- elif item=='rose_scarf':
-  d.polygon([(8,25),(23,22),(27,40),(17,36),(8,42),(5,34)],fill='#bc8097');d.line((9,27,20,25,23,36),fill='#edb2c0',width=2)
- elif item=='peach_dress':
-  d.polygon([(12,22),(20,22),(23,29),(20,29),(27,44),(5,44),(12,29),(8,29)],fill='#a96976');d.line((14,25,12,41),fill='#df9c9a',width=2);d.line((7,43,25,43),fill='#edc4b5')
- else:
-  for n in range(5):
-   a=n*math.tau/5;x=16+round(math.cos(a)*5);y=34+round(math.sin(a)*5);d.ellipse((x-3,y-3,x+3,y+3),fill='#d28da9')
-  d.ellipse((14,32,18,36),fill='#ffe2a1');d.line((16,39,20,42),fill='#89a478',width=2)
+ elif item in ['veil','white_veil']:
+  base,light=('#d9d5df','#fff5eb') if item=='white_veil' else ('#675268','#b991aa')
+  d.polygon([(10,23),(23,23),(26,42),(7,42)],fill=base)
+  for x in [10,18]:d.rectangle((x,27,x+4,28),fill=(0,0,0,0))
+ elif item in SCARF_PALETTES:
+  base,light=('#d4cdda','#fff5ed') if item=='white_scarf' else ('#bc8097','#edb2c0')
+  d.polygon([(8,25),(23,22),(27,40),(17,36),(8,42),(5,34)],fill=base);d.line((9,27,20,25,23,36),fill=light,width=2)
+ elif item in DRESS_PALETTES:
+  palette=DRESS_PALETTES[item]
+  d.polygon([(12,22),(20,22),(23,29),(20,29),(27,44),(5,44),(12,29),(8,29)],fill='#'+palette['55516c'])
+  d.line((14,25,12,41),fill='#'+palette['77718a'],width=2);d.line((7,43,25,43),fill='#'+palette['bd9eaf']);d.line((20,32,24,42),fill='#'+palette['403c58'])
+ elif item=='pink_watch':
+  d.rounded_rectangle((12,21,20,45),3,fill='#ad668c');d.rectangle((14,23,18,43),fill='#edb4c7')
+  d.rounded_rectangle((9,29,23,39),3,fill='#a27082');d.rectangle((11,30,21,37),fill='#fce9df');d.rectangle((12,31,20,36),fill='#d3acc8');d.line((16,32,16,34,19,34),fill='#754c74');d.point((12,31),fill='#fff8ec')
 for item in ACCESSORIES:sprite('accessory_'+item,lambda d,item=item:accessory_pickup(d,item))
-DRESS_COLORS={'302d48':'593a4b','55516c':'a96872','77718a':'d99c99','403c58':'83505f','bd9eaf':'e3b2a7'}
-SCARF_COLORS={'65576d':'7d4a62','8e7c90':'b4758d','c7b0be':'e8afbb','b29baa':'c994aa'}
 for item in ACCESSORIES:
  for direction in range(4):
   for frame in range(4):
    im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);b=frame%2
-   if item in ['peach_dress','rose_scarf']:
+   if item in DRESS_PALETTES or item in SCARF_PALETTES:
     base=NAMES.index('hero'+str(direction)+'_'+str(frame));base=atlas.crop(((base%16)*32,(base//16)*48,(base%16+1)*32,(base//16+1)*48))
-    palette={tuple(bytes.fromhex(k)):tuple(bytes.fromhex(v)) for k,v in (DRESS_COLORS if item=='peach_dress' else SCARF_COLORS).items()}
+    palette={tuple(bytes.fromhex(k)):tuple(bytes.fromhex(v)) for k,v in (DRESS_PALETTES.get(item) or SCARF_PALETTES[item]).items()}
     for y in range(48):
      for x in range(32):
       c=base.getpixel((x,y))
       if c[:3] in palette and c[3]:im.putpixel((x,y),palette[c[:3]]+(c[3],))
-   elif item=='veil' and direction!=0:
-    d.rounded_rectangle((10 if direction!=3 else 13,15+b,23 if direction!=1 else 20,28+b),3,fill='#4e4057');d.line((12 if direction!=3 else 15,24+b,20,24+b),fill='#79627b')
-   elif item=='brooch' and direction!=0:
-    x=11 if direction==1 else 23 if direction==3 else 20;y=31+b
-    for dx,dy in [(-2,0),(2,0),(0,-2),(0,2)]:d.rectangle((x+dx-1,y+dy-1,x+dx+1,y+dy+1),fill='#d99ab2')
-    d.point((x,y),fill='#ffe3a3')
-   elif item in ['wreath','crown','heart_tiara']:head_piece(d,item,b)
+   elif item in ['veil','white_veil'] and direction!=0:
+    left,right=(13,23) if direction==3 else (10,20) if direction==1 else (10,23)
+    base,light=('#d3cedb','#fff4eb') if item=='white_veil' else ('#4e4057','#79627b')
+    d.rounded_rectangle((left,15+b,right,28+b),3,fill=base)
+    holes=[(11,15),(18,22)] if direction==2 else [(left+1,left+4),(right-4,right-1)]
+    for x1,x2 in holes:d.rectangle((x1,18+b,x2,19+b),fill=(0,0,0,0))
+   elif item in HEAD_ITEMS:head_piece(d,item,b)
+   elif item=='pink_watch':
+    x=7 if direction in [0,1] else 24;y=33+b
+    d.rectangle((x-1,y,x+2,y+1),fill='#b36c94');d.rectangle((x,y-1,x+1,y+2),fill='#f0b1cc');d.point((x,y),fill='#fff1e5');d.point((x+1,y+1),fill='#9e739e')
    i=len(NAMES);NAMES.append('wear_'+item+'_'+str(direction)+'_'+str(frame));atlas.paste(im,((i%16)*32,(i//16)*48))
 # Subtle engraved hearts live in the final floor texture itself.
 romance=Image.open(A/'ground.png').convert('RGB');rd=ImageDraw.Draw(romance)

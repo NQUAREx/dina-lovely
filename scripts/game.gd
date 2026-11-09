@@ -4,8 +4,10 @@ const HEDGE_LIFT := 16.0
 const HedgeField := preload("res://scripts/hedge_field.gd")
 const TILE := 48.0
 const GROUND_DEPTH := .58
-const ACCESSORIES := ["wreath","veil","crown","rose_scarf","peach_dress","brooch","heart_tiara"]
-const HEAD_ACCESSORIES := ["wreath","crown","heart_tiara"]
+const ACCESSORIES := ["wreath","veil","crown","rose_scarf","peach_dress","heart_tiara","pink_watch","white_scarf","white_dress","daisy_wreath","silver_crown","rose_wreath","lavender_dress","white_veil"]
+const ACCESSORY_SLOTS := {"wreath":"head","crown":"head","heart_tiara":"head","daisy_wreath":"head","silver_crown":"head","rose_wreath":"head","veil":"face","white_veil":"face","rose_scarf":"scarf","white_scarf":"scarf","peach_dress":"dress","white_dress":"dress","lavender_dress":"dress","pink_watch":"wrist"}
+const ROOM_ACCESSORIES := [["wreath","pink_watch"],["veil","white_scarf"],["crown","white_dress"],["rose_scarf","daisy_wreath"],["peach_dress","silver_crown"],["rose_wreath","lavender_dress"],["heart_tiara","white_veil"]]
+const OUTFIT_ORDER := ["peach_dress","white_dress","lavender_dress","rose_scarf","white_scarf","veil","white_veil","wreath","crown","heart_tiara","daisy_wreath","silver_crown","rose_wreath","pink_watch"]
 const SPEED := 150.0
 const SAVE_PATH := "user://garden_save_v1.json"
 const TITLES := ["room_maze", "room_darkness", "room_obstacles", "room_digging", "room_combat", "room_garden", "room_final"]
@@ -20,6 +22,8 @@ var romance_ground: Texture2D = preload("res://assets/ground_romance.png")
 var ground: Texture2D = preload("res://assets/ground.png")
 var glow: Texture2D = preload("res://assets/glow.png")
 var body_font: Font = preload("res://assets/body.ttf")
+var label_atlas_pixels:Image
+var label_sprite_bounds:Dictionary={}
 var title_font: Font = preload("res://assets/title.ttf")
 var outlines: Dictionary = {}
 var sprites: Dictionary
@@ -73,7 +77,7 @@ var task_return_facing := Vector2.DOWN
 var task_return_aim := Vector2.RIGHT
 var walk_facing := Vector2.DOWN
 var food_hearts_left := 0
-var food_heart_clock := .3
+var food_heart_clock := .2
 var task_kind := ""
 var task_target := Vector2.ZERO
 var transition := false
@@ -148,6 +152,7 @@ func tx(key: String) -> String:
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	label_atlas_pixels=atlas.get_image()
 	sprites = JSON.parse_string(FileAccess.get_file_as_string("res://assets/atlas.json"))
 	if not OS.has_feature("web"):content = JSON.parse_string(FileAccess.get_file_as_string("res://content/letters.json"))
 	if OS.has_feature("web"):
@@ -170,16 +175,18 @@ func _ready() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"accessories":[],"wearing":[],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"loose_accessories":[],"accessory_drop_version":1,"accessories":[],"wearing":[],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
+	var legacy_accessories:=false
 	if FileAccess.file_exists(SAVE_PATH):
 		var parsed = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
 		if parsed is Dictionary and int(parsed.get("version", 0)) in [1,2]:
 			for key in save_data:
 				if parsed.has(key) and typeof(parsed[key]) == typeof(save_data[key]):
 					save_data[key] = parsed[key]
+			legacy_accessories=not parsed.has("accessory_drop_version")
 			# JSON numbers decode as floats.
 			var old_level := int(parsed.get("level",0))
 			if int(parsed.get("version",1))==1:
@@ -190,6 +197,7 @@ func load_save() -> void:
 			save_data.seed = int(parsed.get("seed",save_data.seed))
 			save_data.water = clampi(int(parsed.get("water", 0)), 0, 6)
 			if not parsed.has("weapons_taken") and not str(save_data.weapon).is_empty(): save_data.weapons_taken.append(save_data.weapon)
+	repair_accessory_save(legacy_accessories)
 	sound_on = save_data.sound
 
 func persist() -> void:
@@ -752,6 +760,7 @@ func build_level(index: int) -> void:
 	if level not in [1,2,4]:
 		hedge_field=HedgeField.new();hedge_field.build(grid,int(save_data.seed)+level*16427,hedge_trees,berry_cells,hedge_material.get_image())
 	prepare_grass_details()
+	restore_accessory_drops()
 	camera = camera_target()
 	nearest = -1
 	update_hud()
@@ -974,7 +983,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func available(obj: Dictionary) -> bool:
 	if obj.get("integrated_tree",false):return obj.kind=="hedge_tree_apples"
-	if obj.kind=="accessory":return obj.accessory not in save_data.accessories
+	if obj.kind=="accessory":return obj.accessory not in save_data.wearing and (obj.get("dropped_accessory",false) or obj.accessory not in save_data.accessories)
 	if obj.kind=="doorway":return obj.id=="exit" and not door_is_open("exit")
 	if obj.id in ["rpg","rifle","sword"]: return obj.id not in save_data.weapons_taken
 	if obj.id in ["seat","swing"]:return true
@@ -1024,6 +1033,79 @@ func find_nearest() -> void:
 			distance_squared=d
 			nearest=i
 
+func item_name(obj: Dictionary) -> String:
+	if obj.kind=="accessory":return tx("accessory_"+str(obj.accessory))
+	if obj.kind.begins_with("rack_") or obj.kind.begins_with("weapon_"):
+		var weapon_name:String=obj.get("weapon",str(obj.id))
+		return tx("weapon_"+weapon_name)
+	if obj.kind in ["note","note_open"]:
+		for letter in content.letters:
+			if letter.id==obj.id:return letter.title
+		return tx("item_letter")
+	if obj.kind=="chest":return tx("item_final_chest") if obj.id=="final" else tx("item_chest")
+	if obj.kind=="berries":return tx("item_berries")
+	if obj.kind=="tree_apples":return tx("item_apple")
+	if obj.kind in ["doorway","arch"]:return tx("item_gate")
+	if obj.id in ["can","rake","fertilizer","shovel","flashlight","well"]:return tx("item_"+str(obj.id))
+	if obj.id=="seat":return tx("item_bench")
+	if obj.id=="swing":return tx("item_swing")
+	if level==6 and obj.kind=="stone":return tx("item_puzzle_reset") if obj.id=="puzzle_reset" else tx("symbol_"+str(obj.id))
+	return ""
+
+func item_visual_bounds(obj: Dictionary) -> Rect2:
+	var position:Vector2=obj.pos
+	if obj.kind=="berries" and hedge_field!=null:
+		var bounds:=Rect2()
+		for index in hedge_field.near_ids(position,52):
+			if hedge_field.crowns[index].berry!=obj.id:continue
+			var pose:Vector3=hedge_field.crown_pose(index,player)
+			var part:=Rect2(Vector2(pose.x,pose.y)-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2)
+			bounds=bounds.merge(part) if bounds.has_area() else part
+		if bounds.has_area():return bounds
+	if obj.get("integrated_hedge",false):return Rect2(position+Vector2(-32,-90),Vector2(64,74))
+	if obj.kind in ["doorway","arch"]:return Rect2(position+Vector2(-100,-90),Vector2(200,90))
+	var name:String="accessory_"+str(obj.accessory) if obj.kind=="accessory" else "flashlight" if obj.kind=="stand_flashlight" else obj.kind
+	if not sprites.has(name):return Rect2(position-Vector2(24,32),Vector2(48,32))
+	if not label_sprite_bounds.has(name):
+		var id:int=sprites[name]
+		label_sprite_bounds[name]=Rect2(label_atlas_pixels.get_region(Rect2i(id%16*32,id/16*48,32,48)).get_used_rect())
+	var source:Rect2=label_sprite_bounds[name]
+	if obj.get("ground_tool",false):
+		var local:=Rect2((source.position*2-Vector2(32,86))*.65+Vector2(0,20),source.size*1.3)
+		var result:=Rect2(position+local.position.rotated(PI/2),Vector2.ZERO)
+		for corner in [local.position,local.position+Vector2(local.size.x,0),local.end,local.position+Vector2(0,local.size.y)]:result=result.expand(position+corner.rotated(PI/2))
+		return result
+	if obj.kind=="accessory":position.y+=sin(time*2)*2
+	if obj.kind=="note" and obj.id!="buried":position.y+=sin(time*2+position.x)*4+25*(1-clampf((time-float(obj.get("rise_start",time-1)))/.45,0,1))
+	if obj.kind=="stand_flashlight":position.y-=40
+	var scale_factor:=3.0 if obj.kind=="chest" and obj.id=="final" else 1.0
+	var bounds:=Rect2(position+(source.position*2-Vector2(32,86))*scale_factor,source.size*2*scale_factor)
+	if level==6 and obj.kind=="stone":bounds=bounds.expand(position+Vector2(0,-60))
+	return bounds
+
+func draw_item_names() -> void:
+	if not playing or paused:return
+	var candidates:Array[Dictionary]=[]
+	for obj in objects:
+		if obj.pos.distance_squared_to(player)>95*95 or not available(obj) or not interaction_reachable(obj):continue
+		var text:=item_name(obj)
+		if text.is_empty():continue
+		var bounds:=item_visual_bounds(obj)
+		var p:=screen(Vector2(bounds.get_center().x,bounds.position.y)-Vector2(0,8)).round()
+		var width:=ceilf(minf(240,body_font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,14).x))+8
+		var box:=Rect2(p+Vector2(-width/2,-14),Vector2(width,18))
+		candidates.append({"box":box,"p":p,"text":text,"distance":obj.pos.distance_squared_to(player)})
+	candidates.sort_custom(func(a,b):return a.distance<b.distance)
+	var occupied:Array[Rect2]=[]
+	for candidate in candidates:
+		var box:Rect2=candidate.box
+		if occupied.any(func(other):return other.intersects(box)):continue
+		occupied.append(box)
+		var p:Vector2=candidate.p;var text:String=candidate.text
+		# Neutral translucent backing only; text keeps full opacity.
+		draw_rect(box,Color(.3,.3,.3,.18))
+		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,14,CREAM)
+
 func action_text(obj: Dictionary) -> String:
 	if obj.kind=="accessory":return tx("wear_accessory")
 	if not resting.is_empty():return tx("stand_action")
@@ -1069,7 +1151,8 @@ func interact() -> void:
 		equip_tool(id);persist();sfx("ui")
 	elif obj.kind in ["berries","tree_apples"]:
 		save_data.eaten.append(id);health=mini(8,health+2);sfx("eat");persist()
-		food_hearts_left=10;food_heart_clock=.3
+		food_hearts_left=10;food_heart_clock=.2
+		food_heart_burst()
 	elif obj.kind=="mound":
 		if not save_data.shovel: notify(tx("shovel_required"))
 		else: begin_task("dig:"+id,obj.pos,.25)
@@ -1426,7 +1509,7 @@ func _draw() -> void:
 				renderables.append({"kind":"stone","pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	for obj in objects:
-		if obj.kind=="accessory" and obj.accessory in save_data.accessories:continue
+		if obj.kind=="accessory" and not available(obj):continue
 		if obj.get("integrated_hedge",false):
 			if get_viewport_rect().grow(120).has_point(screen(obj.pos)):
 				var tree:Dictionary=obj.duplicate();tree.kind="hedge_tree_apples" if obj.kind=="tree_apples" and obj.id not in save_data.eaten else "hedge_tree";tree.integrated_tree=true
@@ -1567,8 +1650,6 @@ func _draw() -> void:
 			elif kind=="accessory":draw_sprite("accessory_"+str(item.accessory),p+Vector2(0,sin(time*2)*2))
 			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4+25*(1-clampf((time-float(item.get("rise_start",time-1)))/.45,0,1))))
 			else: draw_sprite(kind,p)
-			if kind.begins_with("rack_") and item.id not in save_data.weapons_taken and item.pos.distance_to(player)<95:
-				draw_string(body_font,p+Vector2(-25,-75),{"rpg":tx("weapon_rpg"),"rifle":tx("weapon_rifle"),"sword":tx("weapon_sword")}[item.id],HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
 			if level==6 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("b5a3bb"))
 			if kind in ["arch","doorway"]:
 				var open: bool = door_is_open(str(item.id))
@@ -1584,6 +1665,7 @@ func _draw() -> void:
 	if nearest>=0 and playing and not paused and objects[nearest].kind!="sprout":
 		var p := screen(objects[nearest].pos)+Vector2(0,-88+sin(time*4)*3)
 		draw_colored_polygon(PackedVector2Array([p+Vector2(-6,-5),p+Vector2(6,-5),p+Vector2(0,2)]),Color("ffe4a8"))
+	draw_item_names()
 	# Deterministic ambient fireflies and butterflies, no nodes allocated per frame.
 	for i in range(110):
 		var world := Vector2(fposmod(i*137.7,grid[0].length()*TILE),fposmod(i*193.3,grid.size()*TILE))+Vector2(sin(time*.3+i)*26,cos(time*.4+i)*18)
@@ -2619,28 +2701,91 @@ func place_accessory(rng: RandomNumberGenerator) -> void:
 			if objects.any(func(o):return o.pos.distance_to(point)<80):continue
 			choices.append(point)
 	if choices.is_empty():choices.append(player+Vector2(35,0))
-	var pos:Vector2=choices[rng.randi_range(0,choices.size()-1)]
-	objects.append({"kind":"accessory","id":"accessory_"+str(level),"accessory":ACCESSORIES[level],"pos":pos,"solid":false})
+	for slot in range(2):
+		var pos:=accessory_drop_position(player+Vector2(40*slot,40)) if choices.is_empty() else choices[rng.randi_range(0,choices.size()-1)]
+		var item:String=ROOM_ACCESSORIES[level][slot]
+		objects.append({"kind":"accessory","id":"accessory_"+str(level)+"_"+str(slot),"accessory":item,"pos":pos,"solid":false})
+		choices=choices.filter(func(point):return point.distance_squared_to(pos)>110*110)
+
+func accessory_origin(item: String) -> int:
+	for room in range(ROOM_ACCESSORIES.size()):
+		if item in ROOM_ACCESSORIES[room]:return room
+	return 0
+
+func repair_accessory_save(legacy: bool) -> void:
+	# Unknown/removed cosmetics are discarded; progress, letters and rooms are untouched.
+	save_data.accessories=save_data.accessories.filter(func(item):return item in ACCESSORIES)
+	save_data.wearing=save_data.wearing.filter(func(item):return item in ACCESSORIES)
+	var slots:Dictionary={};var worn:Array=[]
+	for item in save_data.wearing:
+		var slot:String=ACCESSORY_SLOTS[item]
+		if slots.has(slot):worn.erase(slots[slot])
+		slots[slot]=item;worn.append(item)
+	save_data.wearing=worn
+	save_data.loose_accessories=save_data.loose_accessories.filter(func(drop):return drop is Dictionary and drop.get("accessory","") in ACCESSORIES and drop.accessory not in save_data.wearing)
+	if legacy:
+		for item in save_data.accessories:
+			if item in save_data.wearing or save_data.loose_accessories.any(func(drop):return drop.accessory==item):continue
+			save_data.loose_accessories.append({"id":"accessory_drop_"+item,"accessory":item,"room":accessory_origin(item),"pos":[]})
+	save_data.accessory_drop_version=1
+
+func accessory_drop_position(origin: Vector2) -> Vector2:
+	for offset in [Vector2(0,16),Vector2(20,0),Vector2(-20,0),Vector2(0,-20),Vector2.ZERO]:
+		var point:Vector2=origin+offset
+		if valid_ground(point) and not blocked(point):return point
+	var best:=player;var distance:=INF
+	for y in range(7,grid.size()-6):
+		for x in range(1,grid[0].length()-1):
+			var point:=(Vector2(x,y)+Vector2(.5,.5))*TILE
+			var d:=point.distance_squared_to(origin)
+			if d<distance and valid_ground(point) and not blocked(point):best=point;distance=d
+	return best
+
+func restore_accessory_drops() -> void:
+	for drop in save_data.loose_accessories:
+		if int(drop.room)!=level or drop.accessory in save_data.wearing:continue
+		var pos:=player
+		if drop.pos.size()==2:pos=Vector2(drop.pos[0],drop.pos[1])
+		else:
+			for object in objects:
+				if object.kind=="accessory" and object.accessory==drop.accessory:pos=object.pos;break
+		if not valid_ground(pos) or blocked(pos):pos=accessory_drop_position(pos)
+		drop.pos=[pos.x,pos.y]
+		objects.append({"kind":"accessory","id":drop.id,"accessory":drop.accessory,"pos":pos,"solid":false,"dropped_accessory":true})
+
+func drop_accessory(item: String) -> void:
+	var pos:=accessory_drop_position(player)
+	var id:="accessory_drop_"+item
+	save_data.loose_accessories=save_data.loose_accessories.filter(func(drop):return drop.accessory!=item)
+	save_data.loose_accessories.append({"id":id,"accessory":item,"room":level,"pos":[pos.x,pos.y]})
+	objects.append({"kind":"accessory","id":id,"accessory":item,"pos":pos,"solid":false,"dropped_accessory":true})
 
 func collect_accessory(item: String) -> void:
-	if item not in ACCESSORIES or item in save_data.accessories:return
-	save_data.accessories.append(item)
-	if item in HEAD_ACCESSORIES:
-		save_data.wearing=save_data.wearing.filter(func(old):return old not in HEAD_ACCESSORIES)
-	if item not in save_data.wearing:save_data.wearing.append(item)
-	persist();sfx("chime");burst(player,8,PINK)
+	if item not in ACCESSORIES or item in save_data.wearing:return
+	objects.assign(objects.filter(func(object):return not (object.kind=="accessory" and object.accessory==item)))
+	save_data.loose_accessories=save_data.loose_accessories.filter(func(drop):return drop.accessory!=item)
+	for old in save_data.wearing.duplicate():
+		if ACCESSORY_SLOTS[old]==ACCESSORY_SLOTS[item]:
+			save_data.wearing.erase(old);drop_accessory(old)
+	if item not in save_data.accessories:save_data.accessories.append(item)
+	save_data.wearing.append(item)
+	persist();sfx("chime");burst(player,8,PINK);find_nearest()
 	notify(tx("accessory_found") % tx("accessory_"+item))
 
 func draw_player_outfit(pos: Vector2, frame: int, color: Color) -> void:
 	draw_sprite("hero"+str(direction)+"_"+str(frame),pos,color)
-	for item in ["peach_dress","rose_scarf","veil","brooch","wreath","crown","heart_tiara"]:
+	for item in OUTFIT_ORDER:
 		if item in save_data.wearing:draw_sprite("wear_"+item+"_"+str(direction)+"_"+str(frame),pos,color)
+
+func food_heart_burst() -> void:
+	for n in range(18):
+		particles.append({"pos":player+Vector2(0,-32),"vel":Vector2(randf_range(-75,75),randf_range(-110,15)),"life":randf_range(.65,1.15),"color":Color("ef436b"),"heart":true})
 
 func update_food_hearts(delta: float) -> void:
 	if food_hearts_left<=0:return
 	food_heart_clock-=delta
 	while food_heart_clock<=0 and food_hearts_left>0:
-		food_heart_clock+=.3;food_hearts_left-=1
+		food_heart_clock+=.2;food_hearts_left-=1
 		particles.append({"pos":player+Vector2(randf_range(-5,5),-48),"vel":Vector2(randf_range(-4,4),-23),"life":1.8,"color":Color("ef436b"),"heart":true})
 
 func draw_hedge_tree_top(kind: String, position: Vector2) -> void:
