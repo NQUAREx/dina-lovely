@@ -1,5 +1,7 @@
 extends Node2D
 ## All coordinates are world pixels. Artwork is a shared nearest-filtered atlas.
+const HEDGE_LIFT := 16.0
+const HedgeField := preload("res://scripts/hedge_field.gd")
 const TILE := 48.0
 const GROUND_DEPTH := .58
 const ACCESSORIES := ["wreath","veil","crown","rose_scarf","peach_dress","brooch","heart_tiara"]
@@ -11,6 +13,7 @@ const REQUIRED := ["dawn", "flower", "star"]
 const CREAM := Color("f5e3cf")
 const PINK := Color("e5a6bd")
 const INK := Color("45394f")
+var hedge_material: Texture2D = preload("res://assets/hedge_material.png")
 var atlas: Texture2D = preload("res://assets/atlas.png")
 var romance_ground: Texture2D = preload("res://assets/ground_romance.png")
 var ground: Texture2D = preload("res://assets/ground.png")
@@ -39,7 +42,7 @@ var path_terminals: Array[bool] = []
 var footprints: Array[Dictionary] = []
 var stride_distance := 0.0
 var left_foot := false
-var vegetation: Dictionary = {}
+var hedge_field: RefCounted
 var berry_cells: Dictionary = {}
 var paths: Array = []
 var obstacle_specs: Array[Dictionary] = []
@@ -574,9 +577,9 @@ func set_cell(x: int, y: int, value: String) -> void:
 
 func build_level(index: int) -> void:
 	level = index
-	hedge_trees.clear();path_texture=null;path_pads.clear();rpg_windup=-1
+	hedge_trees.clear();hedge_field=null;path_texture=null;path_pads.clear();rpg_windup=-1
 	if not save_data.has("open_gates"):save_data.open_gates=[]
-	vegetation.clear();berry_cells.clear();paths.clear();grass_details.clear();path_targets.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;obstacle_specs.clear();damage_numbers.clear()
+	berry_cells.clear();paths.clear();grass_details.clear();path_targets.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;obstacle_specs.clear();damage_numbers.clear()
 	skull_clock=2.0
 	skulls.clear()
 	room_clock = 0
@@ -742,6 +745,8 @@ func build_level(index: int) -> void:
 	place_accessory(rng)
 	prepare_foliage_and_paths(rng)
 	prepare_room_details(rng)
+	if level not in [1,2,4]:
+		hedge_field=HedgeField.new();hedge_field.build(grid,int(save_data.seed)+level*16427,hedge_trees,berry_cells,hedge_material.get_image())
 	prepare_grass_details()
 	camera = camera_target()
 	nearest = -1
@@ -756,14 +761,8 @@ func blocked(pos: Vector2) -> bool:
 	for offset in [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]:
 		var c := Vector2i((pos+offset)/TILE)
 		if c.y<0 or c.x<0 or c.y>=grid.size() or c.x>=grid[0].length() or grid[c.y][c.x]==" ": return true
-		if grid[c.y][c.x]=="#":
-			if level==0 and c.x>0 and c.x<grid[0].length()-1 and c.y>5 and c.y<grid.size()-6:
-				var left := 16.0 if grid[c.y][c.x-1]!="#" else 0.0
-				var right := 16.0 if grid[c.y][c.x+1]!="#" else 0.0
-				var top := 16.0 if grid[c.y-1][c.x]!="#" else 0.0
-				var bottom := 16.0 if grid[c.y+1][c.x]!="#" else 0.0
-				if Rect2(Vector2(c)*TILE+Vector2(left,top),Vector2(TILE-left-right,TILE-top-bottom)).intersects(Rect2(pos-Vector2(10,7),Vector2(20,14))):return true
-			else:return true
+		if grid[c.y][c.x]=="#" and hedge_field==null:return true
+	if hedge_field!=null and hedge_field.blocks(pos):return true
 	for obj in objects:
 		if obj.kind=="doorway" and obj.id=="exit" and door_is_open("exit"):
 			var p: Vector2=pos-obj.pos
@@ -974,6 +973,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.get("integrated_tree",false):return obj.kind=="hedge_tree_apples"
 	if obj.kind=="accessory":return obj.accessory not in save_data.accessories
 	if obj.kind=="doorway":return obj.id=="exit" and not door_is_open("exit")
 	if obj.id in ["rpg","rifle","sword"]: return obj.id not in save_data.weapons_taken
@@ -1330,16 +1330,7 @@ func screen(pos: Vector2) -> Vector2:
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
 	var id := int(sprites.get(name,0))
 	if name in ["hedge_tree","hedge_tree_apples"]:
-		var cell:=Vector2i((pos+camera-get_viewport_rect().size/2-shake_offset)/TILE)
-		var sway:=Vector2.ZERO
-		for n in range(6):sway+=vegetation.get("h:"+str(cell)+":"+str(n),{}).get("offset",Vector2.ZERO)
-		pos+=(sway/6*Vector2(.15,.1)).round()
-		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-56),Vector2(48,72)),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
-		return
-	if name.begins_with("hedge") and not name.begins_with("hedge_piece"):
-		if level not in [1,2,4]:draw_hedge_parts(name,pos);return
-		draw_rect(Rect2(pos+Vector2(-24,-24),Vector2(48,40)),Color("25433d"))
-		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-32),Vector2(48,48)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)),color)
+		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-56)*scale_factor,Vector2(48,72)*scale_factor),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
 		return
 	var size := Vector2(64,96)*scale_factor
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
@@ -1416,16 +1407,16 @@ func _draw() -> void:
 			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
-			if grid[y][x]=="#":
-				var cell := Vector2i(x,y)
-				var berry_id: String = berry_cells.get(cell,"")
-				var kind := "stone" if level in [1,2,4] else ("hedge_berry" if not berry_id.is_empty() and berry_id not in save_data.eaten else "hedge"+str(posmod(x*7+y*13+int(save_data.seed),4)-1) if posmod(x*7+y*13+int(save_data.seed),4)>0 else "hedge")
-				if hedge_trees.has(cell):kind="hedge_tree_apples" if hedge_trees[cell].kind=="tree_apples" and hedge_trees[cell].id not in save_data.eaten else "hedge_tree"
-				renderables.append({"kind":kind,"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":cell,"berry_id":berry_id})
+			if grid[y][x]=="#" and level in [1,2,4]:
+				renderables.append({"kind":"stone","pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	for obj in objects:
 		if obj.kind=="accessory" and obj.accessory in save_data.accessories:continue
-		if obj.get("integrated_hedge",false):continue
+		if obj.get("integrated_hedge",false):
+			if get_viewport_rect().grow(120).has_point(screen(obj.pos)):
+				var tree:Dictionary=obj.duplicate();tree.kind="hedge_tree_apples" if obj.kind=="tree_apples" and obj.id not in save_data.eaten else "hedge_tree";tree.integrated_tree=true
+				renderables.append(tree)
+			continue
 		var p := screen(obj.pos)
 		if p.x < -100 or p.y < -100 or p.x>view.x+100 or p.y>view.y+150: continue
 		if obj.kind in ["berries","dug"]:continue
@@ -1442,16 +1433,6 @@ func _draw() -> void:
 		renderables.append(obj)
 	for enemy in enemies: renderables.append({"kind":"enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
-	if level not in [1,2,4]:
-		draw_cast_shadow("hero"+str(direction)+"_0",screen(player),1.0)
-		var contact_shadow:=PackedVector2Array()
-		for n in range(24):contact_shadow.append(screen(player)+Vector2(cos(n*TAU/24)*19,sin(n*TAU/24)*5.7))
-		draw_floor_shadow(contact_shadow,Color(.06,.09,.15,.28))
-		for wall in renderables:
-			if wall.get("wall",false):
-				if wall.kind.begins_with("hedge_tree"):draw_cast_shadow(wall.kind,screen(wall.pos),1.0)
-				draw_texture_rect(glow,Rect2(screen(wall.pos)+Vector2(-35,-8),Vector2(70,34)),false,Color(0,0,0,.9))
-				draw_hedge_structure(screen(wall.pos))
 	draw_paths()
 	draw_footprints()
 	for part in particles:
@@ -1462,6 +1443,24 @@ func _draw() -> void:
 		draw_sprite(remains.kind,screen(remains.pos),Color.WHITE,float(remains.get("scale",1.0)))
 	for hole in objects:
 		if hole.kind=="dug":draw_sprite("dug",screen(hole.pos))
+	if level not in [1,2,4]:
+		draw_cast_shadow("hero"+str(direction)+"_0",screen(player),1.0)
+		var contact_shadow:=PackedVector2Array()
+		for n in range(24):contact_shadow.append(screen(player)+Vector2(cos(n*TAU/24)*19,sin(n*TAU/24)*5.7))
+		draw_floor_shadow(contact_shadow,Color(.06,.09,.15,.28))
+	var visible_crowns:=PackedInt32Array()
+	if hedge_field!=null:
+		visible_crowns=hedge_field.visible_ids(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
+		for item in renderables:
+			if item.get("integrated_tree",false):draw_cast_shadow(item.kind,screen(item.pos),1)
+		for index in visible_crowns:
+			var crown:Dictionary=hedge_field.crowns[index]
+			var r:float=crown.radius
+			var pos:=screen(crown.base+crown.offset)
+			draw_texture_rect(glow,Rect2(pos-Vector2(r+8,r*.85),Vector2(r*2+16,r*1.8+8)),false,Color(0,0,0,.65))
+		draw_hedge_body(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
+		for index in visible_crowns:draw_leaf_crown(index)
+
 	renderables.sort_custom(func(a,b):
 		if a.pos.y==b.pos.y:
 			if a.kind=="dug" and b.kind!="dug":return true
@@ -1471,13 +1470,6 @@ func _draw() -> void:
 	for item in renderables:
 		var p := screen(item.pos)
 		var kind: String = "tree" if item.kind=="tree_apples" and item.id in save_data.eaten else item.kind
-		if item.has("cell") and level==0:
-			if hedge_trees.has(item.cell) and hedge_trees[item.cell].kind=="tree_apples" and hedge_trees[item.cell].id not in save_data.eaten and player.distance_to(item.pos)<79:draw_pickup_outline("hedge_tree_apples",p+Vector2(0,8),.75)
-			var key := "h:"+str(item.cell)
-			pass
-			if not str(item.get("berry_id","")).is_empty() and item.berry_id not in save_data.eaten and item.pos.distance_to(player)<79:draw_pickup_outline("hedge_berry",p,1.0)
-		elif kind in ["flowers","blueflowers"]:
-			pass
 		if kind=="player":
 			if level in [1,2,4]:
 				draw_cast_shadow("hero"+str(direction)+"_0",p,1.0)
@@ -1509,8 +1501,9 @@ func _draw() -> void:
 				var highlight := "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else "flashlight" if kind=="stand_flashlight" else kind
 				if item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
+				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p+Vector2(0,10),.75)
 				else:draw_pickup_outline(highlight,p+Vector2(0,-40) if kind=="stand_flashlight" else p,3.0 if kind=="chest" and item.id=="final" else 1.0)
-			if not item.has("wall") and item.id!="buried":
+			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false):
 				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
 				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
 			if item.get("ground_tool",false):
@@ -1554,7 +1547,12 @@ func _draw() -> void:
 			elif kind=="accessory":draw_sprite("accessory_"+str(item.accessory),p+Vector2(0,sin(time*2)*2))
 			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4+25*(1-clampf((time-float(item.get("rise_start",time-1)))/.45,0,1))))
 			else: draw_sprite(kind,p)
-			if item.get("wall",false) and level not in [1,2,4] and not kind.begins_with("hedge_tree"):draw_hedge_connections(p)
+			if item.get("integrated_tree",false) and hedge_field!=null:
+				var roots:Array[int]=[]
+				for index in hedge_field.near_ids(item.pos,32):
+					var node:Dictionary=hedge_field.crowns[index]
+					if node.base.distance_to(item.pos)<34 and node.base.y>=item.pos.y-5:roots.append(index)
+				for index in roots:draw_leaf_crown(index)
 			if kind.begins_with("rack_") and item.id not in save_data.weapons_taken and item.pos.distance_to(player)<95:
 				draw_string(body_font,p+Vector2(-25,-75),{"rpg":tx("weapon_rpg"),"rifle":tx("weapon_rifle"),"sword":tx("weapon_sword")}[item.id],HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
 			if level==6 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("b5a3bb"))
@@ -1562,16 +1560,9 @@ func _draw() -> void:
 				var open: bool = door_is_open(str(item.id))
 				draw_texture_rect(glow,Rect2(p-Vector2(65,110),Vector2(130,150)),false,Color(.9,1,.9,1 if open else .2))
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
-	if level not in [1,2,4]:
-		var foliage_in_front:=hedge_in_foreground(player)
-		for wall in renderables:
-			if wall.get("wall",false) and not wall.kind.begins_with("hedge_tree") and foliage_in_front:
-				if hedge_active(wall.cell) or wall.pos.distance_to(player)<90:
-					draw_hedge_parts(wall.kind,screen(wall.pos))
-		# Seam foliage comes last, so individual tile shadows cannot cut it apart.
-		for wall in renderables:
-			if wall.get("wall",false) and not wall.kind.begins_with("hedge_tree") and (foliage_in_front or wall.pos.distance_to(player)>120):
-				draw_hedge_connections(screen(wall.pos))
+	if hedge_field!=null and hedge_field.foreground(player):
+		for index in visible_crowns:
+			if hedge_field.crowns[index].base.distance_to(player)<100:draw_leaf_crown(index)
 
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
@@ -2235,24 +2226,7 @@ func draw_paths() -> void:
 		draw_texture_rect(path_texture,Rect2(screen(Vector2.ZERO),Vector2(grid[0].length(),grid.size())*TILE),false)
 
 func update_vegetation(delta: float) -> void:
-	if level not in [1,2,4]:
-		var center := Vector2i(player/TILE)
-		for y in range(maxi(0,center.y-2),mini(grid.size(),center.y+3)):
-			for x in range(maxi(0,center.x-2),mini(grid[0].length(),center.x+3)):
-				if grid[y][x]!="#":continue
-				var cell := Vector2i(x,y)
-				for n in range(6):
-					var origin := (Vector2(cell)+Vector2(.5,.5))*TILE+Vector2((n%3-1)*15,(n/3)*14-7)
-					if origin.distance_to(player)>45:continue
-					var key := "h:"+str(cell)+":"+str(n)
-					if not vegetation.has(key):vegetation[key]={"pos":origin,"offset":Vector2.ZERO,"velocity":Vector2.ZERO}
-		for key in vegetation.keys():
-			var spring: Dictionary = vegetation[key]
-			var away: Vector2 = spring.pos-player
-			var target := away.normalized()*11*clampf((43-away.length())/20,0,1)
-			spring.velocity+=(target-spring.offset)*145*delta-spring.velocity*18*delta
-			spring.offset+=spring.velocity*delta
-			if target.length()<.01 and spring.offset.length()<.03:vegetation.erase(key)
+	if hedge_field!=null:hedge_field.update(delta,player)
 	var contact := false
 	for obj in objects:
 		if obj.kind not in ["flowers","blueflowers"]:continue
@@ -2279,27 +2253,6 @@ func draw_buried_paper(pos: Vector2, opened: bool) -> void:
 		buried_paper_cache[name]=ImageTexture.create_from_image(image)
 	draw_texture_rect(buried_paper_cache[name],Rect2(pos-Vector2(32,86),Vector2(64,96)),false)
 
-func draw_hedge_parts(name: String, pos: Vector2, clip_y: float = -INF) -> void:
-	var cell := Vector2i((pos+camera-get_viewport_rect().size/2-shake_offset)/TILE)
-	var key := "h:"+str(cell)+":"
-	var active := false
-	for n in range(6):
-		if vegetation.has(key+str(n)):active=true;break
-	if not active:
-		var id: int = sprites[name]
-		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-32),Vector2(48,48)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
-		return
-	var variant := ["hedge","hedge0","hedge1","hedge2","hedge_berry"].find(name)
-	for n in range(6):
-		var offset: Vector2 = vegetation.get(key+str(n),{}).get("offset",Vector2.ZERO)
-		var id: int = sprites["hedge_piece"+str(variant)+"_"+str(n)]
-		var destination := Rect2(pos+Vector2(-24,-32)+offset,Vector2(48,48))
-		var source := Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32))
-		var cut := clampf(clip_y-destination.position.y,0,48)
-		if cut>=48:continue
-		destination.position.y+=cut;destination.size.y-=cut
-		source.position.y+=cut*2/3;source.size.y-=cut*2/3
-		draw_texture_rect_region(atlas,destination,source)
 
 func build_path_meshes() -> void:
 	# Rasterise the whole network once. Shared junctions become one surface,
@@ -2432,9 +2385,6 @@ func pushing_hedge(pos: Vector2, input: Vector2) -> bool:
 	if level!=0 or input.length()<.35:return false
 	return touching_hedge(pos) and blocked(pos+input.normalized()*7)
 
-func draw_hedge_layer(name: String, pos: Vector2, size: Vector2, offset: Vector2) -> void:
-	var id: int = sprites[name]
-	draw_texture_rect_region(atlas,Rect2(pos+offset,size),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
 
 func prepare_grass_details() -> void:
 	var rng := RandomNumberGenerator.new();rng.seed=int(save_data.seed)+level*3763+9181
@@ -2486,41 +2436,6 @@ func draw_gate_leaf(name: String, pos: Vector2) -> void:
 	var id: int = sprites[name]
 	draw_texture_rect_region(atlas,Rect2(pos,Vector2(72,68)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
 
-func hedge_in_foreground(wall_pos: Vector2) -> bool:
-	var centre:=Vector2i(player/TILE)
-	var nearest:=INF;var face:=Vector2.ZERO
-	for y in range(maxi(0,centre.y-2),mini(grid.size(),centre.y+3)):
-		for x in range(maxi(0,centre.x-2),mini(grid[0].length(),centre.x+3)):
-			if grid[y][x]!="#":continue
-			var corner:=Vector2(x,y)*TILE
-			for normal in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
-				var next:Vector2i=Vector2i(x,y)+normal
-				if next.x>=0 and next.y>=0 and next.y<grid.size() and next.x<grid[0].length() and grid[next.y][next.x]=="#":continue
-				var a:=corner;var b:=corner
-				if normal.x!=0:a.x+=TILE if normal.x>0 else 0;b=a+Vector2(0,TILE)
-				else:a.y+=TILE if normal.y>0 else 0;b=a+Vector2(TILE,0)
-				var distance:=player.distance_squared_to(Geometry2D.get_closest_point_to_segment(player,a,b))
-				if distance<nearest:nearest=distance;face=Vector2(normal)
-	return face!=Vector2.DOWN if nearest<10000 else (player-wall_pos).y<=absf(player.x-wall_pos.x)
-
-func draw_hedge_connections(pos: Vector2) -> void:
-	var cell:=Vector2i((pos+camera-get_viewport_rect().size/2-shake_offset)/TILE)
-	if cell.x+1<grid[0].length() and grid[cell.y][cell.x+1]=="#" and not hedge_trees.has(cell+Vector2i.RIGHT):draw_hedge_layer("hedge_join_h",pos,Vector2(40,42),Vector2(7,-31))
-	if cell.y+1<grid.size() and grid[cell.y+1][cell.x]=="#" and not hedge_trees.has(cell+Vector2i.DOWN):draw_hedge_layer("hedge_join_v",pos,Vector2(48,37),Vector2(-24,-5))
-
-func hedge_active(cell: Vector2i) -> bool:
-	for n in range(6):
-		if vegetation.has("h:"+str(cell)+":"+str(n)):return true
-	return false
-
-func draw_hedge_structure(pos: Vector2) -> void:
-	var cell := Vector2i((pos+camera-get_viewport_rect().size/2-shake_offset)/TILE)
-	# Exposed vertical faces and leafy bridges make one continuous hedge volume.
-	var right := cell.x+1<grid[0].length() and grid[cell.y][cell.x+1]=="#"
-	var down := cell.y+1<grid.size() and grid[cell.y+1][cell.x]=="#"
-	if not down:draw_hedge_layer("hedge_side",pos,Vector2(48,48),Vector2(-24,-32))
-	if right:draw_hedge_layer("hedge_join_h",pos,Vector2(40,42),Vector2(7,-31))
-	if down:draw_hedge_layer("hedge_join_v",pos,Vector2(48,37),Vector2(-24,-5))
 
 func sfx_at(name: String, pos: Vector2) -> void:
 	if not sound_on or DisplayServer.get_name()=="headless":return
@@ -2706,3 +2621,42 @@ func update_food_hearts(delta: float) -> void:
 	while food_heart_clock<=0 and food_hearts_left>0:
 		food_heart_clock+=.3;food_hearts_left-=1
 		particles.append({"pos":player+Vector2(randf_range(-5,5),-48),"vel":Vector2(randf_range(-4,4),-23),"life":1.8,"color":Color("ef436b"),"heart":true})
+
+func draw_leaf_crown(index: int) -> void:
+	var node:Dictionary=hedge_field.crowns[index]
+	var radius:float=node.radius*1.48*(1-node.press*.07)
+	var centre:=screen(node.base+node.offset)-Vector2(0,HEDGE_LIFT)
+	var berry:bool=not str(node.berry).is_empty() and node.berry not in save_data.eaten
+	var texture_name:="crown_berry_" if berry else "crown_leaf_"
+	texture_name+=str(node.variant)
+	var id:int=sprites[texture_name]
+	if berry and node.base.distance_to(player)<79:
+		if not outlines.has(texture_name):
+			var source:=atlas.get_image().get_region(Rect2i(id%16*32+8,id/16*48+24,17,17))
+			var border:=Image.create(19,19,false,Image.FORMAT_RGBA8)
+			for y in range(17):
+				for x in range(17):
+					if source.get_pixel(x,y).a<.5:continue
+					for offset in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:border.set_pixel(x+1+offset.x,y+1+offset.y,Color("ffe7a6"))
+			outlines[texture_name]=ImageTexture.create_from_image(border)
+		draw_texture_rect(outlines[texture_name],Rect2(centre-Vector2.ONE*radius*19/17,Vector2.ONE*radius*2*19/17),false)
+	draw_texture_rect_region(atlas,Rect2(centre-Vector2.ONE*radius,Vector2.ONE*radius*2),Rect2(Vector2(id%16*32+8,id/16*48+24),Vector2(17,17)))
+
+func draw_hedge_body(bounds: Rect2) -> void:
+	if hedge_field==null or hedge_field.body_texture==null:return
+	var texture:Texture2D=hedge_field.body_texture
+	var first:=Vector2i(bounds.position/32)-Vector2i.ONE
+	var last:=Vector2i(bounds.end/32)+Vector2i.ONE
+	var offsets:Dictionary={}
+	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
+	for y in range(first.y,last.y+1):
+		for x in range(first.x,last.x+1):
+			if not hedge_field.body_tiles.has(Vector2i(x,y)):continue
+			var polygon:=PackedVector2Array();var uv:=PackedVector2Array()
+			for corner in [Vector2i(x,y),Vector2i(x+1,y),Vector2i(x+1,y+1),Vector2i(x,y+1)]:
+				var point:=Vector2(corner)*32
+				if not offsets.has(corner):offsets[corner]=hedge_field.body_offset(point)
+				polygon.append(point+offsets[corner]-Vector2(0,HEDGE_LIFT))
+				uv.append(point/(Vector2(texture.get_size())*2))
+			draw_polygon(polygon,PackedColorArray([Color.WHITE]),uv,texture)
+	draw_set_transform(Vector2.ZERO)

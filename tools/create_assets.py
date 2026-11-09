@@ -8,12 +8,6 @@ def sprite(name,fn):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);fn(d);i=len(NAMES);NAMES.append(name);atlas.paste(im,((i%16)*32,(i//16)*48))
 def leaf(d,x,y,r=6):
  d.ellipse((x-r,y-r,x+r,y+r),fill='#183e43'); d.ellipse((x-r,y-r,x+r-1,y+r-3),fill=random.choice(['#376453','#44785b','#548568']));d.line((x-r+3,y-r+2,x,y-r+1),fill='#83aa73')
-def hedge(d):
- d.rectangle((3,24,28,40),fill='#25433d');d.rectangle((4,35,27,40),fill='#192f35')
- for y in [24,30]:
-  for x in [6,14,23]:leaf(d,x,y,7)
- for x,y in [(7,21),(22,27),(17,19)]:d.point((x,y),fill='#bfd28b')
-sprite('hedge',hedge)
 def tree(d):
  d.rectangle((13,25,18,43),fill='#60474b');d.line((14,28,14,41),fill='#a07865',width=2)
  for x,y,r in [(15,12,11),(8,20,8),(23,20,8),(15,23,10)]:leaf(d,x,y,r)
@@ -128,16 +122,6 @@ def pond(d):
  d.ellipse((1,19,31,45),fill='#687b72');d.ellipse((4,22,28,42),fill='#345a6b');d.arc((6,24,25,38),0,160,fill='#789e9c',width=1);d.ellipse((8,26,15,30),fill='#7b9b70');d.line((17,33,24,33),fill='#a0bbb0')
 sprite('house',house);sprite('pond',pond)
 sprite('bench',lambda d:(d.rectangle((2,25,29,30),fill='#9a7b6e'),d.rectangle((2,33,29,37),fill='#b38c78'),d.rectangle((5,37,8,44),fill='#504758'),d.rectangle((24,37,27,44),fill='#504758')))
-for variant in range(3):
- def varied(d,v=variant):
-  hedge(d)
-  if v==0:
-   for x,y in [(7,23),(18,27),(24,22)]:d.rectangle((x,y,x+2,y+2),fill='#ead9c2')
-  elif v==1:
-   for x,y in [(5,20),(17,18),(26,26)]:d.line((x,y,x+2,y-4),fill='#b4cb82',width=2)
-  else:
-   d.rectangle((14,23,17,32),fill='#826248');leaf(d,16,18,9)
- sprite('hedge'+str(variant),varied)
 sprite('berries',lambda d:(d.ellipse((8,24,24,38),fill='#487b50'),d.rectangle((12,25,15,28),fill='#dc7694'),d.rectangle((20,29,23,32),fill='#d95378')))
 sprite('rake',lambda d:(d.line((13,39,20,13),fill='#ae8866',width=2),d.line((12,13,26,17),fill='#c8c5b0',width=2),[d.line((x,14,x-2,20),fill='#c8c5b0') for x in range(13,27,3)]))
 def weeds(d):
@@ -196,34 +180,12 @@ def swing(d):
  d.line((3,43,7,5,25,5,29,43),fill='#806955',width=3);d.line((6,5,26,5),fill='#d0ad7d',width=3)
  d.line((11,8,11,32),fill='#c5b394');d.line((22,8,22,32),fill='#c5b394');d.rectangle((8,33,25,36),fill='#b9866b')
 sprite('swing',swing)
-def berry_hedge(d):
- hedge(d)
- for x,y in [(6,22),(14,25),(24,22),(20,30),(8,31)]:
-  d.rectangle((x,y,x+2,y+2),fill='#e86189');d.point((x,y),fill='#ffb5c4')
-sprite('hedge_berry',berry_hedge)
 for i in range(3):
  def path_stone(d,v=i):
   x=16;y=34
   pts=[(x-10,y-3),(x-4,y-8-v),(x+7,y-6),(x+11,y),(x+6,y+6),(x-6,y+7)]
   d.polygon([(xx,yy+2) for xx,yy in pts],fill='#75573d');d.polygon(pts,fill=['#c9aa72','#bb925b','#d6b67d'][v]);d.line((x-6,y-5,x+3,y-5),fill='#e5c995')
  sprite('path_stone'+str(i),path_stone)
-# Six independent leaf clusters per hedge, baked together for distant rendering.
-for variant,name in enumerate(['hedge','hedge0','hedge1','hedge2','hedge_berry']):
- composite=Image.new('RGBA',(32,48))
- for n in range(6):
-  def part(d,v=variant,n=n):
-   x=[8,16,24][n%3];y=[25,33][n//3];leaf(d,x,y,8)
-   for k in range(10):
-    dx=random.randint(-6,6);dy=random.randint(-6,3)
-    if dx*dx+dy*dy<36:d.point((x+dx,y+dy),fill=random.choice(['#92b477','#729b67','#3c664d']))
-   if v==1:d.ellipse((x-1,y-4,x+1,y-2),fill='#efdfc2')
-   if v==2:d.line((x,y-3,x+1,y-8),fill='#a8bb7d')
-   if v==3 and n==1:d.rectangle((14,23,17,32),fill='#826248');leaf(d,16,18,9)
-   if v==4 and n%2==0:
-    d.rectangle((x-1,y-4,x+1,y-2),fill='#e86189');d.point((x-1,y-4),fill='#ffc8cc')
-  sprite('hedge_piece'+str(variant)+'_'+str(n),part)
-  index=len(NAMES)-1;part_image=atlas.crop(((index%16)*32,(index//16)*48,(index%16)*32+32,(index//16)*48+48));composite.alpha_composite(part_image)
- index=NAMES.index(name);atlas.paste(composite,((index%16)*32,(index//16)*48))
 for name,color in [('flowers','#e99bb6'),('blueflowers','#b6b3ed')]:
  for frame in range(3):
   def pressed(d,c=color,f=frame):
@@ -289,18 +251,6 @@ for v in range(6):
      c=['#bd597e','#c7aa48','#9680c8','#d88d52','#8ab3c4','#d9c5d6'][v]
      d.ellipse((x-2,y-3,x+2,y+3),fill=c);d.line((x,y-3,x+1,y+2),fill='#aac08b')
   sprite(('seedling' if stage==0 else 'flower_bud')+str(v),plant_state)
-def hedge_side(d):
- d.polygon([(0,32),(5,30),(26,30),(31,33),(31,41),(27,46),(4,46),(0,42)],fill='#173c35')
- for y,c in [(33,'#416b48'),(36,'#345e40'),(39,'#284f3a'),(42,'#1f4435')]:
-  d.line((2,y,29,y),fill=c,width=3)
- for n in range(30):
-  x=random.randrange(2,30);y=random.randrange(32,44);d.line((x,y,x+1,y-2),fill=random.choice(['#527b4d','#37613e','#294d35']))
-sprite('hedge_side',hedge_side)
-for name in ['hedge_join_h','hedge_join_v']:
- def joined(d):
-  for y in [23,30,36]:
-   for x in [4,12,20,28]:leaf(d,x,y,6)
- sprite(name,joined)
 def path_end(d):
  # Three-pixel islands, with equal scale on both axes in the game.
  for y in range(0,48,3):
@@ -382,8 +332,6 @@ def hedge_tree(d,fruit=False):
  if fruit:
   for x,y in [(9,10),(22,14),(18,5)]:
    d.rectangle((x-2,y-1,x+2,y+2),fill='#ac455b');d.point((x-1,y-1),fill='#ffd19c')
- for x,y,r in [(5,37,6),(27,38,6),(10,42,5),(23,42,5)]:leaf(d,x,y,r)
- d.line((3,46,29,46),fill='#192f35')
 sprite('hedge_tree',lambda d:hedge_tree(d));sprite('hedge_tree_apples',lambda d:hedge_tree(d,True))
 for v in range(6):sprite('bed_border'+str(v),lambda d,v=v:border(d,v))
 # Plant-only overlays keep every stone behind the foliage, without painting
@@ -481,6 +429,25 @@ romance.save(A/'ground_romance.png')
 i=NAMES.index('fertilizer');im=atlas.crop(((i%16)*32,(i//16)*48,(i%16+1)*32,(i//16+1)*48));fd=ImageDraw.Draw(im)
 fd.polygon([(8,24),(16,20),(24,24),(16,28)],fill='#e4cea1');fd.ellipse((11,22,22,25),fill='#6d563e');fd.point((16,24),fill='#c5aa7c')
 i=len(NAMES);NAMES.append('fertilizer_open');atlas.paste(im,((i%16)*32,(i//16)*48))
+# Individual classic leaf crowns retained pixel-for-pixel from the original art.
+source=Image.open(R/'tools/art_source/classic_leaves.png').convert('RGBA')
+for v in range(12):
+ im=Image.new('RGBA',(32,48));im.paste(source.crop((v*17,0,(v+1)*17,17)),(8,24))
+ i=len(NAMES);NAMES.append('crown_leaf_'+str(v));atlas.paste(im,((i%16)*32,(i//16)*48))
+ bd=ImageDraw.Draw(im);bd.rectangle((15,28,17,30),fill='#e86189');bd.point((15,28),fill='#ffc8cc')
+ i=len(NAMES);NAMES.append('crown_berry_'+str(v));atlas.paste(im,((i%16)*32,(i//16)*48))
+# Shared front-face material, sampled only on the unified moving wall contour.
+Image.open(R/'tools/art_source/classic_side.png').save(A/'hedge_material.png')
+trees=Image.open(R/'tools/art_source/classic_trees.png').convert('RGBA')
+for n,name in enumerate(['hedge_tree','hedge_tree_apples']):
+ i=NAMES.index(name);atlas.paste(trees.crop((n*32,0,(n+1)*32,48)),((i%16)*32,(i//16)*48))
+# Unrelated artwork stays unchanged when the foliage generator changes its RNG use.
+retained=Image.open(R/'tools/art_source/retained.png').convert('RGBA')
+retained_names=json.loads((R/'tools/art_source/retained.json').read_text())
+for name in NAMES:
+ if name not in retained_names:continue
+ old=retained_names[name];new=NAMES.index(name)
+ atlas.paste(retained.crop(((old%16)*32,(old//16)*48,(old%16+1)*32,(old//16+1)*48)),((new%16)*32,(new//16)*48))
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)
