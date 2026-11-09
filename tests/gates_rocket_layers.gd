@@ -5,7 +5,7 @@ func run():
  g=load('res://main.tscn').instantiate();root.add_child(g);await process_frame;g.new_game();g.clear_modal();g.sound_on=false
  for room in range(6):
   g.build_level(room);assert(not g.level_complete());var pos=Vector2(15.5 if room==0 else 13.5,6.8)*48;assert(g.blocked(pos))
-  if room>0:assert(g.blocked(Vector2(13.5,g.grid.size()-6.8)*48))
+  if room>0:assert(g.door_is_open("back") and not g.blocked(Vector2(13.5,g.grid.size()-6.8)*48))
   match room:
    0:g.save_data.letters.append_array(['dawn','flower','star'])
    1:g.save_data.letters.append_array(['shade_1','shade_2','shade_3'])

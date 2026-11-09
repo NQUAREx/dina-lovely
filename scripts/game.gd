@@ -724,7 +724,6 @@ func camera_target() -> Vector2:
 	return Vector2(clampf(player.x,half.x-48,grid[0].length()*TILE-half.x+48),clampf(player.y,half.y-220,grid.size()*TILE-half.y+64))
 
 func blocked(pos: Vector2) -> bool:
-	if level in [1,2,3,4,5] and not level_complete() and not transition and pos.y>(grid.size()-7)*TILE and absf(pos.x-13.5*TILE)<75:return true
 	if level<6 and not level_complete() and pos.y<7*TILE and absf(pos.x-(15.5 if level==0 else 13.5)*TILE)<75:return true
 	for offset in [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]:
 		var c := Vector2i((pos+offset)/TILE)
@@ -1417,8 +1416,7 @@ func _draw() -> void:
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				else:draw_pickup_outline(highlight,p+Vector2(0,-40) if kind=="stand_flashlight" else p,3.0 if kind=="chest" and item.id=="final" else 1.0)
 			if not item.has("wall") and item.id!="buried": draw_shadow(p,20 if kind!="tree" else 30)
-			if item.get("wall",false) and level==0 and hedge_active(item.cell):pass
-			elif item.get("ground_tool",false):
+			if item.get("ground_tool",false):
 				draw_set_transform(p,PI/2);draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 			elif kind=="sprout":
 				var stage := int(plants.get(item.id,{}).get("stage",0))
@@ -1441,7 +1439,8 @@ func _draw() -> void:
 				draw_rect(Rect2(p+Vector2(-17,-20+swing_offset),Vector2(36,7)),Color("aa8066"))
 			elif kind in ["house","pond"]: draw_sprite(kind,p,Color.WHITE,2.0)
 			elif kind=="doorway":
-				draw_sprite("doorpost",p+Vector2(-90,0));draw_sprite("doorpost",p+Vector2(90,0));draw_gate(p,float(item.get("gate_amount",1.0 if item.id=="back" else 0.0)))
+				draw_sprite("doorpost",p+Vector2(-90,0));draw_sprite("doorpost",p+Vector2(90,0))
+				if item.id=="exit":draw_gate(p,float(item.get("gate_amount",0.0)))
 			elif kind=="stand_flashlight":
 				draw_sprite("pedestal",p)
 				if not save_data.flashlight: draw_sprite("flashlight",p+Vector2(0,-40))
@@ -1463,7 +1462,10 @@ func _draw() -> void:
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
 	if level==0:
 		for wall in renderables:
-			if wall.get("wall",false) and hedge_active(wall.cell):draw_hedge_parts(wall.kind,screen(wall.pos))
+			if wall.get("wall",false) and hedge_active(wall.cell):
+				# Southern approach: keep the canopy behind her upper body, over her legs.
+				var waist := screen(player).y-26 if player.y>wall.pos.y else -INF
+				draw_hedge_parts(wall.kind,screen(wall.pos),waist)
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
 		if item.kind in ["lamp","candle","note"] or (item.kind=="chest" and chest_open):
@@ -2126,7 +2128,7 @@ func draw_buried_paper(pos: Vector2, opened: bool) -> void:
 		buried_paper_cache[name]=ImageTexture.create_from_image(image)
 	draw_texture_rect(buried_paper_cache[name],Rect2(pos-Vector2(32,86),Vector2(64,96)),false)
 
-func draw_hedge_parts(name: String, pos: Vector2) -> void:
+func draw_hedge_parts(name: String, pos: Vector2, clip_y: float = -INF) -> void:
 	var cell := Vector2i((pos+camera-get_viewport_rect().size/2-shake_offset)/TILE)
 	var key := "h:"+str(cell)+":"
 	var active := false
@@ -2140,7 +2142,13 @@ func draw_hedge_parts(name: String, pos: Vector2) -> void:
 	for n in range(6):
 		var offset: Vector2 = vegetation.get(key+str(n),{}).get("offset",Vector2.ZERO)
 		var id: int = sprites["hedge_piece"+str(variant)+"_"+str(n)]
-		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-32)+offset,Vector2(48,48)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
+		var destination := Rect2(pos+Vector2(-24,-32)+offset,Vector2(48,48))
+		var source := Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32))
+		var cut := clampf(clip_y-destination.position.y,0,48)
+		if cut>=48:continue
+		destination.position.y+=cut;destination.size.y-=cut
+		source.position.y+=cut*2/3;source.size.y-=cut*2/3
+		draw_texture_rect_region(atlas,destination,source)
 
 func build_path_meshes() -> void:
 	path_meshes.clear()
@@ -2294,10 +2302,9 @@ func level_complete() -> bool:
 
 func draw_gate(pos: Vector2, amount: float) -> void:
 	var id: int = sprites["gate_panel"]
-	var width := 72*(1-amount)
-	if width<1:return
+	var width := lerpf(72,26,clampf(amount,0,1))
 	for side in [-1,1]:
-		var x := -72.0 if side<0 else 72-width
+		var x := lerpf(-72,-106,amount) if side<0 else lerpf(0,80,amount)
 		draw_texture_rect_region(atlas,Rect2(pos+Vector2(x,-65),Vector2(width,68)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
 
 func hedge_active(cell: Vector2i) -> bool:
@@ -2331,4 +2338,4 @@ func bed_beside_path(pos: Vector2, bed: Dictionary) -> bool:
 	return nearest>=45 and nearest<=90
 
 func door_is_open(id: String) -> bool:
-	return level_complete() or (id=="back" and (level==6 or transition))
+	return id=="back" or level_complete()
