@@ -132,7 +132,7 @@ for variant in range(3):
  def varied(d,v=variant):
   hedge(d)
   if v==0:
-   for x,y in [(7,23),(18,27),(24,22)]:d.rectangle((x,y,x+2,y+2),fill='#c75c83')
+   for x,y in [(7,23),(18,27),(24,22)]:d.rectangle((x,y,x+2,y+2),fill='#ead9c2')
   elif v==1:
    for x,y in [(5,20),(17,18),(26,26)]:d.line((x,y,x+2,y-4),fill='#b4cb82',width=2)
   else:
@@ -140,22 +140,73 @@ for variant in range(3):
  sprite('hedge'+str(variant),varied)
 sprite('berries',lambda d:(d.ellipse((8,24,24,38),fill='#487b50'),d.rectangle((12,25,15,28),fill='#dc7694'),d.rectangle((20,29,23,32),fill='#d95378')))
 sprite('rake',lambda d:(d.line((13,39,20,13),fill='#ae8866',width=2),d.line((12,13,26,17),fill='#c8c5b0',width=2),[d.line((x,14,x-2,20),fill='#c8c5b0') for x in range(13,27,3)]))
-sprite('weeds',lambda d:(d.ellipse((4,34,29,44),fill='#574b41'),[d.line((x,40,x-4,22+(x%4)*3),fill='#64845a',width=3) for x in range(8,28,4)]))
+def weeds(d):
+ d.ellipse((2,33,30,46),fill='#4f5037')
+ for i in range(100):
+  x=random.randrange(4,29);y=random.randrange(28,44)
+  d.line((x,y,x+random.choice([-2,-1,1,2]),y-random.randrange(2,7)),fill=random.choice(['#40614b','#5b7a50','#80965c','#9caa67']))
+ for x,y in [(8,35),(21,31),(25,39)]:d.ellipse((x-2,y-1,x+2,y+1),fill='#63874f')
+sprite('weeds',weeds)
 sprite('note_open',lambda d:(d.polygon([(5,28),(16,16),(26,28)],fill='#e8c8b8'),d.rectangle((5,28,26,41),fill='#d9ad9e'),d.polygon([(6,29),(16,36),(25,29),(25,40),(6,40)],fill='#f6dfc8')))
+def distinct_flower(d,v,stage):
+ basey=43
+ stemtop=[27,21,14][stage]
+ d.ellipse((5,38,27,46),fill='#514a37')
+ colors=['#ed7397','#f1d15b','#aa97e9','#e9a85b','#95c9e1','#eee0ee']
+ if v==0: # Rose: branching leaves, layered bud.
+  d.line((16,42,16,stemtop),fill='#54835e',width=2)
+  d.polygon([(16,35),(8,30),(9,36),(16,38),(23,30),(22,36)],fill='#79a463')
+  y=stemtop
+  if stage==0:d.ellipse((13,y,19,y+6),fill='#9f6579')
+  elif stage==1:d.polygon([(12,y+3),(14,y-2),(19,y-1),(21,y+5),(16,y+8)],fill=colors[v]);d.line((14,y,17,y+4),fill='#ba476a')
+  else:
+   for r,c in [(7,'#a83e67'),(5,colors[v]),(3,'#ffb6c9')]:d.ellipse((16-r,y-r,16+r,y+r),fill=c)
+   d.line((14,y,17,y-2,19,y+1,15,y+3),fill='#c34f78')
+ elif v==1: # Sunflower: thick stem, large broad leaves.
+  d.line((16,43,16,stemtop),fill='#76914c',width=3);d.polygon([(15,35),(5,30),(6,37),(15,39),(26,31),(23,39)],fill='#a0af57')
+  y=stemtop
+  if stage==0:d.rectangle((13,y,19,y+5),fill='#8d9c4e')
+  else:
+   for n in range(8):
+    a=n*math.tau/8; x=16+round(math.cos(a)*(5 if stage==1 else 8));yy=y+round(math.sin(a)*(5 if stage==1 else 8));d.ellipse((x-2,yy-3,x+2,yy+3),fill=colors[v])
+   d.ellipse((12,y-4,20,y+4),fill='#79533c');d.point((15,y-2),fill='#c49358')
+ elif v==2: # Lavender: multiple tall spikes.
+  for x,off in [(10,3),(16,0),(22,5)]:
+   top=stemtop+off;d.line((16,43,x,top),fill='#5f8b72')
+   for y in range(top,top+(4 if stage==0 else 10 if stage==1 else 16),3):d.rectangle((x-2,y,x+2,y+2),fill=colors[v] if stage else '#729184')
+ elif v==3: # Tulips: closed cups, long blade leaves.
+  d.polygon([(14,43),(5,23),(8,37),(16,43),(25,24),(23,40)],fill='#83a46b')
+  for x,off in [(12,4),(20,0)]:
+   y=stemtop+off;d.line((x,43,x,y+6),fill='#638758');d.polygon([(x-4,y),(x-1,y+2),(x+2,y-1),(x+4,y),(x+3,y+7),(x,y+9),(x-3,y+6)],fill=colors[v] if stage else '#8e9c63')
+ elif v==4: # Bluebells: curved stems with drooping bells.
+  d.line((12,43,13,stemtop+2,19,stemtop),fill='#5e8b72',width=2)
+  for off in range(1 if stage==0 else 2 if stage==1 else 3):
+   x=18+(off%2)*5;y=stemtop+off*7;d.line((13,y+3,x,y),fill='#5e8b72');d.polygon([(x-2,y),(x+1,y),(x+4,y+5),(x-4,y+5)],fill=colors[v] if stage else '#6d9d96');d.line((x-3,y+5,x+3,y+5),fill='#d5ebf2')
+ else: # White daisies: three thin branches and fine petals.
+  for x,off in [(8,6),(16,0),(24,8)]:
+   y=stemtop+off;d.line((16,43,x,y),fill='#72986d')
+   if stage==0:d.ellipse((x-2,y,x+2,y+4),fill='#a0b084')
+   else:
+    for dx,dy in [(-4,0),(4,0),(0,-4),(0,4)]:d.ellipse((x+dx-2,y+dy-2,x+dx+2,y+dy+2),fill=colors[v])
+    d.rectangle((x-1,y-1,x+1,y+1),fill='#e6bc64')
 for variant in range(6):
- def blossom(d,v=variant):
-  plant(d,True)
-  colors=['#ef9ab5','#e7c76b','#bdb2ec','#8fced6','#f0ae82','#f5dfe5']
-  x=16; y=17-(v%3)*2
-  for k in range(5+v%3):
-   a=k*math.tau/(5+v%3);cx=x+round(math.cos(a)*(4+v%2));cy=y+round(math.sin(a)*(4+v%2))
-   d.ellipse((cx-3,cy-3,cx+3,cy+3),fill=colors[v])
-  d.rectangle((x-1,y-1,x+1,y+1),fill='#ffe6a1')
- sprite('bloom'+str(variant),blossom)
+ for stage in range(3):sprite(('bloom'+str(variant)) if stage==2 else ('bud'+str(variant)+'_'+str(stage)),lambda d,v=variant,s=stage:distinct_flower(d,v,s))
+
 def swing(d):
  d.line((3,43,7,5,25,5,29,43),fill='#806955',width=3);d.line((6,5,26,5),fill='#d0ad7d',width=3)
  d.line((11,8,11,32),fill='#c5b394');d.line((22,8,22,32),fill='#c5b394');d.rectangle((8,33,25,36),fill='#b9866b')
 sprite('swing',swing)
+def berry_hedge(d):
+ hedge(d)
+ for x,y in [(6,22),(14,25),(24,22),(20,30),(8,31)]:
+  d.rectangle((x,y,x+2,y+2),fill='#e86189');d.point((x,y),fill='#ffb5c4')
+sprite('hedge_berry',berry_hedge)
+for i in range(3):
+ def path_stone(d,v=i):
+  x=16;y=34
+  pts=[(x-10,y-3),(x-4,y-8-v),(x+7,y-6),(x+11,y),(x+6,y+6),(x-6,y+7)]
+  d.polygon([(xx,yy+2) for xx,yy in pts],fill='#75573d');d.polygon(pts,fill=['#c9aa72','#bb925b','#d6b67d'][v]);d.line((x-6,y-5,x+3,y-5),fill='#e5c995')
+ sprite('path_stone'+str(i),path_stone)
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)
