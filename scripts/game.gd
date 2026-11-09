@@ -23,6 +23,11 @@ var damage_numbers: Array[Dictionary] = []
 var room_remains: Dictionary = {}
 var rocket_voice: AudioStreamPlayer
 var path_meshes: Array = []
+var path_texture: Texture2D
+var path_pads: Array[Dictionary] = []
+var hedge_trees: Dictionary = {}
+var rpg_windup := -1.0
+var rpg_aim := Vector2.RIGHT
 var grass_details: Array[Dictionary] = []
 var path_targets: Array[Dictionary] = []
 var path_navigation: AStarGrid2D
@@ -559,6 +564,7 @@ func set_cell(x: int, y: int, value: String) -> void:
 
 func build_level(index: int) -> void:
 	level = index
+	hedge_trees.clear();path_texture=null;path_pads.clear();rpg_windup=-1
 	if not save_data.has("open_gates"):save_data.open_gates=[]
 	vegetation.clear();berry_cells.clear();paths.clear();grass_details.clear();path_targets.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;obstacle_specs.clear();damage_numbers.clear()
 	skull_clock=2.0
@@ -748,7 +754,16 @@ func blocked(pos: Vector2) -> bool:
 				if Rect2(Vector2(c)*TILE+Vector2(left,top),Vector2(TILE-left-right,TILE-top-bottom)).intersects(Rect2(pos-Vector2(10,7),Vector2(20,14))):return true
 			else:return true
 	for obj in objects:
-		if obj.solid and pos.distance_to(obj.pos) < (58 if obj.kind in ["house","pond"] else 24): return true
+		if obj.kind=="doorway" and obj.id=="exit" and door_is_open("exit"):
+			var p: Vector2=pos-obj.pos
+			if float(obj.get("gate_amount",0))<.25 and absf(p.x)<82 and absf(p.y)<12:return true
+			if Rect2(Vector2(-82,-12),Vector2(92,24)).has_point(p):return true
+			if p.distance_to(Geometry2D.get_closest_point_to_segment(p,Vector2(72,0),Vector2(45,24)))<12:return true
+		if obj.solid:
+			if obj.kind=="pond":
+				# Full drawn pond footprint; its anchor is the bottom, not its centre.
+				if ((pos-obj.pos-Vector2(0,-44))/Vector2(73,65)).length()<1:return true
+			elif pos.distance_to(obj.pos)<(58 if obj.kind=="house" else 24):return true
 	return false
 
 func move_player(delta: float, input: Vector2) -> void:
@@ -851,6 +866,11 @@ func _process(delta: float) -> void:
 		invincible = maxf(0,invincible-delta)
 		attack_cd -= delta
 		attack_flash = maxf(0,attack_flash-delta)
+		if rpg_windup>=0:
+			aim=rpg_aim
+			direction=(1 if aim.x<0 else 3) if absf(aim.x)>absf(aim.y) else (0 if aim.y<0 else 2)
+			rpg_windup-=delta
+			if rpg_windup<0 and weapon=="rpg":attack(true)
 		if attack_held and task_time<=0: attack()
 		if level == 4 and not combat_done: update_combat(minf(delta,0.04))
 		for id in bloom_times: bloom_times[id] = minf(1.0,bloom_times[id]+delta/2.8)
@@ -940,6 +960,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.kind=="doorway":return obj.id=="exit" and not door_is_open("exit")
 	if obj.id in ["rpg","rifle","sword"]: return obj.id not in save_data.weapons_taken
 	if obj.id in ["seat","swing"]:return true
 	if obj.id=="rake": return held_item!="rake"
@@ -1020,10 +1041,9 @@ func interact() -> void:
 	elif obj.kind=="mound":
 		if not save_data.shovel: notify(tx("shovel_required"))
 		else: begin_task("dig:"+id,obj.pos,.25)
-	elif id=="exit": use_exit()
-	elif id=="back":
-		if door_is_open("back"):travel(level-1)
-		else:notify(tx("gate_locked"))
+	elif id=="exit":
+		if not door_is_open("exit"):use_exit()
+	elif id=="back":return
 	elif id in ["rpg","rifle","sword"]:
 		return_held_tool()
 		if id in save_data.weapons_taken: return
@@ -1235,21 +1255,23 @@ func rifle_muzzle() -> Vector2:
 	var angle := atan2(-aim.y,-aim.x) if left else aim.angle()
 	return player+Vector2(14,-28)+Vector2(-18.0 if left else 18.0,-1.6).rotated(angle)
 
-func attack() -> void:
-	if paused or level!=4 or combat_done or attack_cd>0 or transition or weapon.is_empty() or reload_time>0 or (weapon=="rpg" and rpg_reload>0): return
+func attack(launch_ready: bool = false) -> void:
+	if (rpg_windup>=0 and not launch_ready) or paused or level!=4 or combat_done or attack_cd>0 or transition or weapon.is_empty() or reload_time>0 or (weapon=="rpg" and rpg_reload>0): return
 	if weapon=="rifle" and magazine<=0:
 		reload_time=1.8;sfx("reload");return
-	attack_cd = {"sword":.48,"rifle":.13,"rpg":RPG_RELOAD}[weapon]
-	attack_flash = .22
-	var closest := INF
-	for enemy in enemies:
-		var d: float = player.distance_to(enemy.pos)
-		if d<closest:
-			closest = d
-			aim = (enemy.pos-player).normalized()
-	if aim.length()<.1: aim = Vector2.UP
+	if not launch_ready:
+		var closest := INF
+		for enemy in enemies:
+			var d: float = player.distance_to(enemy.pos)
+			if d<closest:closest=d;aim=(enemy.pos-player).normalized()
+		if aim.length()<.1:aim=Vector2.UP
+	else:aim=rpg_aim
 	if absf(aim.x)>absf(aim.y):direction=1 if aim.x<0 else 3
 	else:direction=0 if aim.y<0 else 2
+	if weapon=="rpg" and not launch_ready:
+		rpg_aim=aim;rpg_windup=.16;return
+	attack_cd = {"sword":.48,"rifle":.13,"rpg":RPG_RELOAD}[weapon]
+	attack_flash=.22
 	sfx("attack" if weapon=="sword" else "rifle" if weapon=="rifle" else "rpg_launch")
 	shake = 2.5 if weapon!="rpg" else 5
 	haptic(14)
@@ -1290,6 +1312,9 @@ func screen(pos: Vector2) -> Vector2:
 
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
 	var id := int(sprites.get(name,0))
+	if name in ["hedge_tree","hedge_tree_apples"]:
+		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-56),Vector2(48,72)),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
+		return
 	if name.begins_with("hedge") and not name.begins_with("hedge_piece"):
 		if level==0:draw_hedge_parts(name,pos);return
 		draw_rect(Rect2(pos+Vector2(-24,-24),Vector2(48,40)),Color("25433d"))
@@ -1301,7 +1326,7 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> void:
 	if not outlines.has(name):
 		var id := int(sprites.get(name,0))
-		var source := atlas.get_image().get_region(Rect2i(id%16*32,id/16*48+(16 if name.begins_with("hedge") else 0),32,32 if name.begins_with("hedge") else 48))
+		var source := atlas.get_image().get_region(Rect2i(id%16*32,id/16*48+(16 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 0),32,32 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 48))
 		var border := Image.create(34,source.get_height()+2,false,Image.FORMAT_RGBA8)
 		for y in range(source.get_height()):
 			for x in range(32):
@@ -1312,7 +1337,7 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 			for x in range(32):
 				if source.get_pixel(x,y).a>.2:border.set_pixel(x+1,y+1,Color.TRANSPARENT)
 		outlines[name] = ImageTexture.create_from_image(border)
-	var box := Rect2(pos-Vector2(25.5,33.5),Vector2(51,51)) if name.begins_with("hedge") else Rect2(pos-Vector2(34,88)*scale_factor,Vector2(68,100)*scale_factor)
+	var box := Rect2(pos-Vector2(25.5,33.5),Vector2(51,51)) if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else Rect2(pos-Vector2(34,88)*scale_factor,Vector2(68,100)*scale_factor)
 	for offset in [Vector2(-2,0),Vector2(2,0),Vector2(0,-2),Vector2(0,2)]:draw_texture_rect(outlines[name],Rect2(box.position+offset,box.size),false,Color(.2,.13,.25))
 	draw_texture_rect(outlines[name],box,false)
 
@@ -1374,9 +1399,11 @@ func _draw() -> void:
 				var cell := Vector2i(x,y)
 				var berry_id: String = berry_cells.get(cell,"")
 				var kind := "stone" if level in [1,2,4] else ("hedge_berry" if not berry_id.is_empty() and berry_id not in save_data.eaten else "hedge"+str(posmod(x*7+y*13+int(save_data.seed),4)-1) if posmod(x*7+y*13+int(save_data.seed),4)>0 else "hedge")
+				if hedge_trees.has(cell):kind="hedge_tree_apples" if hedge_trees[cell].kind=="tree_apples" and hedge_trees[cell].id not in save_data.eaten else "hedge_tree"
 				renderables.append({"kind":kind,"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":cell,"berry_id":berry_id})
 
 	for obj in objects:
+		if obj.get("integrated_hedge",false):continue
 		var p := screen(obj.pos)
 		if p.x < -100 or p.y < -100 or p.x>view.x+100 or p.y>view.y+150: continue
 		if obj.kind in ["berries","dug"]:continue
@@ -1396,6 +1423,7 @@ func _draw() -> void:
 	if level==0:
 		for wall in renderables:
 			if wall.get("wall",false):
+				if wall.kind.begins_with("hedge_tree"):draw_cast_shadow(wall.kind,screen(wall.pos),1.0)
 				draw_texture_rect(glow,Rect2(screen(wall.pos)+Vector2(-35,-8),Vector2(70,34)),false,Color(0,0,0,.9))
 				draw_hedge_structure(screen(wall.pos))
 	draw_paths()
@@ -1414,6 +1442,7 @@ func _draw() -> void:
 		var p := screen(item.pos)
 		var kind: String = "tree" if item.kind=="tree_apples" and item.id in save_data.eaten else item.kind
 		if item.has("cell") and level==0:
+			if hedge_trees.has(item.cell) and hedge_trees[item.cell].kind=="tree_apples" and hedge_trees[item.cell].id not in save_data.eaten and player.distance_to(item.pos)<79:draw_pickup_outline("hedge_tree_apples",p+Vector2(0,8),.75)
 			var key := "h:"+str(item.cell)
 			pass
 			if not str(item.get("berry_id","")).is_empty() and item.berry_id not in save_data.eaten and item.pos.distance_to(player)<79:draw_pickup_outline("hedge_berry",p,1.0)
@@ -1463,9 +1492,12 @@ func _draw() -> void:
 					if item.id in fertilized:texture="bed_fertilized"
 					if remaining>0 and stage==0:texture="bed_wet"
 					if stage==1:texture="seedling"+str(item.id)
-					if stage>=2:texture="flower_bud"+str(item.id)
-				draw_sprite("bed_border",p,Color.WHITE,.9+float(item.id)*.035)
-				draw_sprite(texture,p,Color.WHITE,.9+float(item.id)*.035)
+					if stage>=2:texture="bloom"+str(item.id)
+				var bed_scale:=.9+float(item.id)*.035
+				# Soil and stones are foreground layers above the shared path pad.
+				draw_sprite("bed_wet" if stage>0 or remaining>0 else "bed_fertilized" if item.id in fertilized else "bed_empty",p,Color.WHITE,bed_scale)
+				draw_sprite(texture,p,Color.WHITE,bed_scale)
+				draw_sprite("bed_border",p,Color.WHITE,bed_scale)
 
 			elif kind=="swing":
 				draw_sprite(kind,p)
@@ -1498,7 +1530,7 @@ func _draw() -> void:
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
 	if level==0:
 		for wall in renderables:
-			if wall.get("wall",false) and hedge_active(wall.cell) and hedge_in_foreground(wall.pos):
+			if wall.get("wall",false) and hedge_active(wall.cell) and not wall.kind.begins_with("hedge_tree") and hedge_in_foreground(wall.pos):
 				draw_hedge_parts(wall.kind,screen(wall.pos))
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
@@ -2040,89 +2072,76 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 			berry_cells[cell]=id
 			put_object("berries",cell,id)
 	if level not in [1,5]:return
-	# Restore the seeded organic branch generator from 8aa41d9, before the end-fade changes.
+	# A main garden walk connects the two doors; each destination joins it once.
 	generating_paths=true
-	var targets: Array[Dictionary] = []
+	var start:=Vector2(13.5,grid.size()-6.5)*TILE
+	var end:=Vector2(13.5,7.5)*TILE
+	var spine:=Curve2D.new();spine.bake_interval=6
+	var midpoint:=start.lerp(end,.5)+Vector2(rng.randf_range(95,145),0)
+	spine.add_point(start,Vector2.ZERO,Vector2(0,-140))
+	spine.add_point(midpoint,Vector2(0,150),Vector2(0,-150))
+	spine.add_point(end,Vector2(0,140),Vector2.ZERO)
+	var main_path:=continuous_path(spine.get_baked_points(),start,end,rng)
+	if main_path.size()>1:paths.append(main_path);path_terminals.append(false)
+	path_pads.append({"pos":start,"radius":43.0})
+	path_pads.append({"pos":end,"radius":43.0})
+	var targets:Array[Dictionary]=[]
 	for obj in objects:
-		if (level==5 and (obj.kind=="sprout" or obj.id in ["seat","swing","well","can","rake","fertilizer"])) or (level==1 and (obj.kind in ["house","pond","bench"] or obj.id=="flashlight")):
+		if obj.kind in ["sprout","well","bench","swing","can","rake","fertilizer","note","stand_flashlight","house","pond"]:
+			var radius:=90.0 if obj.kind=="house" else 80.0 if obj.kind=="pond" else 52.0 if obj.kind in ["well","bench","swing"] else 42.0 if obj.kind=="sprout" else 30.0
+			obj.path_pad_radius=radius
+			path_pads.append({"pos":obj.pos,"radius":radius})
 			targets.append(obj)
-	var connected: Array[Vector2] = [Vector2(13.5,grid.size()-6.5)*TILE]
 	while not targets.is_empty():
-		var best := INF;var selected := 0;var start := connected[0]
+		var best:=INF;var selected:=0;var anchor:=start
 		for n in range(targets.size()):
-			for anchor in connected:
-				var score: float = anchor.distance_to(targets[n].pos)*rng.randf_range(.8,1.2)
-				if score<best:best=score;selected=n;start=anchor
-		var target: Dictionary = targets[selected];targets.remove_at(selected)
-		var outward: Vector2 = (start-target.pos).normalized()
-		var radius := 120.0 if target.kind in ["house","pond"] else 85.0 if target.kind=="well" else 64.0 if target.solid else 0.0
-		var end: Vector2 = target.pos+outward*radius
-		var side := (end-start).normalized().orthogonal()
-		var amplitude := minf(85.0,start.distance_to(end)*.22)
-		var points: Array[Vector2] = [start]
-		for n in range(1,4):
-			var point := start.lerp(end,float(n)/4)+side*rng.randf_range(-amplitude,amplitude)
-			point.x=clampf(point.x,2*TILE,(grid[0].length()-2)*TILE);point.y=clampf(point.y,7*TILE,(grid.size()-7)*TILE);points.append(point)
-		points.append(end)
-		var curve := Curve2D.new();curve.bake_interval=8
-		for n in range(points.size()):
-			var tangent: Vector2 = (points[mini(n+1,points.size()-1)]-points[maxi(0,n-1)])/6.0
-			if n==points.size()-1 and radius>0:tangent=(target.pos-end).normalized()*minf(32,start.distance_to(end)/5)
-			curve.add_point(points[n],-tangent,tangent)
-		var branch := continuous_path(curve.get_baked_points(),start,end,rng)
+			for path in paths:
+				for point in path:
+					var distance:float=point.distance_to(targets[n].pos)
+					if distance<best:best=distance;selected=n;anchor=point
+		var target:Dictionary=targets[selected];targets.remove_at(selected)
+		var radius:float=target.path_pad_radius
+		if best<=radius*.65:continue
+		# Select a clear approach from the existing walk instead of routing
+		# around an object. The shortest visible gentle curve wins.
+		var branch:=PackedVector2Array()
+		var approach_cost:=INF
+		var bend_fraction:=rng.randf_range(.16,.23)*(1 if rng.randf()<.5 else -1)
+		for path in paths:
+			for sample in range(0,path.size(),3):
+				var candidate:Vector2=path[sample]
+				var distance:float=candidate.distance_to(target.pos)
+				if distance>=approach_cost:continue
+				var outward:Vector2=(candidate-target.pos).normalized()
+				var tip:Vector2=target.pos+outward*radius*.4
+				var side:Vector2=(tip-candidate).normalized().orthogonal()
+				var bend_amount:=clampf(distance*bend_fraction,-75,75)
+				var curve:=Curve2D.new();curve.bake_interval=6
+				curve.add_point(candidate,Vector2.ZERO,(tip-candidate)/3+side*bend_amount)
+				curve.add_point(tip,(candidate-tip)/3+side*bend_amount,Vector2.ZERO)
+				var points:=curve.get_baked_points()
+				var clear:=true
+				for point in points:
+					if not path_point_safe(point):clear=false;break
+				if clear:branch=points;approach_cost=distance
 		if branch.size()<2:continue
-		# Merge at the final encounter with the existing network, instead of overdrawing it.
-		var merge_index := 0;var junction := branch[0]
+		# Begin at the last shared contact, so close parallel strips cannot form loops.
+		var merge:=0;var junction:=branch[0]
 		for n in range(branch.size()-2):
-			for existing in paths:
-				for point in existing:
-					if branch[n].distance_squared_to(point)<20*20:merge_index=n;junction=point;break
-		var trimmed := PackedVector2Array([junction])
-		for n in range(merge_index+1,branch.size()):trimmed.append(branch[n])
-		if trimmed.size()<2:continue
-		paths.append(trimmed);path_terminals.append(true)
-		path_targets.append({"id":str(target.id),"object":target,"path":paths.size()-1,"end":trimmed[-1]})
-		for n in range(0,maxi(1,trimmed.size()-8),5):connected.append(trimmed[n])
+			for path in paths:
+				for point in path:
+					if branch[n].distance_to(point)<20:merge=n;junction=point;break
+		var trimmed:=PackedVector2Array([junction])
+		for n in range(merge+1,branch.size()):trimmed.append(branch[n])
+		if trimmed.size()>1:
+			paths.append(trimmed);path_terminals.append(true)
+			path_targets.append({"id":target.id,"object":target,"path":paths.size()-1,"end":trimmed[-1]})
 	generating_paths=false
-	if level==5:
-		for target in path_targets:
-			if target.object.kind!="sprout":continue
-			var path: PackedVector2Array = paths[target.path]
-			var direction := (path[-1]-path[maxi(0,path.size()-4)]).normalized()
-			for attempt in range(60):
-				var angle := 0.0 if attempt==0 else rng.randf_range(-1.1,1.1)
-				var candidate: Vector2 = path[-1]+direction.rotated(angle)*(48 if attempt==0 else rng.randf_range(48,68))
-				if not valid_ground(candidate) or blocked(candidate):continue
-				if objects.any(func(o):return o!=target.object and o.pos.distance_to(candidate)<85):continue
-				var nearest := INF
-				for road in paths:
-					for point in road:nearest=minf(nearest,point.distance_to(candidate))
-				if nearest<45:continue
-				target.object.pos=candidate;break
-	if level==5:
-		for target in path_targets:
-			if target.object.kind!="sprout" or bed_beside_path(target.object.pos,target.object):continue
-			var best := INF;var location: Vector2 = target.object.pos
-			for y in range(-112,113,16):
-				for x in range(-112,113,16):
-					var candidate: Vector2 = target.end+Vector2(x,y)
-					var score := candidate.distance_squared_to(target.end)
-					if score<best and bed_beside_path(candidate,target.object):best=score;location=candidate
-			target.object.pos=location
 	build_path_meshes()
 
 func draw_paths() -> void:
-	# Translate the cached world geometry once; never round every vertex separately.
-	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
-	for mesh in path_meshes:
-		for layer in mesh.layers:draw_mesh(layer.mesh,null)
-		for stone in mesh.stones:draw_sprite("path_stone"+str(stone.kind),stone.pos,Color(1,1,1,stone.alpha),.35)
-		if mesh.terminal:
-			draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round()+mesh.end,mesh.direction.angle()+PI/2)
-			var id: int = sprites["path_end"]
-			draw_texture_rect_region(atlas,Rect2(Vector2(-24,-8),Vector2(48,72)),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)))
-			draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
-	draw_set_transform(Vector2.ZERO)
+	if path_texture!=null:
+		draw_texture_rect(path_texture,Rect2(screen(Vector2.ZERO),Vector2(grid[0].length(),grid.size())*TILE),false)
 
 func update_vegetation(delta: float) -> void:
 	if level==0:
@@ -2192,34 +2211,47 @@ func draw_hedge_parts(name: String, pos: Vector2, clip_y: float = -INF) -> void:
 		draw_texture_rect_region(atlas,destination,source)
 
 func build_path_meshes() -> void:
-	path_meshes.clear()
+	# Rasterise the whole network once. Shared junctions become one surface,
+	# with no overlapping strips, stone borders, caps or camera-dependent edges.
+	var size:=Vector2i(grid[0].length()*24,grid.size()*24)
+	var coverage:=PackedFloat32Array();coverage.resize(size.x*size.y)
 	for path_index in range(paths.size()):
-		var path: PackedVector2Array = paths[path_index]
-		var terminal := is_path_terminal(path_index)
-		var remaining: Array[float] = [];remaining.resize(path.size());remaining[-1]=0
-		for n in range(path.size()-2,-1,-1):remaining[n]=remaining[n+1]+path[n].distance_to(path[n+1])
-		if remaining[0]<72:terminal=false
-		var mesh := {"layers":[],"stones":[],"terminal":terminal,"end":path[-1],"direction":(path[-1]-path[maxi(0,path.size()-2)]).normalized()}
-		for layer in range(3):
-			var left := PackedVector2Array();var right := PackedVector2Array();var left_colors := PackedColorArray();var right_colors := PackedColorArray()
-			for n in range(path.size()):
-				var tangent: Vector2 = (path[mini(n+1,path.size()-1)]-path[maxi(0,n-1)]).normalized()
-				var width := 13.0-layer*3+sin(path[n].x*.17+path[n].y*.11)*1.3
-				var color: Color = [Color("5e4b37"),Color("a47a4d"),Color("b58a57")][layer]
-				left.append(path[n]+tangent.orthogonal()*width);right.append(path[n]-tangent.orthogonal()*width)
-				left_colors.append(color);right_colors.append(color)
-			var vertices := PackedVector3Array();var colors := PackedColorArray()
-			for n in range(path.size()-1):
-				if terminal and remaining[n]<52:continue
-				for pair in [[left[n],left_colors[n]],[right[n],right_colors[n]],[left[n+1],left_colors[n+1]],[right[n],right_colors[n]],[right[n+1],right_colors[n+1]],[left[n+1],left_colors[n+1]]]:
-					vertices.append(Vector3(pair[0].x,pair[0].y,0));colors.append(pair[1])
-			var arrays := [];arrays.resize(Mesh.ARRAY_MAX);arrays[Mesh.ARRAY_VERTEX]=vertices;arrays[Mesh.ARRAY_COLOR]=colors
-			var strip := ArrayMesh.new();strip.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
-			mesh.layers.append({"mesh":strip})
-		for n in range(0,path.size(),3):
-			if terminal and remaining[n]<52:continue
-			mesh.stones.append({"pos":path[n]+Vector2(sin(n*5.2)*7,14),"kind":n%3,"alpha":.65})
-		path_meshes.append(mesh)
+		var path:PackedVector2Array=paths[path_index]
+		var remaining:=0.0
+		var distances:Array[float]=[];distances.resize(path.size())
+		for n in range(path.size()-2,-1,-1):remaining+=path[n].distance_to(path[n+1]);distances[n]=remaining
+		var terminal:=false
+		for n in range(path.size()-1):
+			var steps:=maxi(1,ceili(path[n].distance_to(path[n+1])/2))
+			for step in range(steps):
+				var t:=float(step)/steps
+				var point:=path[n].lerp(path[n+1],t)/2
+				var left:=lerpf(distances[n],distances[n+1],t)
+				var radius:=7.5*(sqrt(clampf(left/42,0,1)) if terminal else 1.0)
+				for y in range(maxi(0,int(point.y-9)),mini(size.y,int(point.y+10))):
+					for x in range(maxi(0,int(point.x-9)),mini(size.x,int(point.x+10))):
+						var distance:=Vector2(x+.5,y+.5).distance_to(point)
+						var value:=radius-distance
+						coverage[y*size.x+x]=maxf(coverage[y*size.x+x],value+.01)
+	# Pads and walks share the same union field and the same opaque soil pixels.
+	for pad in path_pads:
+		var centre:Vector2=pad.pos/2
+		var radius:float=pad.radius/2
+		for y in range(maxi(0,int(centre.y-radius-1)),mini(size.y,int(centre.y+radius+2))):
+			for x in range(maxi(0,int(centre.x-radius-1)),mini(size.x,int(centre.x+radius+2))):
+				var value:=radius-Vector2(x+.5,y+.5).distance_to(centre)
+				coverage[y*size.x+x]=maxf(coverage[y*size.x+x],value)
+	var image:=Image.create(size.x,size.y,false,Image.FORMAT_RGBA8)
+	for y in range(size.y):
+		for x in range(size.x):
+			var value:=coverage[y*size.x+x]
+			if value<=0:continue
+			var noise:=posmod((x/2)*73+(y/2)*137+int(save_data.seed),17)
+			if value<.75 and noise<6:continue
+			var color:=Color("82613f") if value<1.1 else Color("ac8050") if value<2.3 else Color("bc925d")
+			if value>2.3 and posmod(x*97+y*71,43)==0:color=Color("cda572")
+			image.set_pixel(x,y,color)
+	path_texture=ImageTexture.create_from_image(image)
 
 func is_path_terminal(index: int) -> bool:
 	if index<path_terminals.size() and not path_terminals[index]:return false
@@ -2257,6 +2289,7 @@ func stone_surface(pos: Vector2) -> bool:
 	return false
 
 func path_point_safe(pos: Vector2) -> bool:
+	if generating_paths:return valid_ground(pos)
 	return valid_ground(pos) and not blocked(pos) and not objects.any(func(o):return o.solid and pos.distance_to(o.pos)<(110 if o.kind in ["house","pond"] else 72 if o.kind=="well" else 48)) and (generating_paths or not objects.any(func(o):return o.kind=="sprout" and o.pos.distance_to(pos)<45))
 
 func continuous_path(points: PackedVector2Array, start: Vector2, end: Vector2, rng: RandomNumberGenerator) -> PackedVector2Array:
@@ -2276,7 +2309,7 @@ func continuous_path(points: PackedVector2Array, start: Vector2, end: Vector2, r
 	var from := nearest_path_node(start);var to := nearest_path_node(end)
 	if from.x<0 or to.x<0:return PackedVector2Array()
 	var route := path_navigation.get_point_path(from,to)
-	for pass_index in range(3):
+	for pass_index in range(8):
 		for n in range(1,route.size()-1):
 			var point := (route[n-1]+route[n]*2+route[n+1])/4
 			if path_point_safe(point) and path_point_safe((point+route[n-1])/2) and path_point_safe((point+route[n+1])/2):route[n]=point
@@ -2388,12 +2421,11 @@ func sfx_at(name: String, pos: Vector2) -> void:
 	voice.volume_db-=linear_to_db(1.0+distance/180.0)
 
 func bed_beside_path(pos: Vector2, bed: Dictionary) -> bool:
-	if not valid_ground(pos) or blocked(pos):return false
-	if objects.any(func(o):return o!=bed and o.pos.distance_to(pos)<75):return false
-	var nearest := INF
+	if not valid_ground(pos) or not path_pads.any(func(p):return p.pos.distance_to(pos)<1 and p.radius>=40):return false
 	for path in paths:
-		for point in path:nearest=minf(nearest,point.distance_to(pos))
-	return nearest>=45 and nearest<=90
+		for point in path:
+			if point.distance_to(pos)<42:return true
+	return false
 
 func door_is_open(id: String) -> bool:
 	return id=="back" or level in save_data.get("open_gates",[])
@@ -2417,7 +2449,7 @@ func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
 func prepare_room_details(rng: RandomNumberGenerator) -> void:
 	if level in [4,6]:
 		objects.assign(objects.filter(func(o):return o.kind not in ["flowers","blueflowers","tree"]))
-		for spec in [["crate",Vector2i(3,10)],["column",Vector2i(23,10)],["crate",Vector2i(22,19)],["column",Vector2i(4,19)]]:
+		for spec in [["crate",Vector2i(3,10)],["column",Vector2i(23,10)],["crate",Vector2i(22,19)],["column",Vector2i(4,19)],["crate",Vector2i(4,11)],["crate",Vector2i(22,18)],["column",Vector2i(5,8)],["column",Vector2i(21,8)],["crate",Vector2i(3,20)],["crate",Vector2i(23,20)]]:
 			if valid_ground((Vector2(spec[1])+Vector2(.5,.5))*TILE):put_object(spec[0],spec[1],"",true)
 	if level==1:
 		for obj in objects:
@@ -2437,3 +2469,8 @@ func prepare_room_details(rng: RandomNumberGenerator) -> void:
 		if rng.randf()<.55:
 			obj.kind="tree_apples";obj.id="apple_%d_%d"%[level,index]
 		index+=1
+	for obj in objects:
+		if obj.kind not in ["tree","tree_apples"]:continue
+		var cell:=Vector2i(obj.pos/TILE)
+		if cell.y>=0 and cell.y<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#":
+			obj.integrated_hedge=true;hedge_trees[cell]=obj

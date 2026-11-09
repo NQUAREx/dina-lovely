@@ -255,7 +255,7 @@ for mode in ['empty','fertilized','wet']:sprite('bed_'+mode,lambda d,m=mode:bed(
 def border(d):
  for n in range(12):
   a=n*math.tau/12;x=16+round(math.cos(a)*14);y=38+round(math.sin(a)*8)
-  d.ellipse((x-2,y-1,x+2,y+1),fill='#b3a28a');d.point((x-1,y-1),fill='#ddcbb0')
+  d.ellipse((x-3,y-2,x+3,y+2),fill='#49464b');d.ellipse((x-2,y-1,x+2,y+1),fill='#b3a28a');d.point((x-1,y-1),fill='#ddcbb0')
 sprite('bed_border',border)
 for v in range(6):
  for stage in range(2):
@@ -329,10 +329,10 @@ def empty_rpg(d):
 sprite('weapon_rpg_empty',empty_rpg)
 # Separate perspective artwork: no runtime squashing of the closed gate.
 def gate_ajar(d):
- d.polygon([(31,17),(15,26),(15,47),(31,43)],fill='#503e56')
- d.polygon([(31,17),(15,26),(15,29),(31,20)],fill='#d9b886')
- d.polygon([(15,44),(31,40),(31,43),(15,47)],fill='#aa7e70')
- for x in [16,20,24,28,31]:
+ d.polygon([(31,17),(20,26),(20,47),(31,43)],fill='#503e56')
+ d.polygon([(31,17),(20,26),(20,29),(31,20)],fill='#d9b886')
+ d.polygon([(20,44),(31,40),(31,43),(20,47)],fill='#aa7e70')
+ for x in [20,24,28,31]:
   top=26-int((x-15)*.56);bottom=45-int((x-15)*.25)
   d.line((x,top,x,bottom),fill='#c2abb0',width=1)
  d.polygon([(20,32),(22,30),(24,32),(26,29),(28,31),(25,37),(21,38)],fill='#ce8da3')
@@ -369,6 +369,15 @@ def apple_tree(d):
  for x,y in [(9,15),(22,18),(14,27),(19,9)]:
   d.rectangle((x-2,y-1,x+2,y+2),fill='#9b3d53');d.rectangle((x-1,y-2,x+1,y+1),fill='#d56468');d.point((x-1,y-1),fill='#ffd19c');d.line((x,y-3,x+1,y-4),fill='#b8bc74')
 sprite('tree_apples',apple_tree)
+# One integrated silhouette prevents foliage/tree depth swapping.
+def hedge_tree(d,fruit=False):
+ tree(d)
+ if fruit:
+  for x,y in [(9,15),(22,18),(19,9)]:
+   d.rectangle((x-2,y-1,x+2,y+2),fill='#ac455b');d.point((x-1,y-1),fill='#ffd19c')
+ for x,y in [(5,34),(13,36),(22,34),(27,36)]:leaf(d,x,y,7)
+ d.line((3,43,29,43),fill='#192f35',width=2)
+sprite('hedge_tree',lambda d:hedge_tree(d));sprite('hedge_tree_apples',lambda d:hedge_tree(d,True))
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)
