@@ -252,10 +252,15 @@ def bed(d,mode):
  if mode=='fertilized':
   for n in range(40):d.point((random.randrange(7,26),random.randrange(33,42)),fill=random.choice(['#e5d2a1','#bba875','#d0c7a8']))
 for mode in ['empty','fertilized','wet']:sprite('bed_'+mode,lambda d,m=mode:bed(d,m))
-def border(d):
- for n in range(12):
-  a=n*math.tau/12;x=16+round(math.cos(a)*14);y=38+round(math.sin(a)*8)
-  d.ellipse((x-3,y-2,x+3,y+2),fill='#49464b');d.ellipse((x-2,y-1,x+2,y+1),fill='#b3a28a');d.point((x-1,y-1),fill='#ddcbb0')
+def border(d,variant=0):
+ rng=random.Random(701+variant)
+ for n in range(11):
+  a=n*math.tau/11+rng.uniform(-.14,.14)
+  x=16+round(math.cos(a)*rng.uniform(13,15));y=38+round(math.sin(a)*rng.uniform(7,9))
+  w=rng.choice([2,2,3]);h=rng.choice([1,2])
+  d.polygon([(x-w,y),(x-w+1,y-h),(x+1,y-h),(x+w,y),(x+w-1,y+h),(x-1,y+h)],fill=rng.choice(['#8e8b7b','#aaa18c','#b5a88c','#99998a']))
+  d.line((x-w+1,y-h,x,y-h),fill='#d8c8aa')
+  d.point((x+w-1,y+h),fill='#6d7167')
 sprite('bed_border',border)
 for v in range(6):
  for stage in range(2):
@@ -378,6 +383,16 @@ def hedge_tree(d,fruit=False):
  for x,y in [(5,34),(13,36),(22,34),(27,36)]:leaf(d,x,y,7)
  d.line((3,43,29,43),fill='#192f35',width=2)
 sprite('hedge_tree',lambda d:hedge_tree(d));sprite('hedge_tree_apples',lambda d:hedge_tree(d,True))
+for v in range(6):sprite('bed_border'+str(v),lambda d,v=v:border(d,v))
+# Plant-only overlays keep every stone behind the foliage, without painting
+# another soil oval over the stone border.
+soil_colors={tuple(bytes.fromhex(c)) for c in ['4a3b36','473c35','665243','514a37','6e503a','826146','987557','583e31','574b41']}
+for name in ['weeds']+['seedling'+str(v) for v in range(6)]+['bloom'+str(v) for v in range(6)]:
+ i=NAMES.index(name);im=atlas.crop(((i%16)*32,(i//16)*48,(i%16+1)*32,(i//16+1)*48))
+ for y in range(30,48):
+  for x in range(32):
+   if im.getpixel((x,y))[:3] in soil_colors:im.putpixel((x,y),(0,0,0,0))
+ i=len(NAMES);NAMES.append(name+'_plant');atlas.paste(im,((i%16)*32,(i//16)*48))
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)

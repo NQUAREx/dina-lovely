@@ -1496,8 +1496,8 @@ func _draw() -> void:
 				var bed_scale:=.9+float(item.id)*.035
 				# Soil and stones are foreground layers above the shared path pad.
 				draw_sprite("bed_wet" if stage>0 or remaining>0 else "bed_fertilized" if item.id in fertilized else "bed_empty",p,Color.WHITE,bed_scale)
-				draw_sprite(texture,p,Color.WHITE,bed_scale)
-				draw_sprite("bed_border",p,Color.WHITE,bed_scale)
+				draw_sprite("bed_border"+str(item.id),p,Color.WHITE,bed_scale)
+				if sprites.has(texture+"_plant"):draw_sprite(texture+"_plant",p,Color.WHITE,bed_scale)
 
 			elif kind=="swing":
 				draw_sprite(kind,p)
