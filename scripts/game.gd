@@ -2078,11 +2078,16 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 	var start:=Vector2(13.5,grid.size()-6.5)*TILE
 	var end:=Vector2(13.5,7.5)*TILE
 	var spine:=Curve2D.new();spine.bake_interval=6
-	var midpoint:=start.lerp(end,.5)+Vector2(rng.randf_range(95,145),0)
-	spine.add_point(start,Vector2.ZERO,Vector2(0,-140))
-	spine.add_point(midpoint,Vector2(0,150),Vector2(0,-150))
-	spine.add_point(end,Vector2(0,140),Vector2.ZERO)
-	var main_path:=continuous_path(spine.get_baked_points(),start,end,rng)
+	var spine_points:Array[Vector2]=[start]
+	for n in range(1,5):
+		var point:=start.lerp(end,float(n)/5)
+		point.x+=rng.randf_range(-70,135);point.y+=rng.randf_range(-24,24)
+		spine_points.append(point)
+	spine_points.append(end)
+	for n in range(spine_points.size()):
+		var tangent:Vector2=(spine_points[mini(n+1,spine_points.size()-1)]-spine_points[maxi(0,n-1)])/7
+		spine.add_point(spine_points[n],-tangent,tangent)
+	var main_path:=roughen_path(continuous_path(spine.get_baked_points(),start,end,rng),int(save_data.seed)+level)
 	if main_path.size()>1:paths.append(main_path);path_terminals.append(false)
 	path_pads.append({"pos":start,"radius":43.0})
 	path_pads.append({"pos":end,"radius":43.0})
@@ -2120,7 +2125,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 				var curve:=Curve2D.new();curve.bake_interval=6
 				curve.add_point(candidate,Vector2.ZERO,(tip-candidate)/3+side*bend_amount)
 				curve.add_point(tip,(candidate-tip)/3+side*bend_amount,Vector2.ZERO)
-				var points:=curve.get_baked_points()
+				var points:=roughen_path(curve.get_baked_points(),int(save_data.seed)+selected*137+level*731)
 				var clear:=true
 				for point in points:
 					if not path_point_safe(point):clear=false;break
@@ -2139,6 +2144,20 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 			path_targets.append({"id":target.id,"object":target,"path":paths.size()-1,"end":trimmed[-1]})
 	generating_paths=false
 	build_path_meshes()
+
+func roughen_path(points: PackedVector2Array, path_seed: int) -> PackedVector2Array:
+	if points.size()<3:return points
+	var noise:=FastNoiseLite.new();noise.seed=path_seed;noise.frequency=.014;noise.fractal_octaves=3
+	var result:=points.duplicate()
+	var travelled:=0.0;var total:=0.0
+	for n in range(1,points.size()):total+=points[n].distance_to(points[n-1])
+	for n in range(1,points.size()-1):
+		travelled+=points[n].distance_to(points[n-1])
+		var strength:=clampf(minf(travelled,total-travelled)/40,0,1)
+		var tangent:Vector2=(points[n+1]-points[n-1]).normalized()
+		var candidate:=points[n]+tangent.orthogonal()*noise.get_noise_2d(points[n].x,points[n].y)*16*strength
+		if valid_ground(candidate):result[n]=candidate
+	return result
 
 func draw_paths() -> void:
 	if path_texture!=null:
