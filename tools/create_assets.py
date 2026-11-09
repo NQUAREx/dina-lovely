@@ -376,12 +376,14 @@ def apple_tree(d):
 sprite('tree_apples',apple_tree)
 # One integrated silhouette prevents foliage/tree depth swapping.
 def hedge_tree(d,fruit=False):
- tree(d)
+ # Raised crown, a long exposed trunk, and low shrubs on either side.
+ d.rectangle((13,16,18,42),fill='#493c3f');d.rectangle((14,19,17,39),fill='#805b48');d.line((14,20,14,37),fill='#ba8863')
+ for x,y,r in [(15,7,9),(8,13,7),(23,13,7),(16,15,7)]:leaf(d,x,y,r)
  if fruit:
-  for x,y in [(9,15),(22,18),(19,9)]:
+  for x,y in [(9,10),(22,14),(18,5)]:
    d.rectangle((x-2,y-1,x+2,y+2),fill='#ac455b');d.point((x-1,y-1),fill='#ffd19c')
- for x,y in [(5,34),(13,36),(22,34),(27,36)]:leaf(d,x,y,7)
- d.line((3,43,29,43),fill='#192f35',width=2)
+ for x,y,r in [(5,37,6),(27,38,6),(10,42,5),(23,42,5)]:leaf(d,x,y,r)
+ d.line((3,46,29,46),fill='#192f35')
 sprite('hedge_tree',lambda d:hedge_tree(d));sprite('hedge_tree_apples',lambda d:hedge_tree(d,True))
 for v in range(6):sprite('bed_border'+str(v),lambda d,v=v:border(d,v))
 # Plant-only overlays keep every stone behind the foliage, without painting

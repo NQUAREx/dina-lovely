@@ -8,7 +8,7 @@ func run():
  assert(image.get_pixelv(centre+Vector2i(0,int(pad.radius*.4))).a==0)
  g.save_data.letters.append('garden');g.use_exit()
  var gate=g.objects.filter(func(o):return o.kind=='doorway' and o.id=='exit')[0];gate.gate_amount=1
- assert(g.blocked(gate.pos+Vector2(-35,0)));assert(g.blocked(gate.pos+Vector2(65,5)));assert(not g.blocked(gate.pos+Vector2(24,0)));assert(not g.available(gate))
+ assert(g.blocked(gate.pos+Vector2(-35,0)));assert(not g.blocked(gate.pos+Vector2(65,5)));assert(not g.blocked(gate.pos+Vector2(24,0)));assert(not g.available(gate))
  for y in range(-24,25,4):assert(not g.blocked(gate.pos+Vector2(24,y)))
  g.build_level(1);var pond=g.objects.filter(func(o):return o.kind=='pond')[0]
  assert(g.blocked(pond.pos+Vector2(0,-95)));assert(not g.blocked(pond.pos+Vector2(0,-120)))
