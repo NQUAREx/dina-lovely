@@ -11,13 +11,13 @@ if marker not in s:
   if(document.getElementById('garden-recovery'))return;
   const box=document.createElement('div');box.id='garden-recovery';
   Object.assign(box.style,{position:'fixed',inset:'0',zIndex:'1000',background:'#242538',color:'#f5e3cf',display:'grid',placeContent:'center',textAlign:'center',padding:'32px',font:'18px sans-serif'});
-  const text=document.createElement('p');text.textContent=message;box.append(text);
-  const button=document.createElement('button');button.textContent='Вернуться в сад';button.onclick=()=>location.reload();
+  const text=document.createElement('p');text.textContent=window.gardenContent?.ui?.[message]?.text||'';box.append(text);
+  const button=document.createElement('button');button.textContent=window.gardenContent?.ui?.recovery_return?.text||' ';button.onclick=()=>location.reload();
   Object.assign(button.style,{padding:'16px',background:'#70536e',color:'#f5e3cf',border:'1px solid #e5a6bd',borderRadius:'12px',font:'18px sans-serif'});box.append(button);document.body.append(box);
  }
- canvas.addEventListener('webglcontextlost',()=>recover('Браузер приостановил графику. Перезапусти сад — сохранённые письма останутся с тобой.'));
+ canvas.addEventListener('webglcontextlost',()=>recover('recovery_context_lost'));
  const notice=document.getElementById('status-notice');
- if(notice)new MutationObserver(()=>{if(notice.textContent.trim())recover('Не удалось загрузить сад. Проверь соединение и поддержку WebGL 2 в браузере, затем попробуй снова.');}).observe(notice,{childList:true,subtree:true});
+ if(notice)new MutationObserver(()=>{if(notice.textContent.trim())recover('recovery_load_failed');}).observe(notice,{childList:true,subtree:true});
 })();
 </script>
 </body>''')
@@ -25,8 +25,9 @@ if marker not in s:
 
 import json, shutil
 root=p.parent.parent
+content=json.loads((root/'content/letters.json').read_text())
 shutil.copyfile(root/'tools/mobile_shell.js',p.parent/'mobile.js')
-manifest={"name":"Тебе. От меня.","short_name":"Наш сад","id":"./","start_url":"./","scope":"./","display":"fullscreen","orientation":"portrait","background_color":"#242538","theme_color":"#242538","icons":[{"src":"index.apple-touch-icon.png","sizes":"180x180","type":"image/png"}]}
+manifest={"name":content["game_title"],"short_name":content["app_short_name"],"id":"./","start_url":"./","scope":"./","display":"fullscreen","orientation":"portrait","background_color":"#242538","theme_color":"#242538","icons":[{"src":"index.apple-touch-icon.png","sizes":"180x180","type":"image/png"}]}
 (p.parent/'manifest.webmanifest').write_text(json.dumps(manifest,ensure_ascii=False))
 s=p.read_text()
 if 'mobile.js' not in s:
@@ -36,7 +37,7 @@ if 'mobile.js' not in s:
 
 import html
 credits=(root/'assets/SFX-CREDITS.md').read_text()
-(p.parent/'audio-credits.html').write_text('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sound credits</title><style>body{max-width:740px;margin:40px auto;padding:20px;background:#242538;color:#f5e3cf;font:16px/1.7 sans-serif}pre{white-space:pre-wrap;word-break:break-word}a{color:#e5a6bd}</style><a href="./">Вернуться к игре</a><pre>'+html.escape(credits)+'</pre></html>')
+(p.parent/'audio-credits.html').write_text('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+html.escape(content['ui']['audio_credits']['text'])+'</title><style>body{max-width:740px;margin:40px auto;padding:20px;background:#242538;color:#f5e3cf;font:16px/1.7 sans-serif}pre{white-space:pre-wrap;word-break:break-word}a{color:#e5a6bd}</style><a href="./">'+html.escape(content['ui']['credits_return']['text'])+'</a><pre>'+html.escape(credits)+'</pre></html>')
 
 # Fit the canvas itself, leaving the page-colored area outside Godot.
 s=p.read_text().replace('"canvasResizePolicy":2','"canvasResizePolicy":0')
@@ -47,3 +48,19 @@ p.write_text(s)
 # Do not flash a baked title while live content is loading.
 import re
 p.write_text(re.sub(r"<title>.*?</title>","<title></title>",p.read_text(),flags=re.S))
+
+# Versioned entrypoints prevent mixing a new JSON schema with an old cached game.
+import hashlib
+pack=p.parent/'index.pck'
+version=hashlib.sha256(pack.read_bytes()).hexdigest()[:12]
+name='game.'+version+'.pck'
+for old in p.parent.glob('game.*.pck'):
+ if old.name!=name:old.unlink()
+shutil.copyfile(pack,p.parent/name)
+s=p.read_text()
+match=re.search(r'const GODOT_CONFIG = (\{.*?\});',s)
+config=json.loads(match.group(1));config['mainPack']=name;config['fileSizes'][name]=pack.stat().st_size
+s=s[:match.start(1)]+json.dumps(config,separators=(',',':'))+s[match.end(1):]
+js_version=hashlib.sha256((p.parent/'mobile.js').read_bytes()).hexdigest()[:12]
+s=re.sub(r'<script src="mobile\.js(?:\?[^"]*)?"></script>','<script src="mobile.js?v='+js_version+'"></script>',s)
+p.write_text(s)

@@ -93,7 +93,7 @@ body {
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
 <meta name="theme-color" content="#242538"><style>body{background:#242538!important}#status{background:#242538!important}#status-progress{accent-color:#dfa5b9}canvas{touch-action:none}</style>
-	<link rel="manifest" href="manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><script src="mobile.js"></script><style>html,body{background:#242538!important}#status-splash{display:none!important}#canvas{position:fixed!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:min(100vw,56.25dvh)!important;height:min(100dvh,177.777778vw)!important;margin:0!important;display:block}</style></head>
+	<link rel="manifest" href="manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><script src="mobile.js?v=6928d08ea574"></script><style>html,body{background:#242538!important}#status-splash{display:none!important}#canvas{position:fixed!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:min(100vw,56.25dvh)!important;height:min(100dvh,177.777778vw)!important;margin:0!important;display:block}</style></head>
 	<body>
 		<canvas width="540" height="960" id="canvas">
 			Your browser does not support the canvas tag.
@@ -111,7 +111,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":0,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1605800,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":0,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1652024,"index.wasm":39514754,"game.cff0dbabcbd7.pck":1652024},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"mainPack":"game.cff0dbabcbd7.pck"};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -223,13 +223,13 @@ const engine = new Engine(GODOT_CONFIG);
   if(document.getElementById('garden-recovery'))return;
   const box=document.createElement('div');box.id='garden-recovery';
   Object.assign(box.style,{position:'fixed',inset:'0',zIndex:'1000',background:'#242538',color:'#f5e3cf',display:'grid',placeContent:'center',textAlign:'center',padding:'32px',font:'18px sans-serif'});
-  const text=document.createElement('p');text.textContent=message;box.append(text);
-  const button=document.createElement('button');button.textContent='Вернуться в сад';button.onclick=()=>location.reload();
+  const text=document.createElement('p');text.textContent=window.gardenContent?.ui?.[message]?.text||'';box.append(text);
+  const button=document.createElement('button');button.textContent=window.gardenContent?.ui?.recovery_return?.text||' ';button.onclick=()=>location.reload();
   Object.assign(button.style,{padding:'16px',background:'#70536e',color:'#f5e3cf',border:'1px solid #e5a6bd',borderRadius:'12px',font:'18px sans-serif'});box.append(button);document.body.append(box);
  }
- canvas.addEventListener('webglcontextlost',()=>recover('Браузер приостановил графику. Перезапусти сад — сохранённые письма останутся с тобой.'));
+ canvas.addEventListener('webglcontextlost',()=>recover('recovery_context_lost'));
  const notice=document.getElementById('status-notice');
- if(notice)new MutationObserver(()=>{if(notice.textContent.trim())recover('Не удалось загрузить сад. Проверь соединение и поддержку WebGL 2 в браузере, затем попробуй снова.');}).observe(notice,{childList:true,subtree:true});
+ if(notice)new MutationObserver(()=>{if(notice.textContent.trim())recover('recovery_load_failed');}).observe(notice,{childList:true,subtree:true});
 })();
 </script>
 </body>

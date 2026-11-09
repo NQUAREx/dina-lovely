@@ -5,10 +5,10 @@ config/icon="res://assets/icon.png"
 boot_splash/image=""
 boot_splash/show_image=false
 boot_splash/bg_color=Color(0.141, 0.145, 0.22, 1)
-config/name="Тебе. От меня."
+config/name="dina-lovely"
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
-config/description="Записки, сад и один сундук"
+config/description="Mobile garden adventure"
 
 [display]
 window/size/viewport_width=540
