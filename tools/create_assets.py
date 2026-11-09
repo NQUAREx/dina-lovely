@@ -209,10 +209,13 @@ for i in range(3):
  sprite('path_stone'+str(i),path_stone)
 # Six independent leaf clusters per hedge, baked together for distant rendering.
 for variant,name in enumerate(['hedge','hedge0','hedge1','hedge2','hedge_berry']):
- composite=Image.new('RGBA',(32,48));base=ImageDraw.Draw(composite);base.rectangle((3,24,28,40),fill='#25433d');base.rectangle((4,35,27,40),fill='#192f35')
+ composite=Image.new('RGBA',(32,48))
  for n in range(6):
   def part(d,v=variant,n=n):
-   x=[6,14,23][n%3];y=[24,30][n//3];leaf(d,x,y,7)
+   x=[8,16,24][n%3];y=[25,33][n//3];leaf(d,x,y,8)
+   for k in range(10):
+    dx=random.randint(-6,6);dy=random.randint(-6,3)
+    if dx*dx+dy*dy<36:d.point((x+dx,y+dy),fill=random.choice(['#92b477','#729b67','#3c664d']))
    if v==1:d.ellipse((x-1,y-4,x+1,y-2),fill='#efdfc2')
    if v==2:d.line((x,y-3,x+1,y-8),fill='#a8bb7d')
    if v==3 and n==1:d.rectangle((14,23,17,32),fill='#826248');leaf(d,16,18,9)
@@ -226,9 +229,21 @@ for name,color in [('flowers','#e99bb6'),('blueflowers','#b6b3ed')]:
   def pressed(d,c=color,f=frame):
    if f==0:flower(d,c);return
    for n,(x,normal) in enumerate([(8,32),(16,27),(24,34)]):
-    head=x+([-5,0,5][n] if f==2 else [-3,0,3][n]);y=42 if f==2 else 36
-    d.line((x,42,head,y),fill='#6c9c72',width=2);d.line((x,41,x+(-5 if n==0 else 5),40),fill='#9dbb79',width=2)
-    d.ellipse((head-3,y-1,head+3,y+1),fill=c);d.point((head,y),fill='#ffe4a0')
+    spread=[-6,1,6][n] if f==2 else [-4,1,4][n]
+    head=max(5,min(26,x+spread));y=42+(n%2) if f==2 else 35+(n%2)*2
+    d.line((x,42,x+spread//2,39,head,y),fill='#395c47',width=3)
+    d.line((x,41,x+spread//2,38,head,y),fill='#80ac77',width=1)
+    for side in [-1,1]:
+     lx=x+side*4+(spread//3);ly=40 if f==2 else 38
+     d.polygon([(x,41),(lx-side*2,ly-2),(lx+side*3,ly),(lx,ly+2)],fill='#608d60')
+     d.line((x,41,lx,ly),fill='#b1c88a')
+    shadow='#8b6076' if name=='flowers' else '#777599'
+    d.ellipse((head-4,y,head+4,y+2),fill='#28433a')
+    for dx,dy in [(-3,0),(3,0),(0,-1),(0,1)]:
+     d.ellipse((head+dx-2,y+dy-1,head+dx+2,y+dy+1),fill=shadow)
+     d.line((head+dx-1,y+dy-1,head+dx+1,y+dy-1),fill=c)
+    d.point((head,y),fill='#f8d993');d.point((head-1,y),fill='#fff1c1')
+    if f==2:d.point((max(0,head-4),min(47,y+2)),fill=c)
   sprite(name+'_pressed_'+str(frame),pressed)
 def bed(d,mode):
  d.ellipse((3,30,29,45),fill='#4a3b36');d.ellipse((5,31,27,43),fill='#6e503a' if mode!='wet' else '#473c35')

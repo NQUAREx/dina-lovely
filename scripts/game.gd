@@ -21,6 +21,11 @@ var fog: ColorRect
 var skulls: Array[Dictionary] = []
 var damage_numbers: Array[Dictionary] = []
 var path_meshes: Array = []
+var path_navigation: AStarGrid2D
+var path_terminals: Array[bool] = []
+var footprints: Array[Dictionary] = []
+var stride_distance := 0.0
+var left_foot := false
 var vegetation: Dictionary = {}
 var berry_cells: Dictionary = {}
 var paths: Array = []
@@ -538,7 +543,7 @@ func set_cell(x: int, y: int, value: String) -> void:
 
 func build_level(index: int) -> void:
 	level = index
-	vegetation.clear();berry_cells.clear();paths.clear();path_meshes.clear();obstacle_specs.clear();damage_numbers.clear()
+	vegetation.clear();berry_cells.clear();paths.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;obstacle_specs.clear();damage_numbers.clear()
 	skull_clock=2.0
 	skulls.clear()
 	room_clock = 0
@@ -716,10 +721,10 @@ func blocked(pos: Vector2) -> bool:
 		if c.y<0 or c.x<0 or c.y>=grid.size() or c.x>=grid[0].length() or grid[c.y][c.x]==" ": return true
 		if grid[c.y][c.x]=="#":
 			if level==0 and c.x>0 and c.x<grid[0].length()-1 and c.y>5 and c.y<grid.size()-6:
-				var left := 8.0 if grid[c.y][c.x-1]!="#" else 0.0
-				var right := 8.0 if grid[c.y][c.x+1]!="#" else 0.0
-				var top := 8.0 if grid[c.y-1][c.x]!="#" else 0.0
-				var bottom := 8.0 if grid[c.y+1][c.x]!="#" else 0.0
+				var left := 16.0 if grid[c.y][c.x-1]!="#" else 0.0
+				var right := 16.0 if grid[c.y][c.x+1]!="#" else 0.0
+				var top := 16.0 if grid[c.y-1][c.x]!="#" else 0.0
+				var bottom := 16.0 if grid[c.y+1][c.x]!="#" else 0.0
 				if Rect2(Vector2(c)*TILE+Vector2(left,top),Vector2(TILE-left-right,TILE-top-bottom)).intersects(Rect2(pos-Vector2(10,7),Vector2(20,14))):return true
 			else:return true
 	for obj in objects:
@@ -729,15 +734,21 @@ func blocked(pos: Vector2) -> bool:
 func move_player(delta: float, input: Vector2) -> void:
 	moving = input.length()>0.1
 	if not moving: return
+	var before := player
 	var motion := input.limit_length()*SPEED*delta
 	var next := player+Vector2(motion.x,0)
 	if not blocked(next): player = next
 	next = player+Vector2(0,motion.y)
 	if not blocked(next): player = next
+	var travelled := before.distance_to(player)
+	stride_distance += travelled
+	if stride_distance>=24.0:
+		stride_distance=fmod(stride_distance,24.0)
+		leave_footprint(input.normalized())
 	step_clock -= delta
 	if step_clock<=0:
 		var cell := Vector2i(player/TILE)
-		sfx("step_stone" if level in [4,6] or (level==5 and (cell.x==13 or cell.y==15)) else "step_grass")
+		sfx("step_stone" if stone_surface(player) else "step_grass")
 		step_clock = .31
 	if level==4 and attack_flash<=0:aim=input.normalized()
 	if level==4 and attack_flash>0:return
@@ -776,6 +787,9 @@ func _physics_process(delta: float) -> void:
 		else: stuck_seconds = 0.0
 
 func _process(delta: float) -> void:
+	for i in range(footprints.size()-1,-1,-1):
+		footprints[i].life-=delta
+		if footprints[i].life<=0:footprints.remove_at(i)
 	for i in range(damage_numbers.size()-1,-1,-1):
 		damage_numbers[i].life-=delta;damage_numbers[i].pos.y-=delta*30
 		if damage_numbers[i].life<=0:damage_numbers.remove_at(i)
@@ -1303,7 +1317,7 @@ func _draw() -> void:
 			var tile := 0
 			if level==4 or level==6: tile=2 if (x+y)%3 else 1
 			
-			elif level==0 and grid[y][x]==".": tile=3
+			elif level==0: tile=3
 			draw_texture_rect_region(ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
 			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
@@ -1332,6 +1346,7 @@ func _draw() -> void:
 	for enemy in enemies: renderables.append({"kind":"enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
 	draw_paths()
+	draw_footprints()
 	for hole in objects:
 		if hole.kind=="dug":draw_sprite("dug",screen(hole.pos))
 	renderables.sort_custom(func(a,b):
@@ -1552,7 +1567,11 @@ func travel(destination: int) -> void:
 	notify(tx("room_garden_short") if destination==5 else tx(TITLES[destination]))
 
 func corridor_position(pos: Vector2) -> void:
+	var travel_direction := (pos-player).normalized()
+	stride_distance+=pos.distance_to(player)
 	player = pos
+	if stride_distance>=24 and travel_direction.length()>.1:
+		stride_distance=fmod(stride_distance,24.0);leave_footprint(travel_direction)
 	camera = camera_target()
 
 func begin_task(kind: String, target: Vector2, duration: float) -> void:
@@ -1947,7 +1966,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 	var destinations: Array[Vector2] = []
 	for obj in objects:
 		if (level==5 and (obj.kind=="sprout" or obj.id in ["seat","swing","well"])) or (level==1 and (obj.kind in ["house","pond","bench"] or obj.id=="exit")):
-			destinations.append(obj.pos+Vector2(0,65 if obj.kind=="sprout" else 40 if obj.solid else 0))
+			destinations.append(obj.pos+Vector2(0,65 if obj.kind=="sprout" else 80 if obj.kind in ["house","pond"] else 40 if obj.solid else 0))
 	var connected: Array[Vector2] = [Vector2(13.5,grid.size()-6.5)*TILE]
 	while not destinations.is_empty():
 		var best := INF
@@ -1972,16 +1991,11 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 			var tangent: Vector2 = (points[mini(n+1,points.size()-1)]-points[maxi(0,n-1)])/6.0
 			curve.add_point(points[n],-tangent,tangent)
 		curve.bake_interval=9
-		var section := PackedVector2Array()
-		var samples := curve.get_baked_points()
-		for n in range(samples.size()):
-			var p := samples[n]
-			if valid_ground(p) and not blocked(p) and not objects.any(func(o):return o.kind=="sprout" and o.pos.distance_to(p)<53):
-				section.append(p)
-				if n%5==0:connected.append(p)
-			elif section.size()>1:paths.append(section);section=PackedVector2Array()
-		if section.size()>1:paths.append(section)
-		connected.append(end)
+		var samples := continuous_path(curve.get_baked_points(),start,end,rng)
+		if samples.size()<2:continue
+		paths.append(samples);path_terminals.append(true)
+		for n in range(0,samples.size(),5):connected.append(samples[n])
+		connected.append(samples[-1])
 	build_path_meshes()
 
 func draw_paths() -> void:
@@ -2007,7 +2021,7 @@ func update_vegetation(delta: float) -> void:
 		for key in vegetation.keys():
 			var spring: Dictionary = vegetation[key]
 			var away: Vector2 = spring.pos-player
-			var target := away.normalized()*8*clampf((43-away.length())/20,0,1)
+			var target := away.normalized()*11*clampf((43-away.length())/20,0,1)
 			spring.velocity+=(target-spring.offset)*145*delta-spring.velocity*18*delta
 			spring.offset+=spring.velocity*delta
 			if target.length()<.01 and spring.offset.length()<.03:vegetation.erase(key)
@@ -2043,7 +2057,6 @@ func draw_hedge_parts(name: String, pos: Vector2) -> void:
 	var active := false
 	for n in range(6):
 		if vegetation.has(key+str(n)):active=true;break
-	draw_rect(Rect2(pos+Vector2(-24,-24),Vector2(48,40)),Color("25433d"))
 	if not active:
 		var id: int = sprites[name]
 		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-32),Vector2(48,48)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
@@ -2056,15 +2069,22 @@ func draw_hedge_parts(name: String, pos: Vector2) -> void:
 
 func build_path_meshes() -> void:
 	path_meshes.clear()
-	for path in paths:
+	for path_index in range(paths.size()):
+		var path: PackedVector2Array = paths[path_index]
+		var terminal := is_path_terminal(path_index)
+		var fade_distance := 55.0
+		if terminal:
+			for other in range(paths.size()):
+				if other==path_index:continue
+				for point in paths[other]:fade_distance=minf(fade_distance,maxf(1,path[-1].distance_to(point)-25))
 		var remaining: Array[float] = [];remaining.resize(path.size());remaining[-1]=0
 		for n in range(path.size()-2,-1,-1):remaining[n]=remaining[n+1]+path[n].distance_to(path[n+1])
-		var mesh := {"layers":[],"stones":[]}
+		var mesh := {"layers":[],"stones":[],"terminal":terminal}
 		for layer in range(3):
 			var left := PackedVector2Array();var right := PackedVector2Array();var left_colors := PackedColorArray();var right_colors := PackedColorArray()
 			for n in range(path.size()):
 				var tangent: Vector2 = (path[mini(n+1,path.size()-1)]-path[maxi(0,n-1)]).normalized()
-				var fade := smoothstep(0,55,remaining[n])
+				var fade := smoothstep(0,fade_distance,remaining[n]) if terminal else 1.0
 				var width := (13.0-layer*3+sin(path[n].x*.17+path[n].y*.11)*1.3)*(.8+.2*fade)
 				var color: Color = [Color("5e4b37"),Color("a47a4d"),Color("b58a57")][layer];color.a=fade
 				left.append(path[n]+tangent.orthogonal()*width);right.append(path[n]-tangent.orthogonal()*width)
@@ -2076,5 +2096,79 @@ func build_path_meshes() -> void:
 			var arrays := [];arrays.resize(Mesh.ARRAY_MAX);arrays[Mesh.ARRAY_VERTEX]=vertices;arrays[Mesh.ARRAY_COLOR]=colors
 			var strip := ArrayMesh.new();strip.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
 			mesh.layers.append({"mesh":strip})
-		for n in range(0,path.size(),3):mesh.stones.append({"pos":path[n]+Vector2(sin(n*5.2)*7,14),"kind":n%3,"alpha":.65*smoothstep(0,60,remaining[n])})
+		for n in range(0,path.size(),3):mesh.stones.append({"pos":path[n]+Vector2(sin(n*5.2)*7,14),"kind":n%3,"alpha":.65*(smoothstep(0,fade_distance,remaining[n]) if terminal else 1.0)})
 		path_meshes.append(mesh)
+
+func is_path_terminal(index: int) -> bool:
+	if index<path_terminals.size() and not path_terminals[index]:return false
+	var tip: Vector2 = paths[index][-1]
+	for j in range(paths.size()):
+		if j==index:continue
+		for point in paths[j]:
+			if tip.distance_to(point)<28:return false
+	return true
+
+func leave_footprint(direction: Vector2) -> void:
+	left_foot=not left_foot
+	var stone := stone_surface(player)
+	var position := player-direction*5+direction.orthogonal()*(5 if left_foot else -5)
+	footprints.append({"pos":position,"rotation":direction.angle()+PI/2,"life":9.0,"stone":stone})
+	if footprints.size()>150:footprints.pop_front()
+	for n in range(3):
+		if particles.size()>=420:break
+		particles.append({"pos":position+Vector2(randf_range(-3,3),0),"vel":-direction*randf_range(5,14)+Vector2(randf_range(-9,9),randf_range(-12,-3)),"life":randf_range(.25,.5),"color":Color("b6ab9b") if stone else Color("a6b786"),"heart":false})
+
+func draw_footprints() -> void:
+	for footprint in footprints:
+		draw_set_transform(screen(footprint.pos),footprint.rotation)
+		var color := Color("b8ab9a") if footprint.stone else Color("263e35")
+		color.a=.42*minf(1.0,footprint.life/2)
+		draw_rect(Rect2(Vector2(-2,-5),Vector2(4,6)),color)
+		draw_rect(Rect2(Vector2(-1,3),Vector2(3,2)),color)
+	draw_set_transform(Vector2.ZERO)
+
+func stone_surface(pos: Vector2) -> bool:
+	if level in [4,6]:return true
+	for path in paths:
+		for point in path:
+			if pos.distance_squared_to(point)<225:return true
+	return false
+
+func path_point_safe(pos: Vector2) -> bool:
+	return valid_ground(pos) and not blocked(pos) and not objects.any(func(o):return o.kind=="sprout" and o.pos.distance_to(pos)<53)
+
+func continuous_path(points: PackedVector2Array, start: Vector2, end: Vector2, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var safe := true
+	for point in points:
+		if not path_point_safe(point):safe=false;break
+	if safe:return points
+	# Route around obstacles rather than splitting a branch into fading fragments.
+	if path_navigation==null:
+		path_navigation=AStarGrid2D.new();path_navigation.region=Rect2i(0,0,grid[0].length()*3,grid.size()*3)
+		path_navigation.cell_size=Vector2(16,16);path_navigation.offset=Vector2(8,8)
+		path_navigation.diagonal_mode=AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES;path_navigation.update()
+		for y in range(path_navigation.region.size.y):
+			for x in range(path_navigation.region.size.x):
+				var id := Vector2i(x,y);var pos := Vector2(id)*16+Vector2(8,8)
+				path_navigation.set_point_solid(id,not path_point_safe(pos));path_navigation.set_point_weight_scale(id,rng.randf_range(.9,1.2))
+	var from := nearest_path_node(start);var to := nearest_path_node(end)
+	if from.x<0 or to.x<0:return PackedVector2Array()
+	var route := path_navigation.get_point_path(from,to)
+	for pass_index in range(3):
+		for n in range(1,route.size()-1):
+			var point := (route[n-1]+route[n]*2+route[n+1])/4
+			if path_point_safe(point) and path_point_safe((point+route[n-1])/2) and path_point_safe((point+route[n+1])/2):route[n]=point
+	return route
+
+func nearest_path_node(pos: Vector2) -> Vector2i:
+	var origin := Vector2i(pos/16)
+	for radius in range(6):
+		var best := Vector2i(-1,-1);var distance := INF
+		for y in range(origin.y-radius,origin.y+radius+1):
+			for x in range(origin.x-radius,origin.x+radius+1):
+				var id := Vector2i(x,y)
+				if not path_navigation.region.has_point(id) or path_navigation.is_point_solid(id):continue
+				var d := pos.distance_squared_to(Vector2(id)*16+Vector2(8,8))
+				if d<distance:distance=d;best=id
+		if best.x>=0:return best
+	return Vector2i(-1,-1)
