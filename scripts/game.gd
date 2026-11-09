@@ -19,6 +19,8 @@ var content: Dictionary
 var save_data: Dictionary
 var fog: ColorRect
 var skulls: Array[Dictionary] = []
+var damage_numbers: Array[Dictionary] = []
+var path_meshes: Array = []
 var vegetation: Dictionary = {}
 var berry_cells: Dictionary = {}
 var paths: Array = []
@@ -177,10 +179,12 @@ func setup_audio() -> void:
 	foliage_voice = AudioStreamPlayer.new()
 	foliage_voice.stream = preload("res://assets/rustle.wav")
 	foliage_voice.volume_db = -21
+	if OS.has_feature("web"):foliage_voice.playback_type=AudioServer.PLAYBACK_TYPE_SAMPLE
 	add_child(foliage_voice)
 	for i in range(10):
 		var voice := AudioStreamPlayer.new()
 		voice.volume_db = -12
+		if OS.has_feature("web"):voice.playback_type=AudioServer.PLAYBACK_TYPE_SAMPLE
 		add_child(voice)
 		audio_pool.append(voice)
 
@@ -190,7 +194,7 @@ func sfx(name: String = "chime") -> void:
 	audio_cursor += 1
 	var sample_name := name
 	if name in ["step_grass","step_stone","attack"]: sample_name += ["","_2","_3"][randi()%3]
-	voice.stream = load("res://assets/" + sample_name + ".wav")
+	voice.stream = preload("res://scripts/audio_bank.gd").STREAMS.get(sample_name)
 	voice.volume_db = {"birds":-29,"crickets":-28,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rifle":-13}.get(name,-15)
 	voice.pitch_scale = randf_range(.98,1.02) if name in ["rifle","water","fill"] else randf_range(.94,1.06)
 	voice.play()
@@ -534,7 +538,7 @@ func set_cell(x: int, y: int, value: String) -> void:
 
 func build_level(index: int) -> void:
 	level = index
-	vegetation.clear();berry_cells.clear();paths.clear();obstacle_specs.clear()
+	vegetation.clear();berry_cells.clear();paths.clear();path_meshes.clear();obstacle_specs.clear();damage_numbers.clear()
 	skull_clock=2.0
 	skulls.clear()
 	room_clock = 0
@@ -694,6 +698,8 @@ func build_level(index: int) -> void:
 		sync_hands()
 	if level==3: objects.assign(objects.filter(func(o): return o.kind in ["shovel","dug","doorway"]))
 	for id in watered:
+		if id not in save_data.cleaned:save_data.cleaned.append(id)
+		if id not in fertilized:fertilized.append(id)
 		if not plants.has(id): plants[id] = {"stage":2,"remaining":0.0}
 	prepare_foliage_and_paths(rng)
 	camera = camera_target()
@@ -710,7 +716,11 @@ func blocked(pos: Vector2) -> bool:
 		if c.y<0 or c.x<0 or c.y>=grid.size() or c.x>=grid[0].length() or grid[c.y][c.x]==" ": return true
 		if grid[c.y][c.x]=="#":
 			if level==0 and c.x>0 and c.x<grid[0].length()-1 and c.y>5 and c.y<grid.size()-6:
-				if Rect2(Vector2(c)*TILE+Vector2(8,8),Vector2(32,32)).intersects(Rect2(pos-Vector2(10,7),Vector2(20,14))):return true
+				var left := 8.0 if grid[c.y][c.x-1]!="#" else 0.0
+				var right := 8.0 if grid[c.y][c.x+1]!="#" else 0.0
+				var top := 8.0 if grid[c.y-1][c.x]!="#" else 0.0
+				var bottom := 8.0 if grid[c.y+1][c.x]!="#" else 0.0
+				if Rect2(Vector2(c)*TILE+Vector2(left,top),Vector2(TILE-left-right,TILE-top-bottom)).intersects(Rect2(pos-Vector2(10,7),Vector2(20,14))):return true
 			else:return true
 	for obj in objects:
 		if obj.solid and pos.distance_to(obj.pos) < (58 if obj.kind in ["house","pond"] else 24): return true
@@ -766,6 +776,9 @@ func _physics_process(delta: float) -> void:
 		else: stuck_seconds = 0.0
 
 func _process(delta: float) -> void:
+	for i in range(damage_numbers.size()-1,-1,-1):
+		damage_numbers[i].life-=delta;damage_numbers[i].pos.y-=delta*30
+		if damage_numbers[i].life<=0:damage_numbers.remove_at(i)
 	# Browser visibility already suspends rendering; the DOM orientation gate
 	# covers landscape. Never gate simulation on a JavaScriptBridge value:
 	# its Variant conversion can disagree with native touch processing on WebKit.
@@ -954,7 +967,7 @@ func interact() -> void:
 	elif id in ["rake","can","fertilizer","shovel","flashlight"]:
 		equip_tool(id);persist();sfx("ui")
 	elif obj.kind=="berries":
-		save_data.eaten.append(id);health=mini(8,health+2);persist();sfx("eat")
+		save_data.eaten.append(id);health=mini(8,health+2);sfx("eat");persist()
 		var first := particles.size();burst(player,12,Color("ef436b"))
 		for i in range(first,particles.size()):particles[i].heart=true
 	elif obj.kind=="mound":
@@ -998,8 +1011,7 @@ func interact() -> void:
 		elif id not in fertilized:
 			if not has_fertilizer: notify(tx("fertilizer_required"))
 			else:
-				fertilized.append(id)
-				begin_task("fertilize",obj.pos,1.6)
+				begin_task("fertilize:"+id,obj.pos,1.6)
 				persist()
 		elif float(plants.get(id,{}).get("remaining",0))>0: notify(tx("plant_wait"))
 		elif not garden_can: notify(tx("can_location"))
@@ -1217,7 +1229,8 @@ func screen(pos: Vector2) -> Vector2:
 
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
 	var id := int(sprites.get(name,0))
-	if name.begins_with("hedge"):
+	if name.begins_with("hedge") and not name.begins_with("hedge_piece"):
+		if level==0:draw_hedge_parts(name,pos);return
 		draw_rect(Rect2(pos+Vector2(-24,-24),Vector2(48,40)),Color("25433d"))
 		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-32),Vector2(48,48)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)),color)
 		return
@@ -1234,6 +1247,9 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 				if source.get_pixel(x,y).a<.2: continue
 				for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
 					border.set_pixel(x+1+d.x,y+1+d.y,Color("fff3a6"))
+		for y in range(source.get_height()):
+			for x in range(32):
+				if source.get_pixel(x,y).a>.2:border.set_pixel(x+1,y+1,Color.TRANSPARENT)
 		outlines[name] = ImageTexture.create_from_image(border)
 	var box := Rect2(pos-Vector2(25.5,33.5),Vector2(51,51)) if name.begins_with("hedge") else Rect2(pos-Vector2(34,88)*scale_factor,Vector2(68,100)*scale_factor)
 	for offset in [Vector2(-2,0),Vector2(2,0),Vector2(0,-2),Vector2(0,2)]:draw_texture_rect(outlines[name],Rect2(box.position+offset,box.size),false,Color(.2,.13,.25))
@@ -1301,7 +1317,7 @@ func _draw() -> void:
 	for obj in objects:
 		var p := screen(obj.pos)
 		if p.x < -100 or p.y < -100 or p.x>view.x+100 or p.y>view.y+150: continue
-		if obj.kind=="berries":continue
+		if obj.kind in ["berries","dug"]:continue
 		if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>54:continue
 		if obj.id=="courage" and not combat_done: continue
 		if obj.id=="garden" and (watered.size()!=6 or not blooms_ready()): continue
@@ -1316,18 +1332,23 @@ func _draw() -> void:
 	for enemy in enemies: renderables.append({"kind":"enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
 	draw_paths()
+	for hole in objects:
+		if hole.kind=="dug":draw_sprite("dug",screen(hole.pos))
 	renderables.sort_custom(func(a,b):
-		if a.pos.y==b.pos.y: return a.pos.x<b.pos.x
+		if a.pos.y==b.pos.y:
+			if a.kind=="dug" and b.kind!="dug":return true
+			if b.kind=="dug" and a.kind!="dug":return false
+			return a.pos.x<b.pos.x
 		return a.pos.y<b.pos.y)
 	for item in renderables:
 		var p := screen(item.pos)
 		var kind: String = item.kind
 		if item.has("cell") and level==0:
 			var key := "h:"+str(item.cell)
-			if vegetation.has(key):p+=vegetation[key].offset
+			pass
 			if not str(item.get("berry_id","")).is_empty() and item.berry_id not in save_data.eaten and item.pos.distance_to(player)<79:draw_pickup_outline("hedge_berry",p,1.0)
 		elif kind in ["flowers","blueflowers"]:
-			p+=Vector2(item.get("bend",Vector2.ZERO))
+			pass
 		if kind=="player":
 			draw_shadow(p,19)
 			var frame := int(time*12)%4 if moving and not paused else 0
@@ -1352,16 +1373,26 @@ func _draw() -> void:
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width*float(enemy.hp)/float(enemy.get("max_hp",enemy.hp)),5)),PINK)
 		else:
 			if task_time<=0 and not item.has("wall") and available(item) and item.pos.distance_to(player)<95 and kind not in ["doorway","arch","sprout","well","stone"]:
-				var highlight := "flashlight" if kind=="stand_flashlight" else kind
+				var highlight := "dug" if item.id=="buried" else "flashlight" if kind=="stand_flashlight" else kind
 				if item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				else:draw_pickup_outline(highlight,p+Vector2(0,-40) if kind=="stand_flashlight" else p,3.0 if kind=="chest" and item.id=="final" else 1.0)
-			if not item.has("wall"): draw_shadow(p,20 if kind!="tree" else 30)
+			if not item.has("wall") and item.id!="buried": draw_shadow(p,20 if kind!="tree" else 30)
 			if item.get("ground_tool",false):
 				draw_set_transform(p,PI/2);draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 			elif kind=="sprout":
-				var growth: float = bloom_times.get(item.id,1.0)
-				draw_sprite(("weeds" if item.id not in save_data.cleaned else ("bloom"+str(item.id) if int(plants.get(item.id,{}).get("stage",0))>=2 else "bud"+str(item.id)+"_"+str(clampi(int(plants.get(item.id,{}).get("stage",0)),0,1)))),p,Color.WHITE,(.75+float(item.id)*.09)*(.85+growth*.15))
+				var stage := int(plants.get(item.id,{}).get("stage",0))
+				var remaining := float(plants.get(item.id,{}).get("remaining",0))
+				var texture := "weeds"
+				if item.id in save_data.cleaned:
+					texture="bed_empty"
+					if item.id in fertilized:texture="bed_fertilized"
+					if remaining>0 and stage==0:texture="bed_wet"
+					if stage==1:texture="seedling"+str(item.id)
+					if stage>=2:texture="flower_bud"+str(item.id)
+				draw_sprite("bed_border",p,Color.WHITE,.9+float(item.id)*.035)
+				draw_sprite(texture,p,Color.WHITE,.9+float(item.id)*.035)
+
 			elif kind=="swing":
 				draw_sprite(kind,p)
 				var swing_offset := sin(time*2.4)*12 if resting=="swing" else sin(time*1.5)*2
@@ -1377,6 +1408,10 @@ func _draw() -> void:
 			elif kind.begins_with("rack_") and item.id in save_data.weapons_taken: draw_sprite("rack_empty",p)
 			elif kind=="mound": draw_sprite("dug" if item.id in save_data.dug else "mound",p)
 			elif kind=="chest": draw_sprite("chest_open" if ((item.id=="final" and chest_open) or item.id in save_data.letters) else "chest",p,Color.WHITE,3.0 if item.id=="final" else 1.0)
+			elif kind=="note" and item.id=="buried":draw_buried_paper(p,item.id in save_data.letters)
+			elif kind=="note_open" and item.id=="buried":draw_buried_paper(p,true)
+			elif kind in ["flowers","blueflowers"]:
+				draw_sprite(kind+"_pressed_"+str(clampi(roundi(float(item.get("press",0))*2),0,2)),p)
 			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4+25*(1-clampf((time-float(item.get("rise_start",time-1)))/.45,0,1))))
 			else: draw_sprite(kind,p)
 			if kind.begins_with("rack_") and item.id not in save_data.weapons_taken and item.pos.distance_to(player)<95:
@@ -1420,6 +1455,7 @@ func _draw() -> void:
 		else: draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
 	draw_new_rooms()
 	draw_extra_effects()
+	for number in damage_numbers:draw_string(body_font,screen(number.pos),tx("damage_amount").format({"amount":number.value}),HORIZONTAL_ALIGNMENT_LEFT,-1,17,Color(1,.55,.61,minf(1,number.life*3)))
 	if level==6:
 		for n in range(puzzle.size()):
 			var center := Vector2(74+n*65,225)
@@ -1528,7 +1564,7 @@ func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	var toward := target-player
 	if absf(toward.x)>absf(toward.y):direction=1 if toward.x<0 else 3
 	else:direction=0 if toward.y<0 else 2
-	sfx("rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "step_grass" if kind.begins_with("dig:") else "paper" if kind=="fertilize" else "water")
+	sfx("rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "step_grass" if kind.begins_with("dig:") else "paper" if kind.begins_with("fertilize:") else "water")
 
 func update_tasks(delta: float) -> void:
 	if task_time<=0: return
@@ -1558,7 +1594,8 @@ func update_tasks(delta: float) -> void:
 		else: notify(tx("buried_note_near") if task_target.distance_to(hidden)<260 else tx("digging_empty"))
 	elif task_kind.begins_with("rake:"):
 		save_data.cleaned.append(task_kind.trim_prefix("rake:"));burst(task_target,8,Color("8ca465"))
-	elif task_kind=="fertilize": burst(task_target,10,Color("c8aa7d"))
+	elif task_kind.begins_with("fertilize:"):
+		fertilized.append(task_kind.trim_prefix("fertilize:"));burst(task_target,10,Color("c8aa7d"))
 	persist()
 
 func update_plants(delta: float) -> void:
@@ -1578,6 +1615,8 @@ func damage_enemy(index: int, damage: int, push: Vector2) -> void:
 	if index<0 or index>=enemies.size(): return
 	var enemy := enemies[index]
 	if enemy.state=="spawn": return
+	damage_numbers.append({"pos":enemy.pos+Vector2(randf_range(-10,10),-65),"value":mini(damage,int(enemy.hp)),"life":.85})
+	for n in range(7):particles.append({"pos":enemy.pos+Vector2(0,-28),"vel":Vector2(randf_range(-65,65),randf_range(-85,0)),"life":randf_range(.3,.6),"color":Color("c74960"),"heart":false})
 	if weapon=="sword": sfx("sword_hit")
 	enemy.hp -= damage
 	enemy.state = "rest"
@@ -1777,8 +1816,13 @@ func update_new_rooms(delta: float) -> void:
 		skull_clock -= delta
 		if skull_clock<=0:
 			skull_clock=randf_range(2.0,3.5)
-			var pos := player+Vector2.from_angle(randf()*TAU)*randf_range(70,145)
-			if not blocked(pos): skulls.append({"pos":pos,"life":.8})
+			if held_item=="flashlight":
+				var facing: Vector2 = [Vector2.UP,Vector2.LEFT,Vector2.DOWN,Vector2.RIGHT][direction]
+				if joy_vector.length()>.2:facing=joy_vector.normalized()
+				for attempt in range(6):
+					var pos := player+Vector2(14,-33)+facing.rotated(randf_range(-.25,.25))*randf_range(75,145)
+					if not blocked(pos):skulls.append({"pos":pos,"life":.8});break
+
 		for i in range(skulls.size()-1,-1,-1):
 			skulls[i].life -= delta
 			if skulls[i].life<=0: skulls.remove_at(i)
@@ -1903,7 +1947,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 	var destinations: Array[Vector2] = []
 	for obj in objects:
 		if (level==5 and (obj.kind=="sprout" or obj.id in ["seat","swing","well"])) or (level==1 and (obj.kind in ["house","pond","bench"] or obj.id=="exit")):
-			destinations.append(obj.pos+Vector2(0,40 if obj.solid else 0))
+			destinations.append(obj.pos+Vector2(0,65 if obj.kind=="sprout" else 40 if obj.solid else 0))
 	var connected: Array[Vector2] = [Vector2(13.5,grid.size()-6.5)*TILE]
 	while not destinations.is_empty():
 		var best := INF
@@ -1932,23 +1976,21 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 		var samples := curve.get_baked_points()
 		for n in range(samples.size()):
 			var p := samples[n]
-			if valid_ground(p) and not blocked(p):
+			if valid_ground(p) and not blocked(p) and not objects.any(func(o):return o.kind=="sprout" and o.pos.distance_to(p)<53):
 				section.append(p)
 				if n%5==0:connected.append(p)
 			elif section.size()>1:paths.append(section);section=PackedVector2Array()
 		if section.size()>1:paths.append(section)
 		connected.append(end)
+	build_path_meshes()
 
 func draw_paths() -> void:
-	for path in paths:
-		var points := PackedVector2Array()
-		for p in path:points.append(screen(p))
-		draw_polyline(points,Color("5e4b37"),26,false)
-		draw_polyline(points,Color("a47a4d"),21,false)
-		draw_polyline(points,Color("b58a57"),13,false)
-		for n in range(0,points.size(),3):
-			var p: Vector2 = points[n]
-			draw_sprite("path_stone"+str(n%3),p+Vector2(sin(n*5.2)*7,14),Color(1,1,1,.65),.35)
+	# Translate the cached world geometry once; never round every vertex separately.
+	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
+	for mesh in path_meshes:
+		for layer in mesh.layers:draw_mesh(layer.mesh,null)
+		for stone in mesh.stones:draw_sprite("path_stone"+str(stone.kind),stone.pos,Color(1,1,1,stone.alpha),.35)
+	draw_set_transform(Vector2.ZERO)
 
 func update_vegetation(delta: float) -> void:
 	if level==0:
@@ -1957,26 +1999,82 @@ func update_vegetation(delta: float) -> void:
 			for x in range(maxi(1,center.x-2),mini(grid[0].length()-1,center.x+3)):
 				if grid[y][x]!="#":continue
 				var cell := Vector2i(x,y)
-				var origin := (Vector2(cell)+Vector2(.5,.5))*TILE
-				if origin.distance_to(player)<57:
-					var key := "h:"+str(cell)
+				for n in range(6):
+					var origin := (Vector2(cell)+Vector2(.5,.5))*TILE+Vector2((n%3-1)*15,(n/3)*14-7)
+					if origin.distance_to(player)>45:continue
+					var key := "h:"+str(cell)+":"+str(n)
 					if not vegetation.has(key):vegetation[key]={"pos":origin,"offset":Vector2.ZERO,"velocity":Vector2.ZERO}
 		for key in vegetation.keys():
 			var spring: Dictionary = vegetation[key]
 			var away: Vector2 = spring.pos-player
-			var target := away.normalized()*9*clampf((57-away.length())/22,0,1)
-			spring.velocity+=(target-spring.offset)*130*delta-spring.velocity*17*delta
+			var target := away.normalized()*8*clampf((43-away.length())/20,0,1)
+			spring.velocity+=(target-spring.offset)*145*delta-spring.velocity*18*delta
 			spring.offset+=spring.velocity*delta
 			if target.length()<.01 and spring.offset.length()<.03:vegetation.erase(key)
 	var contact := false
 	for obj in objects:
 		if obj.kind not in ["flowers","blueflowers"]:continue
 		var away: Vector2 = obj.pos-player
-		var target := away.normalized()*14*clampf((37-away.length())/23,0,1)
+		var target := clampf((37-away.length())/20,0,1)
 		if away.length()<37:contact=true
-		if target.length()>.01 or obj.has("bend"):
-			obj.bend=Vector2(obj.get("bend",Vector2.ZERO)).lerp(target,1-exp(-delta*13))
+		if target>.01 or obj.has("press"):obj.press=lerpf(float(obj.get("press",0)),target,1-exp(-delta*11))
 	if contact and (not foliage_contact or (moving and rustle_clock<=0)):
 		if sound_on:foliage_voice.play()
 		rustle_clock=.42
 	foliage_contact=contact
+
+var buried_paper_cache: Dictionary = {}
+func draw_buried_paper(pos: Vector2, opened: bool) -> void:
+	var name := "note_open" if opened else "note"
+	if not buried_paper_cache.has(name):
+		var source := atlas.get_image()
+		var id: int = sprites[name]
+		var image := Image.create(32,48,false,Image.FORMAT_RGBA8)
+		for y in range(32,43):
+			for x in range(6,27):
+				if Vector2((x-16)/10.0,(y-37)/5.0).length()>.9:continue
+				image.set_pixel(x,y,source.get_pixel(id%16*32+5+(x-6),id/16*48+27+int((y-32)*1.2)))
+		buried_paper_cache[name]=ImageTexture.create_from_image(image)
+	draw_texture_rect(buried_paper_cache[name],Rect2(pos-Vector2(32,86),Vector2(64,96)),false)
+
+func draw_hedge_parts(name: String, pos: Vector2) -> void:
+	var cell := Vector2i((pos+camera-get_viewport_rect().size/2-shake_offset)/TILE)
+	var key := "h:"+str(cell)+":"
+	var active := false
+	for n in range(6):
+		if vegetation.has(key+str(n)):active=true;break
+	draw_rect(Rect2(pos+Vector2(-24,-24),Vector2(48,40)),Color("25433d"))
+	if not active:
+		var id: int = sprites[name]
+		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-32),Vector2(48,48)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
+		return
+	var variant := ["hedge","hedge0","hedge1","hedge2","hedge_berry"].find(name)
+	for n in range(6):
+		var offset: Vector2 = vegetation.get(key+str(n),{}).get("offset",Vector2.ZERO)
+		var id: int = sprites["hedge_piece"+str(variant)+"_"+str(n)]
+		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-32)+offset,Vector2(48,48)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
+
+func build_path_meshes() -> void:
+	path_meshes.clear()
+	for path in paths:
+		var remaining: Array[float] = [];remaining.resize(path.size());remaining[-1]=0
+		for n in range(path.size()-2,-1,-1):remaining[n]=remaining[n+1]+path[n].distance_to(path[n+1])
+		var mesh := {"layers":[],"stones":[]}
+		for layer in range(3):
+			var left := PackedVector2Array();var right := PackedVector2Array();var left_colors := PackedColorArray();var right_colors := PackedColorArray()
+			for n in range(path.size()):
+				var tangent: Vector2 = (path[mini(n+1,path.size()-1)]-path[maxi(0,n-1)]).normalized()
+				var fade := smoothstep(0,55,remaining[n])
+				var width := (13.0-layer*3+sin(path[n].x*.17+path[n].y*.11)*1.3)*(.8+.2*fade)
+				var color: Color = [Color("5e4b37"),Color("a47a4d"),Color("b58a57")][layer];color.a=fade
+				left.append(path[n]+tangent.orthogonal()*width);right.append(path[n]-tangent.orthogonal()*width)
+				left_colors.append(color);right_colors.append(color)
+			var vertices := PackedVector3Array();var colors := PackedColorArray()
+			for n in range(path.size()-1):
+				for pair in [[left[n],left_colors[n]],[right[n],right_colors[n]],[left[n+1],left_colors[n+1]],[right[n],right_colors[n]],[right[n+1],right_colors[n+1]],[left[n+1],left_colors[n+1]]]:
+					vertices.append(Vector3(pair[0].x,pair[0].y,0));colors.append(pair[1])
+			var arrays := [];arrays.resize(Mesh.ARRAY_MAX);arrays[Mesh.ARRAY_VERTEX]=vertices;arrays[Mesh.ARRAY_COLOR]=colors
+			var strip := ArrayMesh.new();strip.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+			mesh.layers.append({"mesh":strip})
+		for n in range(0,path.size(),3):mesh.stones.append({"pos":path[n]+Vector2(sin(n*5.2)*7,14),"kind":n%3,"alpha":.65*smoothstep(0,60,remaining[n])})
+		path_meshes.append(mesh)

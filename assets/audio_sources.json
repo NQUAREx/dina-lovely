@@ -15,25 +15,25 @@
     "source_file": "tube-plastic-whoosh-01.wav",
     "pack": "Tinysized SFX / Vehicle",
     "license": "CC0",
-    "sha256": "cae83b3f4fcd467ba3f04fc34aafb669d1851e630bdc89a4fcefef89f9af11a0"
+    "sha256": "d5bce3159328cecf169d910f21d15be2e8bec0ebe04566ccfcb6387e7ed66f86"
   },
   "attack_2": {
     "source_file": "tube-plastic-whoosh-02.wav",
     "pack": "Tinysized SFX / Vehicle",
     "license": "CC0",
-    "sha256": "aaf98901eeb140678e7fdd229ab6d47c01f33ac39f47875022765181830a076a"
+    "sha256": "c11865078bbc36cfd8f39a9c495834d5101816e1b4914a3dbccec0b3f1714b86"
   },
   "attack_3": {
     "source_file": "rpg-audio/Audio/knifeSlice.ogg",
     "pack": "Kenney",
     "license": "CC0",
-    "sha256": "9d45954a8c74961c28afcfe73a23b6bf3467065b0153722e7dc916e99897190e"
+    "sha256": "9536b163649dce0bd81241b2db38ce578693fe6cea94ca5b60268d79a87dcf82"
   },
   "sword_hit": {
     "source_file": "sword-clash-03.wav",
     "pack": "Tinysized SFX / Vehicle",
     "license": "CC0",
-    "sha256": "15480e6248e3fd321a44650323ce0fe673dc815e4d44eabcafacf108eca363dd"
+    "sha256": "70dad06c94c132e4ecf8e1f907743fd0e4b1e983add95ee126595c2ea628f79e"
   },
   "water": {
     "source_file": "water-pour-01.wav",
@@ -149,7 +149,7 @@
     "pack": "7 Eating Crunches — StarNinjas",
     "source_url": "https://opengameart.org/content/7-eating-crunches",
     "license": "CC0",
-    "sha256": "1f01b1de83176d1ea4828a98a1aafea85c2319983912fb80c57572bcf23a0cdd"
+    "sha256": "31b39e019ba4c2779849fe0f080efc70d438d4e63891fe0527b7fe23a557798d"
   },
   "rake": {
     "pack": "Tinysized SFX / Augmentality — mixed licensed recordings",
@@ -161,6 +161,6 @@
     "pack": "Tinysized SFX — Jan Schupke",
     "source_url": "https://opengameart.org/content/50-rpg-sound-effects",
     "license": "CC0",
-    "sha256": "2659dbd0ecdad1b9194ebf039365f9bd70eb0f40a85218ca50314ac78a34ee10"
+    "sha256": "118151e5b61e640cfe0929c75729fe25bd17c50c0d52decaed37c4c46f66c599"
   }
 }

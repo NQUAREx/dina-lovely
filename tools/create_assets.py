@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw
 import random, math, wave, struct, json
 from pathlib import Path
 R=Path(__file__).resolve().parents[1]; A=R/'assets'; random.seed(17)
-NAMES=[]; atlas=Image.new('RGBA',(32*16,48*8))
+NAMES=[]; atlas=Image.new('RGBA',(32*16,48*12))
 def sprite(name,fn):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);fn(d);i=len(NAMES);NAMES.append(name);atlas.paste(im,((i%16)*32,(i//16)*48))
 def leaf(d,x,y,r=6):
@@ -207,6 +207,68 @@ for i in range(3):
   pts=[(x-10,y-3),(x-4,y-8-v),(x+7,y-6),(x+11,y),(x+6,y+6),(x-6,y+7)]
   d.polygon([(xx,yy+2) for xx,yy in pts],fill='#75573d');d.polygon(pts,fill=['#c9aa72','#bb925b','#d6b67d'][v]);d.line((x-6,y-5,x+3,y-5),fill='#e5c995')
  sprite('path_stone'+str(i),path_stone)
+# Six independent leaf clusters per hedge, baked together for distant rendering.
+for variant,name in enumerate(['hedge','hedge0','hedge1','hedge2','hedge_berry']):
+ composite=Image.new('RGBA',(32,48));base=ImageDraw.Draw(composite);base.rectangle((3,24,28,40),fill='#25433d');base.rectangle((4,35,27,40),fill='#192f35')
+ for n in range(6):
+  def part(d,v=variant,n=n):
+   x=[6,14,23][n%3];y=[24,30][n//3];leaf(d,x,y,7)
+   if v==1:d.ellipse((x-1,y-4,x+1,y-2),fill='#efdfc2')
+   if v==2:d.line((x,y-3,x+1,y-8),fill='#a8bb7d')
+   if v==3 and n==1:d.rectangle((14,23,17,32),fill='#826248');leaf(d,16,18,9)
+   if v==4 and n%2==0:
+    d.rectangle((x-1,y-4,x+1,y-2),fill='#e86189');d.point((x-1,y-4),fill='#ffc8cc')
+  sprite('hedge_piece'+str(variant)+'_'+str(n),part)
+  index=len(NAMES)-1;part_image=atlas.crop(((index%16)*32,(index//16)*48,(index%16)*32+32,(index//16)*48+48));composite.alpha_composite(part_image)
+ index=NAMES.index(name);atlas.paste(composite,((index%16)*32,(index//16)*48))
+for name,color in [('flowers','#e99bb6'),('blueflowers','#b6b3ed')]:
+ for frame in range(3):
+  def pressed(d,c=color,f=frame):
+   if f==0:flower(d,c);return
+   for n,(x,normal) in enumerate([(8,32),(16,27),(24,34)]):
+    head=x+([-5,0,5][n] if f==2 else [-3,0,3][n]);y=42 if f==2 else 36
+    d.line((x,42,head,y),fill='#6c9c72',width=2);d.line((x,41,x+(-5 if n==0 else 5),40),fill='#9dbb79',width=2)
+    d.ellipse((head-3,y-1,head+3,y+1),fill=c);d.point((head,y),fill='#ffe4a0')
+  sprite(name+'_pressed_'+str(frame),pressed)
+def bed(d,mode):
+ d.ellipse((3,30,29,45),fill='#4a3b36');d.ellipse((5,31,27,43),fill='#6e503a' if mode!='wet' else '#473c35')
+ for n in range(35):
+  x=random.randrange(7,26);y=random.randrange(33,42);d.point((x,y),fill=random.choice(['#826146','#987557','#583e31']) if mode!='wet' else '#665243')
+ if mode=='fertilized':
+  for n in range(40):d.point((random.randrange(7,26),random.randrange(33,42)),fill=random.choice(['#e5d2a1','#bba875','#d0c7a8']))
+for mode in ['empty','fertilized','wet']:sprite('bed_'+mode,lambda d,m=mode:bed(d,m))
+def border(d):
+ for n in range(12):
+  a=n*math.tau/12;x=16+round(math.cos(a)*14);y=38+round(math.sin(a)*8)
+  d.ellipse((x-2,y-1,x+2,y+1),fill='#b3a28a');d.point((x-1,y-1),fill='#ddcbb0')
+sprite('bed_border',border)
+for v in range(6):
+ for stage in range(2):
+  def plant_state(d,v=v,s=stage):
+   bed(d,'wet');buds=[]
+   if v==0:
+    d.line((16,42,16,25),fill='#67945c',width=2)
+    for y in [31,37]:d.polygon([(16,y),(8,y-5),(9,y),(16,y+2),(23,y-5),(22,y)],fill='#86aa69')
+    buds=[(16,23)]
+   elif v==1:
+    d.line((16,43,16,23),fill='#799544',width=3);d.ellipse((5,30,15,36),fill='#a0ad58');d.ellipse((17,26,28,33),fill='#879d4b');buds=[(16,21)]
+   elif v==2:
+    for x,y in [(10,28),(16,21),(22,26)]:
+     d.line((16,42,x,y),fill='#739884');d.line((x-3,34,x,37,x+3,32),fill='#96b9a5');buds.append((x,y-2))
+   elif v==3:
+    for x,y in [(7,24),(13,22),(19,26),(25,21)]:d.polygon([(16,43),(x-1,y),(x+2,y+8),(19,40)],fill='#7fa76c')
+    buds=[(13,20),(23,24)]
+   elif v==4:
+    d.line((11,43,13,28,20,23,24,26),fill='#628b79',width=2);d.ellipse((6,32,15,37),fill='#82a793');d.ellipse((18,31,26,35),fill='#7caa98');buds=[(24,28),(19,34)]
+   else:
+    for n in range(7):
+     a=n*math.tau/7;x=16+round(math.cos(a)*10);y=38+round(math.sin(a)*4);d.polygon([(16,40),(x-2,y-2),(x,y-5),(x+2,y)],fill='#98b67a')
+    d.line((16,40,14,25),fill='#729965');d.line((17,40,23,29),fill='#729965');buds=[(14,23),(23,27)]
+   if s:
+    for x,y in buds:
+     c=['#bd597e','#c7aa48','#9680c8','#d88d52','#8ab3c4','#d9c5d6'][v]
+     d.ellipse((x-2,y-3,x+2,y+3),fill=c);d.line((x,y-3,x+1,y+2),fill='#aac08b')
+  sprite(('seedling' if stage==0 else 'flower_bud')+str(v),plant_state)
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)

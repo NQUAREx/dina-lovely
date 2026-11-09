@@ -13,7 +13,7 @@ func run():
   if g.grid[c.y][c.x-1]=='.':
    assert(not g.blocked(Vector2(c.x*48-4,b.pos.y)));assert(g.blocked(Vector2(c.x*48+8,b.pos.y)));tested=true;break
  assert(tested);print('PASS soft hedge edge with solid core')
- var flower={'kind':'flowers','id':'','pos':g.player+Vector2(10,0),'solid':false};g.objects.append(flower);g.update_vegetation(.04);assert(flower.bend.length()>0);print('PASS flower parting')
+ var flower={'kind':'flowers','id':'','pos':g.player+Vector2(10,0),'solid':false};g.objects.append(flower);g.update_vegetation(.04);assert(float(flower.press)>0);print('PASS flower parting')
  g.build_level(2);assert(g.grid.size()==39);assert(abs(g.obstacle_rect(1).get_center().y-g.obstacle_rect(0).get_center().y-4.4*48)<.1)
  var specs=g.obstacle_specs.duplicate(true);g.new_game();g.clear_modal();g.sound_on=false;g.build_level(2);assert(specs!=g.obstacle_specs);print('PASS doubled spacing and seeded random beams')
  g.build_level(5);assert(g.paths.size()>=8);assert(g.sprites.has('bud0_0') and g.sprites.has('bud5_1'));print('PASS garden paths and distinct growth sprites')

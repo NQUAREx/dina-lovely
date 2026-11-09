@@ -17,3 +17,5 @@ Rustle: qubodup, 20 Rustles of dry leaves, CC0. https://opengameart.org/content/
 Current bush rustle: Moving Leaves Stereo by Augmentality (Brandon Morris), CC0. https://opengameart.org/content/random-sounds-samples — excerpt, normalized and faded.
 
 Eating: StarNinjas, 7 Eating Crunches, CC0, https://opengameart.org/content/7-eating-crunches (normalized). Rake: mix of existing licensed Moving Leaves and Tinysized SFX scrape recordings. Reload: Tinysized SFX metal mechanism recording.
+
+Short effect recordings (eating, sword swings, hit and reload) have had leading silence trimmed. Original recording sources and licenses remain listed above; current checksums are in audio_sources.json.
