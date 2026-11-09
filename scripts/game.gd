@@ -1000,11 +1000,26 @@ func blooms_ready() -> bool:
 		if v<1: return false
 	return true
 
+func interaction_reachable(obj: Dictionary) -> bool:
+	var target:Vector2=obj.pos
+	var length:=player.distance_to(target)
+	var embedded:bool=obj.get("hidden_hedge",false) or obj.kind in ["berries","tree_apples"]
+	for step in range(1,ceili(length/2)):
+		var point:=player.lerp(target,float(step)*2/maxf(length,1))
+		var cell:=Vector2i(point/TILE)
+		if cell.y<0 or cell.x<0 or cell.y>=grid.size() or cell.x>=grid[0].length():return false
+		if hedge_field!=null:
+			if hedge_field.blocks(point):
+				# Reach into the near face for fruit/hidden letters, never through the wall.
+				return embedded and hedge_field.blocks(target) and point.distance_to(target)<=22
+		elif grid[cell.y][cell.x]=="#":return false
+	return true
+
 func find_nearest() -> void:
 	nearest = -1
 	var distance := 79.0
 	for i in range(objects.size()):
-		if available(objects[i]):
+		if available(objects[i]) and interaction_reachable(objects[i]):
 			var d := player.distance_to(objects[i].pos)
 			if d<distance:
 				distance = d
@@ -1044,6 +1059,7 @@ func interact() -> void:
 		return
 	if nearest<0: return
 	var obj := objects[nearest]
+	if not interaction_reachable(obj):find_nearest();return
 	var id: String = obj.id
 	if task_time>0: return
 	if obj.kind=="accessory":
@@ -1459,7 +1475,9 @@ func _draw() -> void:
 			var pos:=screen(crown.base+crown.offset)
 			draw_texture_rect(glow,Rect2(pos-Vector2(r+8,r*.85),Vector2(r*2+16,r*1.8+8)),false,Color(0,0,0,.65))
 		draw_hedge_body(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
-		if not hedge_field.foreground(player):draw_hedge_canopy(visible_crowns)
+		# Trunks are grounded behind the shrub tops. Their upper crowns are drawn last.
+		for item in renderables:
+			if item.get("integrated_tree",false):draw_sprite(item.kind,screen(item.pos)-Vector2(0,18))
 
 	renderables.sort_custom(func(a,b):
 		if a.pos.y==b.pos.y:
@@ -1484,7 +1502,9 @@ func _draw() -> void:
 				var angle := aim.angle()
 				draw_arc(p+Vector2(0,-20),88,angle-1.1,angle+1.1,22,Color(1,.84,.75,attack_flash/.19),7)
 				draw_arc(p+Vector2(0,-20),101,angle-.8,angle+.8,18,Color(1,.65,.79,attack_flash/.19),3)
-			if hedge_field!=null and hedge_field.foreground(player):draw_hedge_canopy(visible_crowns)
+			if hedge_field!=null:
+				draw_hedge_canopy(visible_crowns)
+				draw_player_upper(hero_pos,frame,color)
 		elif item.has("enemy"):
 			var enemy: Dictionary = item.enemy
 			if enemy.state=="warn":
@@ -1499,7 +1519,7 @@ func _draw() -> void:
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width,5)),INK)
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width*float(enemy.hp)/float(enemy.get("max_hp",enemy.hp)),5)),PINK)
 		else:
-			if task_time<=0 and not item.has("wall") and available(item) and item.pos.distance_to(player)<95 and kind not in ["doorway","arch","sprout","well","stone"]:
+			if task_time<=0 and not item.has("wall") and available(item) and interaction_reachable(item) and item.pos.distance_to(player)<95 and kind not in ["doorway","arch","sprout","well","stone"]:
 				var highlight := "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else "flashlight" if kind=="stand_flashlight" else kind
 				if item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
@@ -1556,13 +1576,13 @@ func _draw() -> void:
 				var open: bool = door_is_open(str(item.id))
 				draw_texture_rect(glow,Rect2(p-Vector2(65,110),Vector2(130,150)),false,Color(.9,1,.9,1 if open else .2))
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
-	# Each crown has one fixed place in the painter order. Never redraw a local subset.
-	# Trees remain above the canopy regardless of the heroine's wall-side classification.
+	# Tree crowns sit above the continuous hedge; lower trunks stay buried.
 	for item in renderables:
 		if not item.get("integrated_tree",false):continue
 		var p:=screen(item.pos)
-		if available(item) and item.pos.distance_to(player)<95:draw_pickup_outline(item.kind,p+Vector2(0,10),.75)
-		draw_sprite(item.kind,p)
+		var id:int=sprites[item.kind]
+		# Preserve the complete canopy; hide only the buried lower trunk behind shrubs.
+		draw_texture_rect_region(atlas,Rect2(p+Vector2(-24,-74),Vector2(48,34.5)),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,23)))
 
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
@@ -2614,6 +2634,14 @@ func draw_player_outfit(pos: Vector2, frame: int, color: Color) -> void:
 	draw_sprite("hero"+str(direction)+"_"+str(frame),pos,color)
 	for item in ["peach_dress","rose_scarf","veil","brooch","wreath","crown","heart_tiara"]:
 		if item in save_data.wearing:draw_sprite("wear_"+item+"_"+str(direction)+"_"+str(frame),pos,color)
+
+func draw_player_upper(pos: Vector2, frame: int, color: Color) -> void:
+	var names:Array[String]=["hero"+str(direction)+"_"+str(frame)]
+	for item in ["peach_dress","rose_scarf","veil","brooch","wreath","crown","heart_tiara"]:
+		if item in save_data.wearing:names.append("wear_"+item+"_"+str(direction)+"_"+str(frame))
+	for name in names:
+		var id:int=sprites[name]
+		draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86),Vector2(64,58)),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,29)),color)
 
 func update_food_hearts(delta: float) -> void:
 	if food_hearts_left<=0:return
