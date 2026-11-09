@@ -13,6 +13,7 @@ const REQUIRED := ["dawn", "flower", "star"]
 const CREAM := Color("f5e3cf")
 const PINK := Color("e5a6bd")
 const INK := Color("45394f")
+var hedge_tree_textures:Dictionary={"hedge_tree":preload("res://assets/hedge_tree.png"),"hedge_tree_apples":preload("res://assets/hedge_tree_apples.png")}
 var hedge_material: Texture2D = preload("res://assets/hedge_material.png")
 var atlas: Texture2D = preload("res://assets/atlas.png")
 var romance_ground: Texture2D = preload("res://assets/ground_romance.png")
@@ -1017,13 +1018,12 @@ func interaction_reachable(obj: Dictionary) -> bool:
 
 func find_nearest() -> void:
 	nearest = -1
-	var distance := 79.0
+	var distance_squared:=79.0*79.0
 	for i in range(objects.size()):
-		if available(objects[i]) and interaction_reachable(objects[i]):
-			var d := player.distance_to(objects[i].pos)
-			if d<distance:
-				distance = d
-				nearest = i
+		var d:=player.distance_squared_to(objects[i].pos)
+		if d<distance_squared and available(objects[i]) and interaction_reachable(objects[i]):
+			distance_squared=d
+			nearest=i
 
 func action_text(obj: Dictionary) -> String:
 	if obj.kind=="accessory":return tx("wear_accessory")
@@ -1346,7 +1346,7 @@ func screen(pos: Vector2) -> Vector2:
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
 	var id := int(sprites.get(name,0))
 	if name in ["hedge_tree","hedge_tree_apples"]:
-		draw_texture_rect_region(atlas,Rect2(pos+Vector2(-24,-56)*scale_factor,Vector2(48,72)*scale_factor),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
+		draw_texture_rect(hedge_tree_textures[name],Rect2(pos+Vector2(-24,-90)*scale_factor,Vector2(48,72)*scale_factor),false,color)
 		return
 	var size := Vector2(64,96)*scale_factor
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
@@ -1477,7 +1477,8 @@ func _draw() -> void:
 		draw_hedge_body(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
 		# Trunks are grounded behind the shrub tops. Their upper crowns are drawn last.
 		for item in renderables:
-			if item.get("integrated_tree",false):draw_sprite(item.kind,screen(item.pos)-Vector2(0,18))
+			if item.get("integrated_tree",false):draw_sprite(item.kind,screen(item.pos))
+		draw_hedge_canopy(visible_crowns,-1)
 
 	renderables.sort_custom(func(a,b):
 		if a.pos.y==b.pos.y:
@@ -1503,8 +1504,7 @@ func _draw() -> void:
 				draw_arc(p+Vector2(0,-20),88,angle-1.1,angle+1.1,22,Color(1,.84,.75,attack_flash/.19),7)
 				draw_arc(p+Vector2(0,-20),101,angle-.8,angle+.8,18,Color(1,.65,.79,attack_flash/.19),3)
 			if hedge_field!=null:
-				draw_hedge_canopy(visible_crowns)
-				draw_player_upper(hero_pos,frame,color)
+				draw_hedge_canopy(visible_crowns,1)
 		elif item.has("enemy"):
 			var enemy: Dictionary = item.enemy
 			if enemy.state=="warn":
@@ -1519,7 +1519,7 @@ func _draw() -> void:
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width,5)),INK)
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width*float(enemy.hp)/float(enemy.get("max_hp",enemy.hp)),5)),PINK)
 		else:
-			if task_time<=0 and not item.has("wall") and available(item) and interaction_reachable(item) and item.pos.distance_to(player)<95 and kind not in ["doorway","arch","sprout","well","stone"]:
+			if task_time<=0 and not item.has("wall") and item.pos.distance_squared_to(player)<9025 and available(item) and interaction_reachable(item) and kind not in ["doorway","arch","sprout","well","stone"]:
 				var highlight := "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else "flashlight" if kind=="stand_flashlight" else kind
 				if item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
@@ -1579,10 +1579,7 @@ func _draw() -> void:
 	# Tree crowns sit above the continuous hedge; lower trunks stay buried.
 	for item in renderables:
 		if not item.get("integrated_tree",false):continue
-		var p:=screen(item.pos)
-		var id:int=sprites[item.kind]
-		# Preserve the complete canopy; hide only the buried lower trunk behind shrubs.
-		draw_texture_rect_region(atlas,Rect2(p+Vector2(-24,-74),Vector2(48,34.5)),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,23)))
+		draw_hedge_tree_top(item.kind,item.pos)
 
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
@@ -2635,14 +2632,6 @@ func draw_player_outfit(pos: Vector2, frame: int, color: Color) -> void:
 	for item in ["peach_dress","rose_scarf","veil","brooch","wreath","crown","heart_tiara"]:
 		if item in save_data.wearing:draw_sprite("wear_"+item+"_"+str(direction)+"_"+str(frame),pos,color)
 
-func draw_player_upper(pos: Vector2, frame: int, color: Color) -> void:
-	var names:Array[String]=["hero"+str(direction)+"_"+str(frame)]
-	for item in ["peach_dress","rose_scarf","veil","brooch","wreath","crown","heart_tiara"]:
-		if item in save_data.wearing:names.append("wear_"+item+"_"+str(direction)+"_"+str(frame))
-	for name in names:
-		var id:int=sprites[name]
-		draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86),Vector2(64,58)),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,29)),color)
-
 func update_food_hearts(delta: float) -> void:
 	if food_hearts_left<=0:return
 	food_heart_clock-=delta
@@ -2650,11 +2639,20 @@ func update_food_hearts(delta: float) -> void:
 		food_heart_clock+=.3;food_hearts_left-=1
 		particles.append({"pos":player+Vector2(randf_range(-5,5),-48),"vel":Vector2(randf_range(-4,4),-23),"life":1.8,"color":Color("ef436b"),"heart":true})
 
-func draw_hedge_canopy(indices: PackedInt32Array) -> void:
+func draw_hedge_tree_top(kind: String, position: Vector2) -> void:
+	# Native-size pixels preserve the full ordinary canopy without scaling shimmer.
+	draw_texture_rect_region(hedge_tree_textures[kind],Rect2(screen(position)+Vector2(-24,-90),Vector2(48,53)),Rect2(Vector2.ZERO,Vector2(48,53)))
+
+func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 	# Quantize the camera once, not each overlapping crown independently.
 	# Relative crown positions remain constant while the camera moves.
 	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
-	for index in indices:draw_leaf_crown(index)
+	# A single fixed Y-order is split around the heroine. Each crown is drawn whole,
+	# once. The margin includes maximum bend and radius, keeping front crowns below waist.
+	for index in indices:
+		var behind:bool=hedge_field.crown_behind_hero(index,player)
+		if (side<0 and not behind) or (side>0 and behind):continue
+		draw_leaf_crown(index)
 	draw_set_transform(Vector2.ZERO)
 
 func draw_leaf_crown(index: int) -> void:
@@ -2680,12 +2678,29 @@ func draw_leaf_crown(index: int) -> void:
 func draw_hedge_body(bounds: Rect2) -> void:
 	if hedge_field==null or hedge_field.body_texture==null:return
 	var texture:Texture2D=hedge_field.body_texture
-	var first:=Vector2i(bounds.position/32)-Vector2i.ONE
-	var last:=Vector2i(bounds.end/32)+Vector2i.ONE
-	var offsets:Dictionary={}
+	var region:=bounds.intersection(Rect2(Vector2.ZERO,Vector2(texture.get_size())*2))
+	if not region.has_area():return
 	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
-	for y in range(first.y,last.y+1):
-		for x in range(first.x,last.x+1):
+	# Most of the wall never deforms. Draw it as texture regions, not hundreds of meshes.
+	var patch:=Rect2()
+	for index in hedge_field.active:
+		var point:Vector2=hedge_field.crowns[index].base
+		if patch.has_area():patch=patch.expand(point)
+		else:patch=Rect2(point-Vector2.ONE,Vector2.ONE*2)
+	if patch.has_area():
+		patch=patch.grow(64)
+		patch=Rect2((patch.position/32).floor()*32,(patch.end/32).ceil()*32-(patch.position/32).floor()*32).intersection(region)
+	if not patch.has_area():
+		draw_body_region(texture,region)
+		draw_set_transform(Vector2.ZERO)
+		return
+	for rectangle in [Rect2(region.position,Vector2(region.size.x,patch.position.y-region.position.y)),Rect2(Vector2(region.position.x,patch.end.y),Vector2(region.size.x,region.end.y-patch.end.y)),Rect2(Vector2(region.position.x,patch.position.y),Vector2(patch.position.x-region.position.x,patch.size.y)),Rect2(Vector2(patch.end.x,patch.position.y),Vector2(region.end.x-patch.end.x,patch.size.y))]:
+		if rectangle.has_area():draw_body_region(texture,rectangle)
+	var first:Vector2i=Vector2i((patch.position/32).floor())
+	var last:Vector2i=Vector2i((patch.end/32).ceil())
+	var offsets:Dictionary={}
+	for y in range(first.y,last.y):
+		for x in range(first.x,last.x):
 			if not hedge_field.body_tiles.has(Vector2i(x,y)):continue
 			var polygon:=PackedVector2Array();var uv:=PackedVector2Array()
 			for corner in [Vector2i(x,y),Vector2i(x+1,y),Vector2i(x+1,y+1),Vector2i(x,y+1)]:
@@ -2695,3 +2710,6 @@ func draw_hedge_body(bounds: Rect2) -> void:
 				uv.append(point/(Vector2(texture.get_size())*2))
 			draw_polygon(polygon,PackedColorArray([Color.WHITE]),uv,texture)
 	draw_set_transform(Vector2.ZERO)
+
+func draw_body_region(texture: Texture2D, region: Rect2) -> void:
+	draw_texture_rect_region(texture,Rect2(region.position-Vector2(0,HEDGE_LIFT),region.size),Rect2(region.position/2,region.size/2))

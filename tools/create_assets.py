@@ -448,6 +448,14 @@ for name in NAMES:
  if name not in retained_names:continue
  old=retained_names[name];new=NAMES.index(name)
  atlas.paste(retained.crop(((old%16)*32,(old//16)*48,(old%16+1)*32,(old//16+1)*48)),((new%16)*32,(new//16)*48))
+# Maze trees use the exact ordinary tree canopy and bark, not enlarged shrub leaves.
+for target,source_name in [('hedge_tree','tree'),('hedge_tree_apples','tree_apples')]:
+ old=NAMES.index(source_name);new=NAMES.index(target)
+ atlas.paste(atlas.crop(((old%16)*32,(old//16)*48,(old%16+1)*32,(old//16+1)*48)),((new%16)*32,(new//16)*48))
+# Bake 3:2 tree scaling once: fractional nearest sampling otherwise shimmers on camera moves.
+for name in ['hedge_tree','hedge_tree_apples']:
+ i=NAMES.index(name)
+ atlas.crop(((i%16)*32,(i//16)*48,(i%16+1)*32,(i//16+1)*48)).resize((48,72),Image.Resampling.NEAREST).save(A/(name+'.png'))
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)

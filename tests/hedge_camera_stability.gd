@@ -3,7 +3,10 @@ extends SceneTree
 class CanopyView extends "res://scripts/game.gd":
 	func _draw() -> void:
 		if hedge_field==null:return
+		for tree in hedge_trees.values():draw_sprite("hedge_tree",screen(tree.pos))
 		draw_hedge_canopy(hedge_field.visible_ids(Rect2(Vector2.ZERO,Vector2(10000,10000))))
+
+		for tree in hedge_trees.values():draw_hedge_tree_top("hedge_tree",tree.pos)
 
 func _initialize() -> void:call_deferred("run")
 
@@ -30,5 +33,5 @@ func run() -> void:
 	var c:Image=await capture(game,origin+Vector2(1,0))
 	var size:=a.get_size()-Vector2i(20,20)
 	assert(a.get_region(Rect2i(Vector2i(11,10),size)).get_data()==c.get_region(Rect2i(Vector2i(10,10),size)).get_data(),"Camera translation changed crown overlap")
-	print("PASS canopy pixels and overlap remain identical across fractional and integer camera movement")
+	print("PASS canopy/tree pixels and overlap remain identical across fractional and integer camera movement")
 	quit()

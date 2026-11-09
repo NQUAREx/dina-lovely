@@ -15,11 +15,15 @@ var trunks: Array[Vector2] = []
 var body_texture: ImageTexture
 var body_tiles: Dictionary = {}
 var last_player := Vector2.INF
+var visible_first:=Vector2i(-9999,-9999)
+var visible_last:=Vector2i(-9999,-9999)
+var visible_candidates:Array[int]=[]
 var rng := RandomNumberGenerator.new()
 
 func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dictionary, material: Image = null) -> void:
 	crowns.clear();chains.clear();segments.clear();segment_cells.clear();bins.clear();active.clear();draw_order.clear();trunks.clear();body_tiles.clear();body_texture=null;last_player=Vector2.INF
 	grid=map.duplicate();rng.seed=seed_value+38911
+	visible_first=Vector2i(-9999,-9999);visible_candidates.clear()
 	for tree in trees.values():trunks.append(tree.pos)
 	var graph:Dictionary={}
 	for y in range(grid.size()):
@@ -79,6 +83,8 @@ func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dict
 	draw_order.sort_custom(func(a,b):
 		if crowns[a].base.y==crowns[b].base.y:return crowns[a].base.x<crowns[b].base.x
 		return crowns[a].base.y<crowns[b].base.y)
+	for rank in range(draw_order.size()):crowns[draw_order[rank]].rank=rank
+	for node in crowns:node.neighbours=near_ids(node.base,38)
 	build_body(material)
 
 func wall(cell: Vector2i) -> bool:
@@ -157,7 +163,7 @@ func update(delta: float, player: Vector2) -> void:
 		# Sweep each crown against its neighbours: it can bend but cannot overlap them.
 		var next:Vector2=node.base+desired
 		var own_radius:float=node.radius*(1-node.press*.07)
-		var neighbours:=near_ids(node.base,38)
+		var neighbours:Array[int]=node.neighbours
 		var valid:=surface_fits(next,own_radius*.75)
 		for other_index in neighbours:
 			if other_index==index:continue
@@ -210,9 +216,21 @@ func foreground(player: Vector2) -> bool:
 				if distance<nearest:nearest=distance;normal=away
 	return normal.y<=absf(normal.x)
 
+func crown_behind_hero(index: int, player: Vector2) -> bool:
+	# Max rendered radius 19 + max bend 6 + lift 16 keeps whole front crowns below y-28.
+	return crowns[index].base.y<=player.y+13
+
 func visible_ids(bounds: Rect2) -> PackedInt32Array:
+	var first:=Vector2i((bounds.position/BIN).floor())
+	var last:=Vector2i((bounds.end/BIN).floor())
+	if first!=visible_first or last!=visible_last:
+		visible_first=first;visible_last=last;visible_candidates.clear()
+		for y in range(first.y,last.y+1):
+			for x in range(first.x,last.x+1):
+				for index in bins.get(Vector2i(x,y),[]):visible_candidates.append(index)
+		visible_candidates.sort_custom(func(a,b):return crowns[a].rank<crowns[b].rank)
 	var result:=PackedInt32Array()
-	for index in draw_order:
+	for index in visible_candidates:
 		if bounds.has_point(crowns[index].base):result.append(index)
 	return result
 
