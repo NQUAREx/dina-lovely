@@ -77,7 +77,7 @@ var task_return_facing := Vector2.DOWN
 var task_return_aim := Vector2.RIGHT
 var walk_facing := Vector2.DOWN
 var food_hearts_left := 0
-var food_heart_clock := .2
+var food_heart_clock := .13
 var task_kind := ""
 var task_target := Vector2.ZERO
 var transition := false
@@ -1038,10 +1038,7 @@ func item_name(obj: Dictionary) -> String:
 	if obj.kind.begins_with("rack_") or obj.kind.begins_with("weapon_"):
 		var weapon_name:String=obj.get("weapon",str(obj.id))
 		return tx("weapon_"+weapon_name)
-	if obj.kind in ["note","note_open"]:
-		for letter in content.letters:
-			if letter.id==obj.id:return letter.title
-		return tx("item_letter")
+	if obj.kind in ["note","note_open"]:return tx("item_letter")
 	if obj.kind=="chest":return tx("item_final_chest") if obj.id=="final" else tx("item_chest")
 	if obj.kind=="berries":return tx("item_berries")
 	if obj.kind=="tree_apples":return tx("item_apple")
@@ -1052,8 +1049,14 @@ func item_name(obj: Dictionary) -> String:
 	if level==6 and obj.kind=="stone":return tx("item_puzzle_reset") if obj.id=="puzzle_reset" else tx("symbol_"+str(obj.id))
 	return ""
 
+func item_display_position(obj: Dictionary) -> Vector2:
+	var pos:Vector2=obj.pos
+	if obj.kind=="accessory":pos.y+=sin(time*2)*2
+	elif obj.kind=="note" and obj.id!="buried":pos.y+=sin(time*2+pos.x)*4+25*(1-clampf((time-float(obj.get("rise_start",time-1)))/.45,0,1))
+	return pos
+
 func item_visual_bounds(obj: Dictionary) -> Rect2:
-	var position:Vector2=obj.pos
+	var position:Vector2=item_display_position(obj)
 	if obj.kind=="berries" and hedge_field!=null:
 		var bounds:=Rect2()
 		for index in hedge_field.near_ids(position,52):
@@ -1075,8 +1078,6 @@ func item_visual_bounds(obj: Dictionary) -> Rect2:
 		var result:=Rect2(position+local.position.rotated(PI/2),Vector2.ZERO)
 		for corner in [local.position,local.position+Vector2(local.size.x,0),local.end,local.position+Vector2(0,local.size.y)]:result=result.expand(position+corner.rotated(PI/2))
 		return result
-	if obj.kind=="accessory":position.y+=sin(time*2)*2
-	if obj.kind=="note" and obj.id!="buried":position.y+=sin(time*2+position.x)*4+25*(1-clampf((time-float(obj.get("rise_start",time-1)))/.45,0,1))
 	if obj.kind=="stand_flashlight":position.y-=40
 	var scale_factor:=3.0 if obj.kind=="chest" and obj.id=="final" else 1.0
 	var bounds:=Rect2(position+(source.position*2-Vector2(32,86))*scale_factor,source.size*2*scale_factor)
@@ -1103,7 +1104,7 @@ func draw_item_names() -> void:
 		occupied.append(box)
 		var p:Vector2=candidate.p;var text:String=candidate.text
 		# Neutral translucent backing only; text keeps full opacity.
-		draw_rect(box,Color(.3,.3,.3,.18))
+		draw_rect(box,Color(.3,.3,.3,.25))
 		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,14,CREAM)
 
 func action_text(obj: Dictionary) -> String:
@@ -1151,7 +1152,7 @@ func interact() -> void:
 		equip_tool(id);persist();sfx("ui")
 	elif obj.kind in ["berries","tree_apples"]:
 		save_data.eaten.append(id);health=mini(8,health+2);sfx("eat");persist()
-		food_hearts_left=10;food_heart_clock=.2
+		food_hearts_left=10;food_heart_clock=.13
 		food_heart_burst()
 	elif obj.kind=="mound":
 		if not save_data.shovel: notify(tx("shovel_required"))
@@ -1605,7 +1606,7 @@ func _draw() -> void:
 				if item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p+Vector2(0,10),.75)
-				else:draw_pickup_outline(highlight,p+Vector2(0,-40) if kind=="stand_flashlight" else p,3.0 if kind=="chest" and item.id=="final" else 1.0)
+				else:draw_pickup_outline(highlight,screen(item_display_position(item))+Vector2(0,-40) if kind=="stand_flashlight" else screen(item_display_position(item)),3.0 if kind=="chest" and item.id=="final" else 1.0)
 			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false):
 				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
 				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
@@ -1647,8 +1648,8 @@ func _draw() -> void:
 			elif kind=="note_open" and item.id=="buried":draw_buried_paper(p,true)
 			elif kind in ["flowers","blueflowers"]:
 				draw_sprite(kind+"_pressed_"+str(clampi(roundi(float(item.get("press",0))*2),0,2)),p)
-			elif kind=="accessory":draw_sprite("accessory_"+str(item.accessory),p+Vector2(0,sin(time*2)*2))
-			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4+25*(1-clampf((time-float(item.get("rise_start",time-1)))/.45,0,1))))
+			elif kind=="accessory":draw_sprite("accessory_"+str(item.accessory),screen(item_display_position(item)))
+			elif kind=="note": draw_sprite(kind,screen(item_display_position(item)))
 			else: draw_sprite(kind,p)
 			if level==6 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("b5a3bb"))
 			if kind in ["arch","doorway"]:
@@ -2559,7 +2560,7 @@ func door_is_open(id: String) -> bool:
 	return id=="back" or level in save_data.get("open_gates",[])
 
 func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
-	var origin := pos+camera-get_viewport_rect().size/2-shake_offset
+	var origin := pos-(get_viewport_rect().size/2-camera+shake_offset).round()
 	var light := origin+Vector2(-180,-240)
 	var nearest_light := INF
 	for obj in objects:
@@ -2569,7 +2570,7 @@ func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
 	if level==1 and save_data.flashlight:light=player+aim*30
 	var away := (origin-light).normalized()
 	var stretch := .25+clampf(origin.distance_to(light)/900,0,.35)
-	var flicker := .02*sin(time*4+origin.x*.01)
+	var flicker := 0.0 if name in ["tree","tree_apples","hedge_tree","hedge_tree_apples"] else .02*sin(time*4+origin.x*.01)
 	var projection:=Transform2D(Vector2(1,0),Vector2(-away.x*(.55+flicker),-away.y*stretch),pos+Vector2(0,3))
 	if level not in [1,2,4] and name.begins_with("hero"):
 		if absf(projection.determinant())<.01:return
@@ -2577,9 +2578,37 @@ func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
 		for vertex in [Vector2(-32,-86),Vector2(32,-86),Vector2(32,10),Vector2(-32,10)]:quad.append(projection*(vertex*scale_factor))
 		draw_floor_shadow(quad,Color(.06,.055,.1,.28),projection,sprites[name],scale_factor)
 		return
+	if name in ["tree","tree_apples","hedge_tree","hedge_tree_apples"]:
+		var world_projection:=projection;world_projection.origin=origin+Vector2(0,3)
+		if draw_tree_shadow_clipped(name,world_projection,scale_factor):return
 	draw_set_transform_matrix(projection)
 	draw_sprite(name,Vector2.ZERO,Color(.06,.055,.1,.28),scale_factor)
 	draw_set_transform(Vector2.ZERO)
+
+func draw_tree_shadow_clipped(name: String, projection: Transform2D, scale_factor: float) -> bool:
+	if absf(projection.determinant())<.0001:return true
+	var integrated:=name.begins_with("hedge_tree")
+	var anchor:=Vector2(32,96 if integrated else 86)
+	var quad:=PackedVector2Array()
+	var bounds:=Rect2()
+	for corner in [Vector2.ZERO,Vector2(64,0),Vector2(64,96),Vector2(0,96)]:
+		var point:Vector2=projection*((corner-anchor)*scale_factor)
+		quad.append(point)
+		bounds=Rect2(point,Vector2.ZERO) if quad.size()==1 else bounds.expand(point)
+	var map_rect:=Rect2(Vector2.ZERO,Vector2(grid[0].length(),grid.size())*TILE)
+	if map_rect.encloses(bounds):return false
+	var map_polygon:=PackedVector2Array([Vector2.ZERO,Vector2(map_rect.end.x,0),map_rect.end,Vector2(0,map_rect.end.y)])
+	var texture:Texture2D=hedge_tree_textures[name] if integrated else atlas
+	var id:int=sprites[name];var inverse:=projection.affine_inverse()
+	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
+	for clipped in Geometry2D.intersect_polygons(quad,map_polygon):
+		var uv:=PackedVector2Array()
+		for point in clipped:
+			var local:Vector2=inverse*point/scale_factor+anchor
+			uv.append(local/Vector2(64,96) if integrated else (Vector2(id%16*32,id/16*48)+local/2)/Vector2(atlas.get_size()))
+		draw_polygon(clipped,PackedColorArray([Color(.06,.055,.1,.28)]),uv,texture)
+	draw_set_transform(Vector2.ZERO)
+	return true
 
 func prepare_room_details(rng: RandomNumberGenerator) -> void:
 	if level in [4,6]:
@@ -2639,7 +2668,7 @@ func shadow_ray_clear(destination: Vector2) -> bool:
 func draw_floor_shadow(polygon: PackedVector2Array, color: Color, projection: Transform2D = Transform2D.IDENTITY, sprite_id: int = -1, scale_factor: float = 1.0) -> void:
 	var bounds:=Rect2(polygon[0],Vector2.ZERO)
 	for point in polygon:bounds=bounds.expand(point)
-	var origin:=camera-get_viewport_rect().size/2-shake_offset
+	var origin:=-(get_viewport_rect().size/2-camera+shake_offset).round()
 	var first:=Vector2i((bounds.position+origin)/TILE)-Vector2i.ONE
 	var last:=Vector2i((bounds.end+origin)/TILE)+Vector2i.ONE
 	for y in range(first.y,last.y+1):
@@ -2785,7 +2814,7 @@ func update_food_hearts(delta: float) -> void:
 	if food_hearts_left<=0:return
 	food_heart_clock-=delta
 	while food_heart_clock<=0 and food_hearts_left>0:
-		food_heart_clock+=.2;food_hearts_left-=1
+		food_heart_clock+=.13;food_hearts_left-=1
 		particles.append({"pos":player+Vector2(randf_range(-5,5),-48),"vel":Vector2(randf_range(-4,4),-23),"life":1.8,"color":Color("ef436b"),"heart":true})
 
 func draw_hedge_tree_top(kind: String, position: Vector2) -> void:
@@ -2854,9 +2883,10 @@ func draw_hedge_body(bounds: Rect2) -> void:
 			if not hedge_field.body_tiles.has(Vector2i(x,y)):continue
 			var polygon:=PackedVector2Array();var uv:=PackedVector2Array()
 			for corner in [Vector2i(x,y),Vector2i(x+1,y),Vector2i(x+1,y+1),Vector2i(x,y+1)]:
-				var point:=Vector2(corner)*32
+				var extent:=Vector2(texture.get_size())*2
+				var point:Vector2=(Vector2(corner)*32).clamp(Vector2.ZERO,extent)
 				if not offsets.has(corner):offsets[corner]=hedge_field.body_offset(point)
-				polygon.append(point+offsets[corner]-Vector2(0,HEDGE_LIFT))
+				polygon.append((point+offsets[corner]).clamp(Vector2.ZERO,extent)-Vector2(0,HEDGE_LIFT))
 				uv.append(point/(Vector2(texture.get_size())*2))
 			draw_polygon(polygon,PackedColorArray([Color.WHITE]),uv,texture)
 	draw_set_transform(Vector2.ZERO)
