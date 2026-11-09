@@ -2081,7 +2081,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 	var spine_points:Array[Vector2]=[start]
 	for n in range(1,5):
 		var point:=start.lerp(end,float(n)/5)
-		point.x+=rng.randf_range(-70,135);point.y+=rng.randf_range(-24,24)
+		point.x+=rng.randf_range(-200,240);point.y+=rng.randf_range(-38,38)
 		spine_points.append(point)
 	spine_points.append(end)
 	for n in range(spine_points.size()):
@@ -2112,7 +2112,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 		# around an object. The shortest visible gentle curve wins.
 		var branch:=PackedVector2Array()
 		var approach_cost:=INF
-		var bend_fraction:=rng.randf_range(.16,.23)*(1 if rng.randf()<.5 else -1)
+		var bend_fraction:=rng.randf_range(.34,.52)*(1 if rng.randf()<.5 else -1)
 		for path in paths:
 			for sample in range(0,path.size(),3):
 				var candidate:Vector2=path[sample]
@@ -2121,10 +2121,15 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 				var outward:Vector2=(candidate-target.pos).normalized()
 				var tip:Vector2=target.pos+outward*radius*.15
 				var side:Vector2=(tip-candidate).normalized().orthogonal()
-				var bend_amount:=clampf(distance*bend_fraction,-75,75)
+				var bend_amount:=clampf(distance*bend_fraction,-180,180)
 				var curve:=Curve2D.new();curve.bake_interval=6
-				curve.add_point(candidate,Vector2.ZERO,(tip-candidate)/3+side*bend_amount)
-				curve.add_point(tip,(candidate-tip)/3+side*bend_amount,Vector2.ZERO)
+				# Broad offset waypoints give a wandering route, not a direct link.
+				var waypoint_a:=candidate.lerp(tip,.34)+side*bend_amount
+				var waypoint_b:=candidate.lerp(tip,.7)+side*bend_amount*.45
+				var knots:Array[Vector2]=[candidate,waypoint_a,waypoint_b,tip]
+				for k in range(knots.size()):
+					var handle:Vector2=(knots[mini(k+1,knots.size()-1)]-knots[maxi(0,k-1)])/5
+					curve.add_point(knots[k],-handle,handle)
 				var points:=roughen_path(curve.get_baked_points(),int(save_data.seed)+selected*137+level*731)
 				var clear:=true
 				for point in points:
