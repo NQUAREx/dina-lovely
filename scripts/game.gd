@@ -1325,7 +1325,7 @@ func hurt() -> void:
 		box.add_child(button(tx("menu_action"), show_menu))
 
 func screen(pos: Vector2) -> Vector2:
-	return (pos-camera+get_viewport_rect().size/2+shake_offset).round()
+	return pos+(get_viewport_rect().size/2-camera+shake_offset).round()
 
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
 	var id := int(sprites.get(name,0))
@@ -1459,7 +1459,7 @@ func _draw() -> void:
 			var pos:=screen(crown.base+crown.offset)
 			draw_texture_rect(glow,Rect2(pos-Vector2(r+8,r*.85),Vector2(r*2+16,r*1.8+8)),false,Color(0,0,0,.65))
 		draw_hedge_body(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
-		for index in visible_crowns:draw_leaf_crown(index)
+		if not hedge_field.foreground(player):draw_hedge_canopy(visible_crowns)
 
 	renderables.sort_custom(func(a,b):
 		if a.pos.y==b.pos.y:
@@ -1468,6 +1468,7 @@ func _draw() -> void:
 			return a.pos.x<b.pos.x
 		return a.pos.y<b.pos.y)
 	for item in renderables:
+		if item.get("integrated_tree",false):continue
 		var p := screen(item.pos)
 		var kind: String = "tree" if item.kind=="tree_apples" and item.id in save_data.eaten else item.kind
 		if kind=="player":
@@ -1483,6 +1484,7 @@ func _draw() -> void:
 				var angle := aim.angle()
 				draw_arc(p+Vector2(0,-20),88,angle-1.1,angle+1.1,22,Color(1,.84,.75,attack_flash/.19),7)
 				draw_arc(p+Vector2(0,-20),101,angle-.8,angle+.8,18,Color(1,.65,.79,attack_flash/.19),3)
+			if hedge_field!=null and hedge_field.foreground(player):draw_hedge_canopy(visible_crowns)
 		elif item.has("enemy"):
 			var enemy: Dictionary = item.enemy
 			if enemy.state=="warn":
@@ -1547,12 +1549,6 @@ func _draw() -> void:
 			elif kind=="accessory":draw_sprite("accessory_"+str(item.accessory),p+Vector2(0,sin(time*2)*2))
 			elif kind=="note": draw_sprite(kind,p+Vector2(0,sin(time*2+item.pos.x)*4+25*(1-clampf((time-float(item.get("rise_start",time-1)))/.45,0,1))))
 			else: draw_sprite(kind,p)
-			if item.get("integrated_tree",false) and hedge_field!=null:
-				var roots:Array[int]=[]
-				for index in hedge_field.near_ids(item.pos,32):
-					var node:Dictionary=hedge_field.crowns[index]
-					if node.base.distance_to(item.pos)<34 and node.base.y>=item.pos.y-5:roots.append(index)
-				for index in roots:draw_leaf_crown(index)
 			if kind.begins_with("rack_") and item.id not in save_data.weapons_taken and item.pos.distance_to(player)<95:
 				draw_string(body_font,p+Vector2(-25,-75),{"rpg":tx("weapon_rpg"),"rifle":tx("weapon_rifle"),"sword":tx("weapon_sword")}[item.id],HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
 			if level==6 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("b5a3bb"))
@@ -1560,9 +1556,13 @@ func _draw() -> void:
 				var open: bool = door_is_open(str(item.id))
 				draw_texture_rect(glow,Rect2(p-Vector2(65,110),Vector2(130,150)),false,Color(.9,1,.9,1 if open else .2))
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
-	if hedge_field!=null and hedge_field.foreground(player):
-		for index in visible_crowns:
-			if hedge_field.crowns[index].base.distance_to(player)<100:draw_leaf_crown(index)
+	# Each crown has one fixed place in the painter order. Never redraw a local subset.
+	# Trees remain above the canopy regardless of the heroine's wall-side classification.
+	for item in renderables:
+		if not item.get("integrated_tree",false):continue
+		var p:=screen(item.pos)
+		if available(item) and item.pos.distance_to(player)<95:draw_pickup_outline(item.kind,p+Vector2(0,10),.75)
+		draw_sprite(item.kind,p)
 
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
@@ -2622,10 +2622,17 @@ func update_food_hearts(delta: float) -> void:
 		food_heart_clock+=.3;food_hearts_left-=1
 		particles.append({"pos":player+Vector2(randf_range(-5,5),-48),"vel":Vector2(randf_range(-4,4),-23),"life":1.8,"color":Color("ef436b"),"heart":true})
 
+func draw_hedge_canopy(indices: PackedInt32Array) -> void:
+	# Quantize the camera once, not each overlapping crown independently.
+	# Relative crown positions remain constant while the camera moves.
+	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
+	for index in indices:draw_leaf_crown(index)
+	draw_set_transform(Vector2.ZERO)
+
 func draw_leaf_crown(index: int) -> void:
 	var node:Dictionary=hedge_field.crowns[index]
-	var radius:float=node.radius*1.48*(1-node.press*.07)
-	var centre:=screen(node.base+node.offset)-Vector2(0,HEDGE_LIFT)
+	var radius:float=roundf(node.radius*1.48*(1-node.press*.07))
+	var centre:Vector2=(node.base+node.offset).round()-Vector2(0,HEDGE_LIFT)
 	var berry:bool=not str(node.berry).is_empty() and node.berry not in save_data.eaten
 	var texture_name:="crown_berry_" if berry else "crown_leaf_"
 	texture_name+=str(node.variant)
