@@ -29,7 +29,13 @@ root=p.parent.parent
 content=json.loads((root/'content/letters.json').read_text())
 import hashlib
 frame_hash=hashlib.sha256(b''.join((root/'assets'/f'frame_{part}_{room}.png').read_bytes() for room in range(7) for part in ['field','top','bottom'])).hexdigest()[:12]
-(p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__FRAME_ART_HASH__',frame_hash))
+from PIL import Image, ImageStat
+# Sample the actual decorative field, rather than maintaining a separate palette.
+frame_colors=[]
+for room in range(7):
+ with Image.open(root/'assets'/f'frame_field_{room}.png') as field:
+  frame_colors.append([round(c) for c in ImageStat.Stat(field.convert('RGB')).mean])
+(p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)))
 shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
 shutil.copyfile(root/'assets/title.ttf',p.parent/'letter-title.ttf')
 from PIL import Image, ImageDraw
@@ -95,3 +101,8 @@ p.write_text(s)
 
 for frame_asset in ["frame_top.png","frame_bottom.png"] + [f"frame_{part}_{room}.png" for room in range(7) for part in ["top","bottom","field"]]:
  shutil.copyfile(root/"assets"/frame_asset,p.parent/frame_asset)
+
+# Extend the existing decorative fields beneath the iOS status bar / sensor housing.
+s=p.read_text()
+s=re.sub(r'(<meta name="viewport" content=")[^"]*(")',r'\1width=device-width, user-scalable=no, initial-scale=1.0, viewport-fit=cover\2',s)
+p.write_text(s)

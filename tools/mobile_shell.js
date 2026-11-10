@@ -1,7 +1,24 @@
 (()=>{
  const frameArtVersion='__FRAME_ART_HASH__';
+ // The same room palette also colors browser-owned areas where textures cannot render.
+ const roomChromeColors=__FRAME_COLORS__;
+ let chromeColor=roomChromeColors[0].slice(),chromeAnimation=0;
+ const paintChrome=color=>{
+  const css='#'+color.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+  document.documentElement.style.setProperty('background-color',css,'important');
+  document.body?.style.setProperty('background-color',css,'important');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',css);
+ };
+ const syncChrome=(room,animate=true)=>{
+  cancelAnimationFrame(chromeAnimation);const from=chromeColor.slice(),to=roomChromeColors[room],start=performance.now();let painted=-100;
+  const tick=now=>{const t=animate?Math.min(1,(now-start)/1100):1;const eased=t*t*(3-2*t);chromeColor=from.map((v,i)=>v+(to[i]-v)*eased);
+   if(now-painted>=80||t===1){paintChrome(chromeColor);painted=now;}
+   if(t<1)chromeAnimation=requestAnimationFrame(tick);
+  };tick(start);
+ };
+ syncChrome(0,false);addEventListener('DOMContentLoaded',()=>paintChrome(chromeColor));
  const frameAsset=(part,room)=>'frame_'+part+'_'+room+'.png?v='+frameArtVersion;
- const safeTint=document.createElement('div');safeTint.setAttribute('aria-hidden','true');safeTint.style.cssText='position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);z-index:41;background:rgba(16,18,30,.5);pointer-events:none';document.documentElement.append(safeTint);
+ const safeTint=document.createElement('div');safeTint.setAttribute('aria-hidden','true');safeTint.style.cssText='position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);z-index:41;background:rgba(16,18,30,.18);pointer-events:none';document.documentElement.append(safeTint);
  const frameSlots=[0,1].map(index=>{
   const field=document.createElement('div');field.setAttribute('aria-hidden','true');field.style.cssText='position:fixed;inset:0;z-index:0;pointer-events:none;image-rendering:pixelated;background-size:192px 192px;transition:opacity 1.1s ease;opacity:'+Number(index===0);field.style.backgroundImage='url('+frameAsset('field',0)+')';document.documentElement.append(field);
   const borders=['top','bottom'].map(edge=>{const image=document.createElement('img');image.src=frameAsset(edge,0);image.alt='';image.setAttribute('aria-hidden','true');image.style.cssText='position:fixed;z-index:40;pointer-events:none;image-rendering:pixelated;object-fit:fill;transition:opacity 1.1s ease;opacity:'+Number(index===0);document.documentElement.append(image);return image;});
@@ -10,7 +27,7 @@
  const layoutFrames=()=>{const canvas=document.getElementById('canvas');if(!canvas)return;canvas.style.zIndex='1';const r=canvas.getBoundingClientRect(),height=r.width*40/270;frameSlots.forEach(slot=>slot.borders.forEach((image,i)=>Object.assign(image.style,{left:r.left+'px',width:r.width+'px',height:height+'px',top:(i?r.bottom-height*.50:r.top-height*.60)+'px'})));};
  const loadedFrames=new Map();let activeFrame=0,wantedRoom=0,frameRequest=0,frameBusyUntil=0;window.gardenFrameRoom=0;
  const preloadFrame=room=>{if(!loadedFrames.has(room))loadedFrames.set(room,Promise.all(['field','top','bottom'].map(part=>new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(true);image.onerror=()=>resolve(false);image.src=frameAsset(part,room);}))));return loadedFrames.get(room);};
- window.gardenSetRoom=async room=>{room=Math.max(0,Math.min(6,Math.trunc(Number(room)||0)));if(room===wantedRoom)return;wantedRoom=room;const request=++frameRequest;const loaded=await preloadFrame(room);if(request!==frameRequest||!loaded.every(Boolean))return;if(performance.now()<frameBusyUntil)await new Promise(resolve=>setTimeout(resolve,frameBusyUntil-performance.now()+20));if(request!==frameRequest)return;const next=1-activeFrame,slot=frameSlots[next];slot.field.style.backgroundImage='url('+frameAsset('field',room)+')';slot.borders.forEach((image,i)=>image.src=frameAsset(i?'bottom':'top',room));layoutFrames();requestAnimationFrame(()=>{if(request!==frameRequest)return;[slot.field,...slot.borders].forEach(e=>e.style.opacity='1');const old=frameSlots[activeFrame];[old.field,...old.borders].forEach(e=>e.style.opacity='0');activeFrame=next;frameBusyUntil=performance.now()+1100;window.gardenFrameRoom=room;});};
+ window.gardenSetRoom=async room=>{room=Math.max(0,Math.min(6,Math.trunc(Number(room)||0)));if(room===wantedRoom)return;wantedRoom=room;const request=++frameRequest;const loaded=await preloadFrame(room);if(request!==frameRequest||!loaded.every(Boolean))return;if(performance.now()<frameBusyUntil)await new Promise(resolve=>setTimeout(resolve,frameBusyUntil-performance.now()+20));if(request!==frameRequest)return;const next=1-activeFrame,slot=frameSlots[next];slot.field.style.backgroundImage='url('+frameAsset('field',room)+')';slot.borders.forEach((image,i)=>image.src=frameAsset(i?'bottom':'top',room));layoutFrames();requestAnimationFrame(()=>{if(request!==frameRequest)return;[slot.field,...slot.borders].forEach(e=>e.style.opacity='1');const old=frameSlots[activeFrame];[old.field,...old.borders].forEach(e=>e.style.opacity='0');activeFrame=next;syncChrome(room);frameBusyUntil=performance.now()+1100;window.gardenFrameRoom=room;});};
  addEventListener('resize',layoutFrames);window.visualViewport?.addEventListener('resize',layoutFrames);addEventListener('load',layoutFrames);new ResizeObserver(layoutFrames).observe(document.documentElement);requestAnimationFrame(layoutFrames);preloadFrame(0);
  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
  const standalone=matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches||navigator.standalone;
