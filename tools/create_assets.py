@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw
 import random, math, wave, struct, json
 from pathlib import Path
 R=Path(__file__).resolve().parents[1]; A=R/'assets'; random.seed(17)
-NAMES=[]; atlas=Image.new('RGBA',(32*16,48*32))
+NAMES=[]; atlas=Image.new('RGBA',(32*16,48*36))
 def sprite(name,fn):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);fn(d);i=len(NAMES);NAMES.append(name);atlas.paste(im,((i%16)*32,(i//16)*48))
 def leaf(d,x,y,r=6):
@@ -227,6 +227,20 @@ def fallen_gunner(d):
  for x in [11,19]:d.line((x-2,32,x+2,36),fill='#465160');d.line((x+2,32,x-2,36),fill='#465160')
  d.rectangle((21,39,30,41),fill='#4f5863');d.rectangle((23,41,25,44),fill='#8b6e55')
 sprite('corpse6',fallen_gunner)
+def rocketeer(d):
+ gunner(d);d.rectangle((8,14,24,18),fill='#716c53');d.rectangle((9,12,22,14),fill='#98a377');d.rectangle((8,26,24,34),fill='#4d5c46');d.line((16,27,16,34),fill='#c6a570',width=2)
+sprite('enemy_rocketeer',rocketeer)
+sprite('corpse7',fallen_gunner)
+def poison_pool(d):
+ d.ellipse((1,30,30,44),fill='#243d32');d.ellipse((2,29,29,41),fill='#4c753b')
+ for x,y,r in [(8,34,5),(19,32,6),(24,37,4),(13,38,5)]:
+  d.ellipse((x-r,y-r//2,x+r,y+r//2),fill='#729c42');d.line((x-r+1,y-1,x,y-2),fill='#a6c958')
+ for x,y in [(7,33),(20,30),(24,37),(14,38)]:d.point((x,y),fill='#d1df7a')
+sprite('poison_pool',poison_pool)
+def poison_glob(d):
+ d.ellipse((7,20,25,39),fill='#345336');d.ellipse((8,20,24,35),fill='#79a344');d.ellipse((11,21,18,25),fill='#c1d970');d.rectangle((16,35,19,42),fill='#629140')
+sprite('poison_glob',poison_glob)
+
 def cat_art(d,face,frame=0,idle=False,sit=False):
  outline='#574754';fur='#c9996e';light='#e7bf91';cream='#f4dcc0';stripe='#98684f'
  b=frame%2 if frame<2 else 0

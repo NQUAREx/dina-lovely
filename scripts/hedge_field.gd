@@ -15,6 +15,8 @@ var trunks: Array[Vector2] = []
 var body_texture: ImageTexture
 var body_tiles: Dictionary = {}
 var last_player := Vector2.INF
+var wind_clock:=4.0
+var wind_rng:=RandomNumberGenerator.new()
 var contact_strength:=0.0
 var motion_strength:=0.0
 var visible_first:=Vector2i(-9999,-9999)
@@ -24,7 +26,7 @@ var rng := RandomNumberGenerator.new()
 
 func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dictionary, material: Image = null) -> void:
 	removed_cells.clear();crowns.clear();chains.clear();segments.clear();segment_cells.clear();bins.clear();active.clear();draw_order.clear();trunks.clear();body_tiles.clear();body_texture=null;last_player=Vector2.INF;contact_strength=0.0;motion_strength=0.0
-	grid=map.duplicate();rng.seed=seed_value+38911
+	grid=map.duplicate();rng.seed=seed_value+38911;wind_rng.randomize();wind_clock=wind_rng.randf_range(4,8)
 	visible_first=Vector2i(-9999,-9999);visible_candidates.clear()
 	for tree in trees.values():trunks.append(tree.pos)
 	var graph:Dictionary={}
@@ -150,6 +152,16 @@ func near_ids(point: Vector2, radius: float) -> Array[int]:
 func update(delta: float, player: Vector2) -> void:
 	delta=minf(delta,1.0/30.0)
 	last_player=player;contact_strength=0.0;motion_strength=0.0
+	wind_clock-=delta
+	if wind_clock<=0:
+		wind_clock=wind_rng.randf_range(4.0,9.0)
+		var candidates:=near_ids(player,380)
+		if not candidates.is_empty():
+			var chosen:int=candidates[wind_rng.randi_range(0,candidates.size()-1)]
+			var gust:=wind_rng.randf_range(7,12)*(1 if wind_rng.randf()>.5 else -1)
+			for index in near_ids(crowns[chosen].base,55):
+				if crowns[index].get("hidden",false):continue
+				crowns[index].sway_velocity+=gust;active[index]=true
 	for index in near_ids(player,60):
 		if not crowns[index].get("hidden",false) and crowns[index].base.distance_to(player)<52:active[index]=true
 	var done:Array[int]=[]
@@ -159,20 +171,19 @@ func update(delta: float, player: Vector2) -> void:
 		var previous_depression:float=node.depression
 		var away:Vector2=node.base-player
 		if away.length()>44:node.released=false
-		var pressure:=0.0 if node.released else clampf((36-away.length())/18,0,1)
+		var pressure:=clampf((36-away.length())/18,0,1)
 		var required_drop:=maxf(0,ceilf(player.y-28+roundf(node.radius*1.48))-((node.base+node.offset).round().y-16))
-		if pressure>0 and required_drop>22:
-			node.released=true;pressure=0.0
+		node.released=pressure>0 and required_drop>22
 		if pressure>.005 and node.last_pressure<=.005:
 			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(14+pressure*6)
 		node.last_pressure=pressure
-		node.sway_velocity+=(-node.sway*45-node.sway_velocity*1.5)*delta
+		node.sway_velocity+=(-node.sway*45-node.sway_velocity*.75)*delta
 		node.sway=clampf(node.sway+node.sway_velocity*delta,-2.1,2.1)
 		if absf(node.sway)<.025 and absf(node.sway_velocity)<.1:node.sway=0.0;node.sway_velocity=0.0
 		contact_strength=maxf(contact_strength,pressure)
 		node.press=move_toward(float(node.press),pressure,delta*5)
 		var target:=away.normalized()*5.5*pressure
-		node.velocity+=(target-node.offset)*145*delta-node.velocity*7.5*delta
+		node.velocity+=(target-node.offset)*145*delta-node.velocity*3.75*delta
 		var desired:Vector2=node.offset+node.velocity*delta
 		desired=desired.limit_length(6)
 		# Sweep each crown against its neighbours: it can bend but cannot overlap them.
@@ -201,7 +212,7 @@ func update(delta: float, player: Vector2) -> void:
 			node.depression=minf(22,maxf(0,ceilf(player.y-28+leaf_radius)-((node.base+node.offset).round().y-16)))
 			node.depression_velocity=0.0
 		else:
-			node.depression_velocity+=(-node.depression*130-node.depression_velocity*7)*delta
+			node.depression_velocity+=(-node.depression*130-node.depression_velocity*3.5)*delta
 			node.depression=clampf(node.depression+node.depression_velocity*delta,-1.5,22)
 			if absf(node.depression)<.03 and absf(node.depression_velocity)<.1:node.depression=0.0;node.depression_velocity=0.0
 

@@ -13,10 +13,10 @@ void fragment(){
  float along=dot(offset,direction);
  float across=abs(offset.x*direction.y-offset.y*direction.x);
  float width=14.0+max(0.0,along)*.42;
- float core=(1.0-smoothstep(width*.1,width,across))*smoothstep(-12.0,18.0,along)*(1.0-smoothstep(100.0,270.0,along));
+ float core=(1.0-smoothstep(width*.1,width,across))*smoothstep(-12.0,18.0,along)*(1.0-smoothstep(85.0,229.5,along));
  float scattered=(1.0-smoothstep(20.0,100.0,length(offset)))*.48;
  float near_light=.96*(1.0-smoothstep(25.0,65.0,length(offset+vec2(14.0,10.0))));
  float light=enabled?max(near_light,max(core*.95,scattered)):0.0;
  float in_room=smoothstep(room_band.x-64.0,room_band.x+64.0,UV.y*view_size.y)*(1.0-smoothstep(room_band.y-64.0,room_band.y+64.0,UV.y*view_size.y));
- COLOR=vec4(vec3(.055,.038,.019)*core*(enabled?1.0:0.0), (1.0-light)*max(room_opacity,in_room));
+ COLOR=vec4(vec3(.06325,.038,.01615)*core*(enabled?1.0:0.0), (1.0-light)*max(room_opacity,in_room));
 }

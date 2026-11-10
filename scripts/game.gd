@@ -14,7 +14,7 @@ var reply_deposit_active := false
 var reply_deposit_progress := -1.0
 var reply_slot := Vector2.ZERO
 var reply_hand_start := Vector2.ZERO
-const ROOM_FIELDS := ["grid","objects","enemies","shots","particles","skulls","damage_numbers","path_meshes","path_texture","path_pads","hedge_trees","grass_details","path_targets","path_navigation","path_terminals","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","obstacle_specs","skull_clock","obstacle_cooldown","room_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","bloom_times","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
+const ROOM_FIELDS := ["poison_zones","grid","objects","enemies","shots","particles","skulls","damage_numbers","path_meshes","path_texture","path_pads","hedge_trees","grass_details","path_targets","path_navigation","path_terminals","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","obstacle_specs","skull_clock","obstacle_cooldown","room_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","bloom_times","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
 var room_cache:Dictionary={}
 var room_cache_seed := -1
 var room_build_count := 0
@@ -154,6 +154,8 @@ var foliage_gain:=0.0
 var foliage_motion:=0.0
 var hedge_contact := false
 var gate_creak_delay := -1.0
+var poison_zones:Array[Dictionary]=[]
+var battle:=preload("res://scripts/battle_director.gd").new(self)
 var rifle_kick := 0.0
 var rifle_kick_dir := Vector2.ZERO
 var shake := 0.0
@@ -660,6 +662,7 @@ func set_cell(x: int, y: int, value: String) -> void:
 	grid[y] = grid[y].substr(0,x) + value + grid[y].substr(x+1)
 
 func build_level(index: int) -> void:
+	poison_zones=[]
 	room_build_count+=1
 	level = index
 	hedge_trees.clear();hedge_field=null;path_texture=null;path_pads.clear();rpg_windup=-1
@@ -1568,7 +1571,7 @@ func update_hud() -> void:
 		1: status.text = tx("darkness_status") % [dark_letter_count(),tx("flashlight_on") if save_data.flashlight else tx("flashlight_location")]
 		2: status.text = tx("obstacles_status") % save_data.obstacles.size()
 		3: status.text = tx("buried_note_found") if "buried" in save_data.letters else (tx("digging_hint") if save_data.shovel else tx("shovel_location"))
-		4: status.text = tx("combat_status") % [mini(wave,6),tx("combat_chest_hint") if combat_done else {"sword":tx("weapon_sword"),"rifle":tx("weapon_rifle"),"rpg":tx("weapon_rpg")}.get(weapon,tx("weapon_required"))]
+		4: status.text = tx("combat_status") % [mini(wave,10),tx("combat_chest_hint") if combat_done else {"sword":tx("weapon_sword"),"rifle":tx("weapon_rifle"),"rpg":tx("weapon_rpg")}.get(weapon,tx("weapon_required"))]
 		5: status.text = tx("garden_status") % [required_flower_count(),tx("water_prefix")+str(water)+" / 6" if garden_can else tx("can_search_hint")]
 		6: status.text = tx("puzzle_status") % puzzle.size()
 	if level>0 and level<6 and room_letters_complete() and not door_is_open("exit"):
@@ -1593,26 +1596,21 @@ func burst(pos: Vector2, count: int, color: Color) -> void:
 
 func spawn_wave() -> void:
 	wave += 1
+	poison_zones.clear()
 	health = mini(8,health+3)
 	wave_timer = 3.0
-	var count := 1 if wave==6 else 3+wave
-	for i in range(count):
-		var angle := TAU*i/count
-		var pos := Vector2(13.5,14.5)*TILE+Vector2(cos(angle)*390,sin(angle)*235)
-		enemies.append({"pos":pos,"hp":600 if wave==6 else 5+wave*2+(i%3)*2,"max_hp":600 if wave==6 else 5+wave*2+(i%3)*2,"boss":wave==6,"type":2 if wave==6 else i%mini(wave+1,5),"state":"spawn","timer":1.4+float(i)*0.14,"target":player,"cooldown":randf_range(.4,1.2)})
-	for index in range(3 if wave==6 else 2 if wave==5 else 1):
-		var pos:=Vector2(7+index*6,10.5)*TILE
-		enemies.append({"pos":pos,"hp":8+wave*2,"max_hp":8+wave*2,"boss":false,"type":5,"state":"spawn","timer":1.7+index*.2,"target":player,"cooldown":1.0+index*.4})
-	notify(tx("boss_announcement") if wave==6 else tx("wave_announcement") % wave)
+	battle.spawn()
 
 func update_combat(delta: float) -> void:
+	battle.update_poison(delta)
 	if enemies.is_empty():
 		wave_timer -= delta
 		if wave_timer<=0:
-			if wave<6: spawn_wave()
+			if wave<10: spawn_wave()
 			else:
 				combat_done = true
-				shots.assign(shots.filter(func(shot):return shot.kind!="enemy_bullet"))
+				shots.assign(shots.filter(func(shot):return shot.kind not in ["enemy_bullet","enemy_rocket"]))
+				poison_zones.clear()
 				health = 8
 				notify(tx("combat_complete"))
 				sfx()
@@ -1620,8 +1618,9 @@ func update_combat(delta: float) -> void:
 	for enemy in enemies:
 		enemy.timer -= delta
 		enemy.cooldown -= delta
-		if enemy.type==5:
+		if enemy.type in [5,6,7]:
 			update_gunner(enemy,delta);continue
+		if enemy.get("boss",false):battle.boss(enemy,delta)
 		var diff: Vector2 = player-enemy.pos
 		if enemy.state=="spawn":
 			if enemy.timer<=0: enemy.state="chase"
@@ -1638,10 +1637,10 @@ func update_combat(delta: float) -> void:
 				enemy.state="warn"
 				enemy.timer=.95 if enemy.type!=2 else 1.15
 			else:
-				var speed: float = 39.0+enemy.type*7+wave*3
+				var speed: float = 48.0+enemy.type*9+wave*5
 				var v: Vector2 = diff.normalized()
 				if enemy.type==1: v = v.rotated(sin(time*2+enemy.pos.x)*.65)
-				if enemy.type==3: speed *= 1.6 if fposmod(time+enemy.pos.x*.001,2.4)<.6 else .7
+				if enemy.type==3: speed = SPEED*(1.18 if fposmod(time+enemy.pos.x*.001,2.4)<1.6 else .85)
 				if enemy.type==4: speed *= .6
 				if enemy.get("boss",false): speed = 65.0
 				var target: Vector2 = enemy.pos+v*speed*delta
@@ -1693,10 +1692,10 @@ func attack(launch_ready: bool = false) -> void:
 				if blocked(recoil):break
 				player=recoil
 		if weapon=="rifle":
-			rifle_kick=3.5;rifle_kick_dir=aim;shake=maxf(shake,3.2)
+			rifle_kick=4.025;rifle_kick_dir=aim;shake=maxf(shake,3.68)
 			for step in range(4):
-				if blocked(player-aim):break
-				player-=aim
+				if blocked(player-aim*1.15):break
+				player-=aim*1.15
 			magazine-=1
 			if magazine==0:reload_time=1.8;sfx("reload")
 
@@ -1796,6 +1795,7 @@ func _draw() -> void:
 	if grid.is_empty():return
 	# Only draw the visible edge of one cached neighbour. Its simulation stays frozen.
 	var night_band:=Rect2()
+	var corridor_pedestal:=Vector2.INF
 	var destination:=-1
 	if level<6 and camera.y<get_viewport_rect().size.y/2+100:destination=level+1
 	elif level>0 and camera.y>grid.size()*TILE-get_viewport_rect().size.y/2-100:destination=level-1
@@ -1814,9 +1814,15 @@ func _draw() -> void:
 		_draw_world()
 		if level==1:
 			night_band=Rect2(screen(Vector2(0,5*TILE)),Vector2(grid[0].length()*TILE,(grid.size()-10)*TILE))
+			for obj in objects:
+				if obj.kind=="stand_flashlight":corridor_pedestal=screen(obj.pos)
 		drawing_neighbor=false;level=old_level;camera=old_camera
 		for field in ROOM_FIELDS:set(field,old_state[field])
 	if destination>level:_draw_world()
+	# Corridor props must survive the foreground room floor pass.
+	if corridor_pedestal!=Vector2.INF:
+		draw_sprite("pedestal",corridor_pedestal)
+		if not save_data.flashlight:draw_sprite("flashlight_rest",corridor_pedestal)
 	var view:=get_viewport_rect().size
 	for i in range(8):
 		var c:=Color(.06,.07,.13,.025*(8-i))
@@ -1950,7 +1956,7 @@ func _draw_world() -> void:
 		if obj.id=="fertilizer" and has_fertilizer: continue
 		if obj.id=="shovel" and save_data.shovel: continue
 		renderables.append(obj)
-	for enemy in enemies: renderables.append({"kind":"enemy_gunner" if enemy.type==5 else "enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
+	for enemy in enemies: renderables.append({"kind":"enemy_rocketeer" if enemy.type==7 else "enemy_gunner" if enemy.type in [5,6] else "enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
 	if not drawing_neighbor and playing and save_data.cat_tamed:renderables.append({"kind":"pet_cat","pos":companion.position,"id":"pet_cat"})
 	draw_paths()
@@ -1958,6 +1964,7 @@ func _draw_world() -> void:
 	if level==6 and save_data.finished:draw_tool_table()
 	draw_footprints()
 	if not drawing_neighbor:companion.draw_prints()
+	battle.draw_poison()
 	for part in particles:
 		if part.get("ground",false) and shadow_floor_cell(Vector2i(part.pos/TILE)):
 			var dust_color:Color=part.color;dust_color.a=minf(1,part.life*2)
@@ -2023,13 +2030,8 @@ func _draw_world() -> void:
 				draw_string(body_font,p+Vector2(-5,-69),"!",HORIZONTAL_ALIGNMENT_LEFT,-1,24,CREAM)
 			draw_cast_shadow(kind,p,1.8 if enemy.get("boss",false) else 1.0)
 			draw_shadow(p,20)
-			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,.2,.25) if time<float(enemy.get("hit_until",0)) else Color(1,.65,.75,.45 if enemy.state=="spawn" else 1) if enemy.get("boss",false) else (Color(.65,1,.85) if enemy.type==3 else Color(.75,.8,1) if enemy.type==4 else Color.WHITE),1.8 if enemy.get("boss",false) else 1.2 if enemy.type==4 else .85 if enemy.type==3 else 1.0)
-			if enemy.type==5:
-				var facing:Vector2=(Vector2(enemy.get("target",player))-enemy.pos).normalized() if enemy.state=="warn" else (player-enemy.pos).normalized()
-				var origin:=p+Vector2(0,-24)
-				draw_set_transform(origin,facing.angle(),Vector2(1,-1 if facing.x<0 else 1));draw_sprite("enemy_pistol",Vector2(0,18),Color.WHITE,.5);draw_set_transform(Vector2.ZERO)
-				if enemy.state=="warn":draw_line(origin,screen(Vector2(enemy.target))+Vector2(0,-26),Color(.9,.4,.45,.3),2)
-				if time-float(enemy.get("fired_at",-10))<.1:draw_texture_rect(glow,Rect2(origin+facing*22-Vector2(16,16),Vector2(32,32)),false,Color(1,.8,.4,.9))
+			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,.2,.25) if time<float(enemy.get("hit_until",0)) else Color(1,.65,.75,.45 if enemy.state=="spawn" else 1) if enemy.get("boss",false) else (Color(.65,1,.85) if enemy.type==3 else Color(.75,.8,1) if enemy.type==4 else Color.WHITE),1.8 if enemy.get("boss",false) else 1.2 if enemy.type==4 else .72 if enemy.type==5 else .85 if enemy.type==3 else 1.0)
+			if enemy.type in [5,6,7]:battle.draw_gun(enemy,p)
 			if enemy.get("boss",false): draw_string(body_font,p+Vector2(-62,-115),tx("boss_name"),HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
 			var bar_width := 100.0 if enemy.get("boss",false) else 36.0
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width,5)),INK)
@@ -2300,7 +2302,7 @@ func damage_enemy(index: int, damage: int, push: Vector2) -> void:
 	burst(enemy.pos,8,Color("e9c2d5"))
 	if enemy.hp<=0:
 		stats.add(self,"kills")
-		room_remains[level].append({"kind":"corpse"+str(5 if enemy.get("boss",false) else 6 if enemy.type==5 else int(enemy.type)),"pos":enemy.pos,"scale":1.8 if enemy.get("boss",false) else 1.0})
+		room_remains[level].append({"kind":"corpse"+str(5 if enemy.get("boss",false) else 6 if enemy.type in [5,6] else 7 if enemy.type==7 else int(enemy.type)),"pos":enemy.pos,"scale":1.8 if enemy.get("boss",false) else .72 if enemy.type==5 else 1.0})
 		enemies.remove_at(index)
 
 func update_shots(delta: float) -> void:
@@ -2316,11 +2318,12 @@ func update_shots(delta: float) -> void:
 		for step in range(1,maxi(2,ceili(distance/8.0)+1)):
 			var t := minf(1.0,float(step)*8.0/maxf(distance,.001))
 			if blocked(start.lerp(end,t)):wall_t=t;break
-		if shot.kind=="enemy_bullet":
+		if shot.kind in ["enemy_bullet","enemy_rocket"]:
 			var t:=clampf((player+Vector2(0,-26)-start).dot(segment)/maxf(.001,segment.length_squared()),0,1)
 			var contact:=start.lerp(end,t).distance_to(player+Vector2(0,-26))<18 and t<=wall_t
 			shot.pos=end;shot.life-=delta
 			if contact:hurt()
+			if shot.kind=="enemy_rocket" and (contact or wall_t<=1 or shot.life<=0):burst(end,18,Color("ee9d59"));sfx_at("rpg_explosion",end)
 			if contact or wall_t<=1 or shot.life<=0:shots.remove_at(i)
 			continue
 		var hit_index := -1
@@ -2329,7 +2332,7 @@ func update_shots(delta: float) -> void:
 			var enemy := enemies[j]
 			if enemy.state=="spawn":continue
 			var center: Vector2 = enemy.pos+Vector2(0,-24 if enemy.get("boss",false) else -16)
-			var radius := 48.0 if enemy.get("boss",false) else 30.0
+			var radius := 48.0 if enemy.get("boss",false) else 22.0 if enemy.type==5 else 30.0
 			var offset := start-center
 			var a := segment.length_squared()
 			if a<.0001:
@@ -2369,9 +2372,12 @@ func draw_extra_effects() -> void:
 			draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55)
 			draw_set_transform(Vector2.ZERO)
 			draw_texture_rect(glow,Rect2(p-Vector2(25,25),Vector2(50,50)),false,Color(1,.7,.35,.6))
+		elif shot.kind=="enemy_rocket":
+			draw_set_transform(p,shot.vel.angle()+PI/2);draw_sprite("rocket_item",Vector2.ZERO,Color.WHITE,.8);draw_set_transform(Vector2.ZERO)
+			draw_circle(p-shot.vel.normalized()*13,randf_range(4,7),Color("ffc56b"))
 		else: draw_line(p,p-shot.vel.normalized()*(7 if shot.kind=="enemy_bullet" else 10),Color("efaaa1") if shot.kind=="enemy_bullet" else Color("ffe3a7"),2 if shot.kind=="enemy_bullet" else 3)
 	if (level==4 or save_data.finished) and not weapon.is_empty():
-		var p := screen(player)+Vector2(14,-28)-aim*(attack_flash/.22)*(14 if weapon=="rpg" else 10)
+		var p := screen(player)+Vector2(14,-28)-aim*(attack_flash/.22)*(14.0 if weapon=="rpg" else 11.5)
 		var swing := sin((1-attack_flash/.22)*PI)*1.5 if weapon=="sword" and attack_flash>0 else 0.0
 		var left := aim.x<0
 		var rotation := (aim.angle()+PI/2) if weapon=="sword" else (atan2(-aim.y,-aim.x) if left else aim.angle())
@@ -3387,20 +3393,7 @@ func rpg_muzzle() -> Vector2:
 	return player+Vector2(14,-28)+Vector2(-42 if left else 42,-2).rotated(angle)
 
 func update_gunner(enemy: Dictionary, delta: float) -> void:
-	var toward:Vector2=player-enemy.pos
-	if enemy.state=="spawn":
-		if enemy.timer<=0:enemy.state="chase"
-		return
-	if enemy.state=="warn":
-		if enemy.timer<=0:
-			var facing:Vector2=(Vector2(enemy.target)-enemy.pos).normalized().rotated(randf_range(-.055,.055))
-			shots.append({"pos":enemy.pos+Vector2(0,-24)+facing*22,"vel":facing*210,"life":3.0,"kind":"enemy_bullet","age":0.0})
-			enemy.fired_at=time;enemy.state="chase";enemy.cooldown=1.7;enemy.timer=0;sfx_at("pistol",enemy.pos)
-		return
-	if toward.length()<560 and enemy.cooldown<=0:
-		enemy.state="warn";enemy.timer=1.0;enemy.target=player;return
-	var motion:=toward.normalized()*(38 if toward.length()>440 else -35 if toward.length()<190 else 0)*delta
-	if not blocked(enemy.pos+motion):enemy.pos+=motion
+	battle.gunner(enemy,delta)
 
 func garden_bed_clear(point:Vector2,include_beds:bool=true,ignore_id:String="") -> bool:
 	if not valid_ground(point) or blocked(point):return false

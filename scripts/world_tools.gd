@@ -133,12 +133,12 @@ func stamp(pos:Vector2)->void:
   for x in range(maxi(1,int(centre.x)-18),mini(mask.get_width()-1,int(centre.x)+19)):
    if mask.get_pixel(x,y).r<.5:continue
    var top_depth:=0
-   for depth in range(1,8):
+   for depth in range(1,13):
     if y-depth<0 or mask.get_pixel(x,y-depth).r<.5:top_depth=depth;break
    var edge:=mask.get_pixel(x,y-1).r<.5 or mask.get_pixel(x-1,y).r<.5 or mask.get_pixel(x+1,y).r<.5
    var color:=Color("b18a58") if edge else Color("a27b50") if mask.get_pixel(x,y+1).r<.5 else Color("3a3029") if posmod(x*31+y*17,19)<3 else Color("4a3427")
    if top_depth>1:
-    color=[Color("302a29"),Color("372c28"),Color("49352a"),Color("65432f"),Color("765037"),Color("67472f")][mini(5,top_depth-2)]
+    color=[Color("211e25"),Color("282127"),Color("32262a"),Color("3c2c28"),Color("493027"),Color("53372b"),Color("5c3e2d"),Color("65452f"),Color("60402d"),Color("51382b")][mini(9,top_depth-2)]
     if posmod(x*13+y*7,17)<3:color=color.lightened(.12)
 
    image.set_pixel(x,y,color)

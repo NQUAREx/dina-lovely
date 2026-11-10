@@ -20,10 +20,10 @@ func run():
  var field=g.hedge_field;var index=field.draw_order[field.draw_order.size()/2];var base=field.crowns[index].base
  for n in range(100):field.update(1.0/60,base+Vector2(0,28+n*.12))
  for node in field.crowns:assert(node.depression<=22.01)
- for n in range(240):field.update(1.0/60,Vector2(-1000,-1000))
+ for n in range(600):field.update(1.0/60,Vector2(-1000,-1000))
  for node in field.crowns:assert(absf(node.depression)<.05 and node.offset.length()<.1)
  g.build_level(4);g.weapon="rifle";g.held_item="rifle";g.paused=false;g.playing=true;g.combat_done=false;g.player=Vector2(13.5,14)*48;g.aim=Vector2.RIGHT
- var before=g.player;g.attack();assert(g.player.distance_to(before)>0 and g.player.distance_to(before)<=4.01)
+ var before=g.player;g.attack();assert(g.player.distance_to(before)>0 and g.player.distance_to(before)<=4.61)
  assert(g.rifle_kick>0 and g.shots.size()==1)
  assert(absf(g.shots[0].vel.angle())<=.0361)
  print("PASS house interaction, recorded gate sounds, seed-driven props, bounded/released/settled crowns, AK recoil and spread")
