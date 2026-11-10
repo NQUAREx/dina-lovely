@@ -2134,6 +2134,11 @@ func _draw_world() -> void:
 	rune_stones.draw_insertions()
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
+		if level==6 and item.kind=="stone" and item.id in puzzle:
+			var center:=screen(item.pos)+Vector2(0,-48)
+			var breathing:=1.0+sin(time*2.2+item.pos.x*.01)*.055
+			draw_texture_rect(glow,Rect2(center-Vector2.ONE*58*breathing,Vector2.ONE*116*breathing),false,Color(1,.88,.72,.9))
+			draw_texture_rect(glow,Rect2(center-Vector2.ONE*29,Vector2.ONE*58),false,Color(1,.92,.8,1))
 		if item.kind in ["lamp","candle","candle_heart","heart_stand","note"] or (item.kind=="chest" and chest_open):
 			var p := screen(item.pos)-Vector2(0,42)
 			var size := 150.0+sin(time*3+item.pos.x)*5
