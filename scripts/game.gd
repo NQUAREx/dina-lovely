@@ -112,7 +112,7 @@ var camera := Vector2.ZERO
 var direction := 2
 var moving := false
 var time := 0.0
-var health := 8
+var health := 8.0
 var invincible := 0.0
 var attack_cd := 0.0
 var attack_flash := 0.0
@@ -1377,7 +1377,7 @@ func interact() -> void:
 		equip_tool(id);persist();sfx("ui")
 	elif obj.kind in ["berries","tree_apples"]:
 		stats.add(self,"berries" if obj.kind=="berries" else "apples")
-		save_data.eaten.append(id);health=mini(8,health+2);sfx("eat");persist()
+		save_data.eaten.append(id);health=minf(8,health+2);sfx("eat");persist()
 		food_hearts_left=10;food_heart_clock=.13
 		food_heart_burst()
 	elif obj.kind=="mound":
@@ -1612,6 +1612,8 @@ func update_hud() -> void:
 		4: status.text = tx("combat_status") % [mini(wave,10),tx("combat_chest_hint") if combat_done else {"sword":tx("weapon_sword"),"rifle":tx("weapon_rifle"),"rpg":tx("weapon_rpg")}.get(weapon,tx("weapon_required"))]
 		5: status.text = tx("garden_status") % [required_flower_count(),tx("water_prefix")+str(water)+" / 6" if garden_can else tx("can_search_hint")]
 		6: status.text = tx("puzzle_status") % puzzle.size()
+	if level==4 and wave>0 and not combat_done:
+		status.text+=" · "+tx("combat_enemies_left").format({"count":enemies.size()})
 	if level>0 and level<6 and room_letters_complete() and not door_is_open("exit"):
 		status.text+=" · "+tx("gate_key_ready" if level in save_data.gate_keys else "gate_key_ground")
 	action_button.disabled = task_time>0
@@ -1652,38 +1654,7 @@ func update_combat(delta: float) -> void:
 				notify(tx("combat_complete"))
 				sfx()
 		return
-	for enemy in enemies:
-		enemy.timer -= delta
-		enemy.cooldown -= delta
-		if enemy.type in [5,6,7]:
-			update_gunner(enemy,delta);continue
-		if enemy.get("boss",false):battle.boss(enemy,delta)
-		var diff: Vector2 = player-enemy.pos
-		if enemy.state=="spawn":
-			if enemy.timer<=0: enemy.state="chase"
-		elif enemy.state=="warn":
-			if enemy.timer<=0:
-				if enemy.pos.distance_to(player)<(125 if enemy.get("boss",false) else 70): hurt()
-				burst(enemy.pos,7,Color("bc96c7"))
-				enemy.state="rest"
-				enemy.timer=.65
-		elif enemy.state=="rest":
-			if enemy.timer<=0: enemy.state="chase"
-		else:
-			if diff.length()<(110 if enemy.get("boss",false) else 61):
-				enemy.state="warn"
-				enemy.timer=.95 if enemy.type!=2 else 1.15
-			else:
-				var speed: float = 48.0+enemy.type*9+wave*5
-				var v: Vector2 = diff.normalized()
-				if enemy.type==1: v = v.rotated(sin(time*2+enemy.pos.x)*.65)
-				if enemy.type==3: speed = SPEED*(1.18 if fposmod(time+enemy.pos.x*.001,2.4)<1.6 else .85)
-				if enemy.type==4: speed *= .6
-				if enemy.get("boss",false): speed = 65.0
-				var target: Vector2 = enemy.pos+v*speed*delta
-				if not blocked(target): enemy.pos=target
-				elif not blocked(enemy.pos+Vector2(v.x,0)*speed*delta): enemy.pos+=Vector2(v.x,0)*speed*delta
-				else: enemy.pos+=Vector2(0,v.y)*speed*delta
+	battle.tick(delta)
 
 func rifle_muzzle() -> Vector2:
 	# Atlas barrel tip (31,25), sprite anchor (16,43), rendered at 1.2x.
@@ -1717,7 +1688,7 @@ func attack(launch_ready: bool = false) -> void:
 		for i in range(enemies.size()-1,-1,-1):
 			var diff: Vector2 = enemies[i].pos-player
 			if diff.length()<130 and aim.dot(diff.normalized())>-.35:
-				damage_enemy(i,2,diff.normalized()*28)
+				damage_enemy(i,16,diff.normalized()*28)
 	else:
 		shots.append({"pos":rpg_muzzle() if weapon=="rpg" else rifle_muzzle(),"vel":aim.rotated(randf_range(-.036,.036) if weapon=="rifle" else 0)*(570 if weapon=="rifle" else 75),"life":1.4 if weapon=="rifle" else 4.5,"kind":weapon,"age":0.0})
 		if weapon=="rpg":
@@ -1736,9 +1707,9 @@ func attack(launch_ready: bool = false) -> void:
 			magazine-=1
 			if magazine==0:reload_time=1.8;sfx("reload")
 
-func hurt() -> void:
+func hurt(amount:float=1.0) -> void:
 	if invincible>0: return
-	health -= 1
+	health = maxf(0,health-amount)
 	invincible = 1.3
 	sfx("hurt")
 	shake = 8
@@ -2345,8 +2316,8 @@ func damage_enemy(index: int, damage: float, push: Vector2) -> void:
 	for n in range(22):particles.append({"pos":enemy.pos+Vector2(0,-28),"vel":Vector2(randf_range(-65,65),randf_range(-85,0)),"life":randf_range(.3,.6),"color":Color("c74960"),"heart":false})
 	if weapon=="sword": sfx("sword_hit")
 	enemy.hp -= damage
-	enemy.state = "rest"
-	enemy.timer = .3
+	enemy.alert=4.0;enemy.aggro=true
+	if not enemy.get("boss",false):enemy.state = "rest";enemy.timer = .3
 	var target: Vector2 = enemy.pos+push
 	if not blocked(target): enemy.pos=target
 	burst(enemy.pos,8,Color("e9c2d5"))
@@ -2381,7 +2352,7 @@ func update_shots(delta: float) -> void:
 			shot.pos=end;shot.life-=delta
 			if shot.has("range_left"):shot.range_left=maxf(0,float(shot.range_left)-motion.length())
 			var expired:bool=shot.life<=0 or float(shot.get("range_left",1))<=.25
-			if contact:hurt()
+			if contact:hurt(float(shot.get("damage",1.0)))
 			if shot.kind=="enemy_rocket" and (contact or wall_t<=1 or expired):burst(end,18,Color("ee9d59"));sfx_at("rpg_explosion",end)
 			if contact or wall_t<=1 or expired:shots.remove_at(i)
 			continue
@@ -2411,7 +2382,7 @@ func update_shots(delta: float) -> void:
 		if not hit:continue
 		if shot.kind=="rpg":
 			shake=maxf(shake,10.0*clampf(1-player.distance_to(shot.pos)/750,0,1));sfx_at("rpg_explosion",shot.pos);burst(shot.pos,42,Color("ffd69c"))
-		if hit_index>=0:damage_enemy(hit_index,99.0 if shot.kind=="rpg" else 5.0,shot.vel.normalized()*9)
+		if hit_index>=0:damage_enemy(hit_index,99.0 if shot.kind=="rpg" else 8.5,shot.vel.normalized()*9)
 		shots.remove_at(i)
 
 func draw_extra_effects() -> void:

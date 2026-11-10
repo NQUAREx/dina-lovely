@@ -9,10 +9,10 @@ func run():
  g.build_level(4);g.wave=0
  for wave in range(1,11):
   g.enemies.clear();g.spawn_wave()
-  assert(g.enemies.filter(func(e):return e.type==5).size()==(4 if wave==10 else 2+wave/3))
-  if wave==10:assert(g.enemies.filter(func(e):return e.get("boss",false))[0].hp==1000)
- var gunner=g.enemies.filter(func(e):return e.type==5)[0]
- g.enemies.assign([gunner]);gunner.state="chase";gunner.cooldown=0;g.player=gunner.pos+Vector2(100,200);g.combat_done=false
+  assert(g.enemies.filter(func(e):return e.type==5).size()==g.battle.WAVES[wave-1].count(5))
+  if wave==10:assert(g.enemies.filter(func(e):return e.get("boss",false))[0].hp==750)
+ var gunner=g.enemies.filter(func(e):return e.type==6)[0];gunner.pos=Vector2(650,700);gunner.home=gunner.pos;g.objects.assign(g.objects.filter(func(o):return not o.solid))
+ g.enemies.assign([gunner]);gunner.state="chase";gunner.cooldown=0;g.player=Vector2(750,850);g.combat_done=false
  g.shots.clear();g.update_combat(.01);assert(gunner.state=="chase")
  assert(g.shots.filter(func(s):return s.kind=="enemy_bullet").size()==1)
  g.shots.clear();g.shots.append({"pos":g.player+Vector2(-120,-26),"vel":Vector2(600,0),"age":0.0,"life":3.0,"kind":"enemy_bullet"});g.health=8;g.invincible=0;g.update_shots(.4);assert(g.health==7 and g.shots.is_empty())

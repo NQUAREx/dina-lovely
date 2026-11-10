@@ -25,9 +25,9 @@ func run():
  h.shots.append({"kind":"enemy_bullet","pos":Vector2(400,700),"vel":Vector2(1000,0),"life":3.0,"age":0.0,"range_left":100.0});h.update_shots(.5);assert(h.shots.is_empty() and h.health==8)
  var e={"pos":Vector2(600,700),"hp":30.0,"max_hp":30.0,"type":7,"boss":false,"state":"chase","timer":0.0,"cooldown":0.0,"target":h.player}
  for n in range(8):
-  e.cooldown=0;var toward:Vector2=(h.player-e.pos).normalized();h.update_gunner(e,.01);assert(h.shots.back().vel.normalized().is_equal_approx(toward) and h.shots.back().range_left==480)
+  e.cooldown=0;e.reload_left=0;e.ammo=1;var toward:Vector2=(h.player-e.pos).normalized();h.update_gunner(e,.01);assert(h.shots.back().vel.normalized().is_equal_approx(toward) and h.shots.back().range_left==400)
  h.shots.clear();h.enemies.assign([{"pos":Vector2(650,700),"hp":10.0,"max_hp":10.0,"type":0,"boss":false,"state":"chase","timer":0.0,"cooldown":1.0}]);h.weapon="rifle";h.player=Vector2(400,700)
- h.shots.append({"kind":"rifle","pos":Vector2(550,684),"vel":Vector2(570,0),"life":1.4,"age":0.0});h.update_shots(.2);assert(is_equal_approx(h.enemies[0].hp,5.0))
+ h.shots.append({"kind":"rifle","pos":Vector2(550,684),"vel":Vector2(570,0),"life":1.4,"age":0.0});h.update_shots(.2);assert(is_equal_approx(h.enemies[0].hp,1.5))
  h.health=0;h.arena_save.mark_dead();h.persist();h.load_save();assert(h.save_data.arena_checkpoint.is_empty() and h.save_data.weapons_taken.is_empty())
- print("PASS fresh-instance wave/HP/enemy/ammo/medkit restore, clean retry racks, dead-save reset, bounded swept bullets, straight enemy RPG and 5 HP AK hit")
+ print("PASS fresh-instance wave/HP/enemy/ammo/medkit restore, clean retry racks, dead-save reset, bounded swept bullets, straight enemy RPG and 8.5 HP AK hit")
  quit()

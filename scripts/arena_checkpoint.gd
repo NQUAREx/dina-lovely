@@ -33,12 +33,12 @@ func unpack(value:Variant)->Variant:
  return value
 func valid()->bool:
  var state:Dictionary=g.save_data.arena_checkpoint
- return not state.is_empty() and not state.get("dead",false) and int(state.get("seed",-1))==int(g.save_data.seed) and state.get("fields") is Dictionary and int(state.fields.get("health",0))>0
+ return not state.is_empty() and not state.get("dead",false) and int(state.get("seed",-1))==int(g.save_data.seed) and state.get("fields") is Dictionary and float(state.fields.get("health",0))>0
 func capture()->void:
  if resetting or not g.playing or g.level!=4 or g.health<=0:return
  var fields={}
  for field in FIELDS:fields[field]=pack(g.get(field))
- g.save_data.arena_checkpoint={"schema":1,"seed":g.save_data.seed,"fields":fields,"held_item":g.held_item,"time":g.time,"remains":pack(g.room_remains.get(4,[]))}
+ g.save_data.arena_checkpoint={"schema":1,"balance":g.battle.BALANCE_VERSION,"seed":g.save_data.seed,"fields":fields,"held_item":g.held_item,"time":g.time,"remains":pack(g.room_remains.get(4,[]))}
  clock=0
 func restore_room()->void:
  if resetting or g.level!=4 or not valid():return
@@ -47,10 +47,12 @@ func restore_room()->void:
   if not state.fields.has(field):continue
   var value:Variant=unpack(state.fields[field])
   if g.get(field) is Array:g.get(field).assign(value)
-  elif field in ["health","wave","magazine"]:g.set(field,int(value))
+  elif field in ["wave","magazine"]:g.set(field,int(value))
   else:g.set(field,value)
  g.time=maxf(g.time,float(state.get("time",0)))
  g.room_remains[4]=unpack(state.get("remains",[]))
+ if int(state.get("balance",0))!=g.battle.BALANCE_VERSION and g.wave>0 and not g.combat_done:
+  g.enemies.clear();g.shots.clear();g.poison_zones.clear();g.battle.spawn(false,false)
 func restore_hands()->void:
  if g.level!=4 or not valid():return
  g.held_item=str(g.save_data.arena_checkpoint.get("held_item",""));g.weapon=g.held_item if g.held_item in ["rifle","rpg","sword"] else "";g.sync_hands()
