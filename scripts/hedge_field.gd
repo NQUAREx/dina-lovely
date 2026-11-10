@@ -133,7 +133,7 @@ func try_crown(point: Vector2, radius: float) -> void:
 		var other:Dictionary=crowns[index]
 		if point.distance_squared_to(other.base)<pow(radius+float(other.radius)+.35,2):return
 	var index:=crowns.size()
-	crowns.append({"base":point,"offset":Vector2.ZERO,"velocity":Vector2.ZERO,"radius":radius,"variant":rng.randi_range(0,11),"berry":"","press":0.0,"depression":0.0})
+	crowns.append({"base":point,"offset":Vector2.ZERO,"velocity":Vector2.ZERO,"radius":radius,"variant":rng.randi_range(0,11),"berry":"","press":0.0,"depression":0.0,"depression_velocity":0.0,"released":false})
 	var bin:=Vector2i(point/BIN)
 	if not bins.has(bin):bins[bin]=[]
 	bins[bin].append(index)
@@ -148,6 +148,7 @@ func near_ids(point: Vector2, radius: float) -> Array[int]:
 	return result
 
 func update(delta: float, player: Vector2) -> void:
+	delta=minf(delta,1.0/30.0)
 	last_player=player;contact_strength=0.0;motion_strength=0.0
 	for index in near_ids(player,60):
 		if crowns[index].base.distance_to(player)<52:active[index]=true
@@ -157,12 +158,15 @@ func update(delta: float, player: Vector2) -> void:
 		var previous_offset:Vector2=node.offset
 		var previous_depression:float=node.depression
 		var away:Vector2=node.base-player
-		var pressure:=clampf((36-away.length())/18,0,1)
+		if away.length()>44:node.released=false
+		var pressure:=0.0 if node.released else clampf((36-away.length())/18,0,1)
+		var required_drop:=maxf(0,ceilf(player.y-28+roundf(node.radius*1.48))-((node.base+node.offset).round().y-16))
+		if pressure>0 and required_drop>22:
+			node.released=true;pressure=0.0
 		contact_strength=maxf(contact_strength,pressure)
-		var previous_press:float=node.press
 		node.press=move_toward(float(node.press),pressure,delta*5)
 		var target:=away.normalized()*5.5*pressure
-		node.velocity+=(target-node.offset)*145*delta-node.velocity*18*delta
+		node.velocity+=(target-node.offset)*145*delta-node.velocity*12*delta
 		var desired:Vector2=node.offset+node.velocity*delta
 		desired=desired.limit_length(6)
 		# Sweep each crown against its neighbours: it can bend but cannot overlap them.
@@ -185,12 +189,16 @@ func update(delta: float, player: Vector2) -> void:
 				if other_index==index:continue
 				var other:Dictionary=crowns[other_index]
 				if (node.base+trial).distance_squared_to(other.base+other.offset)<pow(own_radius+float(other.radius)*(1-float(other.press)*.07)+.1,2):clear=false;break
-			if clear:node.offset=trial
-			elif node.press<previous_press:node.press=previous_press
+			if clear or pressure==0:node.offset=trial
 		var leaf_radius:=roundf(node.radius*1.48*(1-node.press*.07))
-		if node.press>.01 and away.length_squared()<42*42:
-			node.depression=maxf(0,ceilf(player.y-28+leaf_radius)-((node.base+node.offset).round().y-16))
-		else:node.depression=move_toward(float(node.depression),0,delta*90)
+		if node.press>.01 and not node.released and away.length_squared()<42*42:
+			node.depression=minf(22,maxf(0,ceilf(player.y-28+leaf_radius)-((node.base+node.offset).round().y-16)))
+			node.depression_velocity=0.0
+		else:
+			node.depression_velocity+=(-node.depression*130-node.depression_velocity*12)*delta
+			node.depression=clampf(node.depression+node.depression_velocity*delta,-1.5,22)
+			if absf(node.depression)<.03 and absf(node.depression_velocity)<.1:node.depression=0.0;node.depression_velocity=0.0
+
 		motion_strength=maxf(motion_strength,maxf(node.offset.distance_to(previous_offset),absf(node.depression-previous_depression))/maxf(delta,.001))
 		if pressure==0 and node.depression==0 and node.offset.length()<.04 and node.velocity.length()<.1 and node.press==0:
 			node.offset=Vector2.ZERO;node.velocity=Vector2.ZERO;done.append(index)
@@ -228,17 +236,18 @@ func foreground(player: Vector2) -> bool:
 
 func crown_in_contact(index: int, player: Vector2) -> bool:
 	var node:Dictionary=crowns[index]
-	return node.press>.01 and node.base.distance_squared_to(player)<42*42
+	return not node.released and node.press>.01 and node.base.distance_squared_to(player)<42*42
 
 func crown_pose(index: int, player: Vector2) -> Vector3:
 	var node:Dictionary=crowns[index]
 	var radius:=roundf(node.radius*1.48*(1-node.press*.07))
 	var centre:Vector2=(node.base+node.offset).round()-Vector2(0,16)+Vector2(0,roundf(node.depression))
 	# Bend the whole contacting crown down to leg height, never slice its texture.
-	if crown_in_contact(index,player):centre.y=maxf(centre.y,ceilf(player.y-28+radius))
+	if crown_in_contact(index,player):centre.y=maxf(centre.y,minf(ceilf(player.y-28+radius),node.base.round().y+6))
 	return Vector3(centre.x,centre.y,radius)
 
 func crown_behind_hero(index: int, player: Vector2) -> bool:
+	if crowns[index].released:return true
 	if crown_in_contact(index,player):return false
 	# Non-contact crowns retain their fixed painter order.
 	return crowns[index].base.y<=player.y+13

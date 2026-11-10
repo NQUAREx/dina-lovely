@@ -121,6 +121,14 @@ def house(d):
 def pond(d):
  d.ellipse((1,19,31,45),fill='#687b72');d.ellipse((4,22,28,42),fill='#345a6b');d.arc((6,24,25,38),0,160,fill='#789e9c',width=1);d.ellipse((8,26,15,30),fill='#7b9b70');d.line((17,33,24,33),fill='#a0bbb0')
 sprite('house',house);sprite('pond',pond)
+def house_door(d):
+ d.rectangle((13,30,20,43),fill='#57474e');d.line((14,31,14,42),fill='#927166');d.line((17,31,17,42),fill='#755950');d.point((19,37),fill='#e3bb7a')
+def house_door_open(d):
+ d.rectangle((13,30,20,43),fill='#242538')
+ d.rectangle((15,31,18,34),fill='#d3cabb');d.point((15,32),fill='#46414e');d.point((18,32),fill='#46414e')
+ d.line((16,35,16,40),fill='#c1b9aa');d.line((14,36,18,36),fill='#c1b9aa');d.line((14,37,14,39),fill='#c1b9aa');d.line((18,37,18,39),fill='#c1b9aa');d.line((16,40,14,42),fill='#c1b9aa');d.line((16,40,18,42),fill='#c1b9aa')
+ d.polygon([(20,30),(23,32),(23,43),(20,43)],fill='#795d57');d.line((21,32,21,41),fill='#b18b70')
+sprite('house_door',house_door);sprite('house_door_open',house_door_open)
 sprite('bench',lambda d:(d.rectangle((2,25,29,30),fill='#9a7b6e'),d.rectangle((2,33,29,37),fill='#b38c78'),d.rectangle((5,37,8,44),fill='#504758'),d.rectangle((24,37,27,44),fill='#504758')))
 sprite('berries',lambda d:(d.ellipse((8,24,24,38),fill='#487b50'),d.rectangle((12,25,15,28),fill='#dc7694'),d.rectangle((20,29,23,32),fill='#d95378')))
 sprite('rake',lambda d:(d.line((13,39,20,13),fill='#ae8866',width=2),d.line((12,13,26,17),fill='#c8c5b0',width=2),[d.line((x,14,x-2,20),fill='#c8c5b0') for x in range(13,27,3)]))
@@ -454,8 +462,6 @@ def open_key_lock(d):
  d.ellipse((27,34,31,40),outline='#f6dba0',width=1)
 sprite('lock_open_key',open_key_lock)
 def need_badge(d,kind):
- d.polygon([(7,17),(24,17),(27,20),(27,35),(24,38),(7,38),(4,35),(4,20)],fill='#343f53')
- d.line((8,18,23,18),fill='#9fbdc4');d.polygon([(13,38),(18,38),(16,42)],fill='#bfd9d6')
  if kind=='rake':
   d.line((11,33,19,23),fill='#ae8866',width=2);d.line((16,21,23,27),fill='#c8c5b0',width=2)
   for x,y in [(16,21),(19,23),(22,26)]:d.line((x,y,x-2,y+3),fill='#c8c5b0')

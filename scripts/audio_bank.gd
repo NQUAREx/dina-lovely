@@ -1,6 +1,8 @@
 extends RefCounted
 # Strong references keep short effects decoded before input is accepted.
 const STREAMS := {
+	"gate_open":preload("res://assets/gate_open.wav"),
+	"gate_unlock":preload("res://assets/gate_unlock.wav"),
 	"ambient":preload("res://assets/ambient.wav"),
 	"attack":preload("res://assets/attack.wav"),
 	"attack_2":preload("res://assets/attack_2.wav"),

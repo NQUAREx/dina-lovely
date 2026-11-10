@@ -194,5 +194,10 @@
     "license": "CC0",
     "processing": "Mono 44.1kHz PCM, loudness normalization, short attack and natural release",
     "sha256": "d2b94476355c4dce655bdce63411a001bf23779e423be2e59e2af9d2a0878d46"
+  },
+  "gate_unlock": {
+    "source": "Kenney RPG Audio / metalLatch.ogg",
+    "license": "CC0-1.0",
+    "url": "https://kenney.nl/assets/rpg-audio"
   }
 }

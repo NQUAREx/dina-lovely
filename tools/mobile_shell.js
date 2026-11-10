@@ -14,6 +14,7 @@
   const t=key=>loaded.ui?.[key]?.text||'';
   let loadingTimer=null;
   let loadProgress=0;window.gardenLoadProgress=(current,total)=>{const bar=document.getElementById('garden-progress');if(!bar)return;if(total>0)loadProgress=Math.max(loadProgress,Math.min(.99,current/total));bar.value=loadProgress;};
+  window.gardenRoomProgress=value=>{const bar=document.getElementById('garden-progress');if(bar)bar.value=value;};
   window.gardenHideLoading=()=>{clearInterval(loadingTimer);document.getElementById('garden-loading')?.remove();};
   window.gardenShowLoading=()=>{
    window.gardenHideLoading();const screen=document.createElement('section');screen.id='garden-loading';
