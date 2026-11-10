@@ -1,4 +1,6 @@
 extends RefCounted
+const BULLET_RANGE := 336.0
+const ROCKET_RANGE := 480.0
 var g:Node2D
 func _init(game:Node2D):g=game
 func enemy(kind:int,pos:Vector2,hp:int,boss:bool=false)->void:
@@ -25,15 +27,15 @@ func gunner(e:Dictionary,delta:float)->void:
  # All shooters fire directly; no targeting beam or stationary aim phase.
  e.state="chase"
  var toward:Vector2=g.player-e.pos
- var firing_range:=620.0 if e.type==7 else 435.0
+ var firing_range:=500.0 if e.type==7 else 350.0
  if toward.length()<firing_range and e.cooldown<=0:
   var rocket:bool=e.type==7
   var direction:=toward.normalized()
   if not rocket:direction=direction.rotated(randf_range(-.095,.095) if e.type==5 else randf_range(-.045,.045))
-  g.shots.append({"pos":e.pos+Vector2(0,-24)+direction*28,"vel":direction*(270 if rocket else 410 if e.type==6 else 340),"life":3.0,"kind":"enemy_rocket" if rocket else "enemy_bullet","age":0.0,"range_left":600.0 if rocket else 420.0})
+  g.shots.append({"pos":e.pos+Vector2(0,-24)+direction*28,"vel":direction*(270 if rocket else 410 if e.type==6 else 340),"life":3.0,"kind":"enemy_rocket" if rocket else "enemy_bullet","age":0.0,"range_left":ROCKET_RANGE if rocket else BULLET_RANGE,"max_range":ROCKET_RANGE if rocket else BULLET_RANGE,"shooter_type":int(e.type)})
   e.fired_at=g.time;e.cooldown=randf_range(4.5,6.7) if rocket else randf_range(.18,.48) if e.type==6 else randf_range(.5,1.15);e.target=g.player
   g.sfx_at("rpg_launch" if rocket else "rifle" if e.type==6 else "pistol",e.pos)
- var preferred:=470.0 if e.type==7 else 320.0
+ var preferred:=375.0 if e.type==7 else 260.0
  var motion:=toward.normalized()*(65 if toward.length()>preferred else -55 if toward.length()<180 else 0)*delta
  if not g.blocked(e.pos+motion):e.pos+=motion
 func boss(e:Dictionary,delta:float)->void:
@@ -87,8 +89,18 @@ func spawn_medkit()->void:
   point=candidate;break
  g.objects.append({"kind":"medkit","id":id,"pos":point,"solid":false})
  g.notify(g.tx("medkit_spawned").format({"wave":g.wave}))
+func bullet_length(shot:Dictionary)->float:
+ return 5.0 if int(shot.get("shooter_type",6))==5 else 10.0
 func draw_bullet(shot:Dictionary,p:Vector2)->void:
- var tail:Vector2=p-Vector2(shot.vel).normalized()*24
- g.draw_line(p,tail,Color("1b1727"),8)
- g.draw_line(p,tail,Color("ff995d"),4)
- g.draw_circle(p,4,Color("fff1bd"))
+ # The player and enemy AK use this exact same tracer, colour and width.
+ g.draw_line(p,p-Vector2(shot.vel).normalized()*bullet_length(shot),Color("ffe3a7"),3)
+func normalize_projectile(shot:Dictionary)->void:
+ var cap:=ROCKET_RANGE if shot.kind=="enemy_rocket" else BULLET_RANGE
+ if not shot.has("max_range"):
+  # Upgrade saved bullets from the previous 420/600px range, including tiny residues.
+  var previous:=600.0 if shot.kind=="enemy_rocket" else 420.0
+  var travelled:=maxf(0,previous-float(shot.range_left)) if shot.has("range_left") else Vector2(shot.vel).length()*float(shot.get("age",0))
+  shot.max_range=cap;shot.range_left=maxf(0,cap-travelled)
+ elif float(shot.max_range)>cap:
+  var travelled:=maxf(0,float(shot.max_range)-float(shot.range_left))
+  shot.max_range=cap;shot.range_left=maxf(0,cap-travelled)

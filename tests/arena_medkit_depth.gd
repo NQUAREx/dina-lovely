@@ -22,6 +22,6 @@ func run():
  g.held_item="rpg";g.weapon="rpg";g.rpg_reload=0;g.attack_cd=0;g.reload_time=0;g.attack();g.attack(true);assert(is_equal_approx(g.rpg_reload,3.24) and is_equal_approx(g.attack_cd,3.24))
  g.build_level(3);g.world_tools.excavate(Vector2(600,600));g.world_tools.excavate(Vector2(624,600))
  var image:Image=g.world_tools.images["3"];var upper:Color=image.get_pixel(300,294);var bottom:Color=image.get_pixel(300,306)
- assert(bottom.a>0 and upper.v>.18 and bottom.v<.09 and bottom.v<upper.v*.35)
+ assert(bottom.a>0 and upper.v>.18 and bottom.v>.13 and bottom.v<.24 and bottom.v<upper.v*.8)
  print("PASS ten waves without regeneration, third/sixth/ninth-wave reusable/full-heal medkit, more shooters, random cadence, 3.24s RPG reload and dark merged-pit bottom")
  quit()

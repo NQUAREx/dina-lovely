@@ -2358,6 +2358,11 @@ func damage_enemy(index: int, damage: float, push: Vector2) -> void:
 func update_shots(delta: float) -> void:
 	for i in range(shots.size()-1,-1,-1):
 		var shot := shots[i]
+		if float(shot.life)<=0 or not Vector2(shot.vel).is_finite() or Vector2(shot.vel).length_squared()<.001:
+			shots.remove_at(i);continue
+		if shot.kind in ["enemy_bullet","enemy_rocket"]:
+			battle.normalize_projectile(shot)
+			if float(shot.range_left)<=.25:shots.remove_at(i);continue
 		shot.age += delta
 		if shot.kind=="rpg":shot.vel=shot.vel.normalized()*(75.0+425.0*(1.0-exp(-shot.age*2.7)))
 		var start: Vector2 = shot.pos
@@ -2374,8 +2379,8 @@ func update_shots(delta: float) -> void:
 			var t:=clampf((player+Vector2(0,-26)-start).dot(segment)/maxf(.001,segment.length_squared()),0,1)
 			var contact:=start.lerp(end,t).distance_to(player+Vector2(0,-26))<18 and t<=wall_t
 			shot.pos=end;shot.life-=delta
-			if shot.has("range_left"):shot.range_left=maxf(0,float(shot.range_left)-segment.length())
-			var expired:bool=shot.life<=0 or float(shot.get("range_left",1))<=0
+			if shot.has("range_left"):shot.range_left=maxf(0,float(shot.range_left)-motion.length())
+			var expired:bool=shot.life<=0 or float(shot.get("range_left",1))<=.25
 			if contact:hurt()
 			if shot.kind=="enemy_rocket" and (contact or wall_t<=1 or expired):burst(end,18,Color("ee9d59"));sfx_at("rpg_explosion",end)
 			if contact or wall_t<=1 or expired:shots.remove_at(i)
@@ -2406,7 +2411,7 @@ func update_shots(delta: float) -> void:
 		if not hit:continue
 		if shot.kind=="rpg":
 			shake=maxf(shake,10.0*clampf(1-player.distance_to(shot.pos)/750,0,1));sfx_at("rpg_explosion",shot.pos);burst(shot.pos,42,Color("ffd69c"))
-		if hit_index>=0:damage_enemy(hit_index,99.0 if shot.kind=="rpg" else 2.5,shot.vel.normalized()*9)
+		if hit_index>=0:damage_enemy(hit_index,99.0 if shot.kind=="rpg" else 5.0,shot.vel.normalized()*9)
 		shots.remove_at(i)
 
 func draw_extra_effects() -> void:
@@ -2430,7 +2435,7 @@ func draw_extra_effects() -> void:
 			draw_set_transform(p,shot.vel.angle());draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55);draw_set_transform(Vector2.ZERO)
 			draw_circle(p-shot.vel.normalized()*13,randf_range(4,7),Color("ffc56b"))
 		elif shot.kind=="enemy_bullet":battle.draw_bullet(shot,p)
-		else:draw_line(p,p-shot.vel.normalized()*10,Color("ffe3a7"),3)
+		else:battle.draw_bullet(shot,p)
 	if (level==4 or save_data.finished) and not weapon.is_empty():
 		var p := screen(player)+Vector2(14,-28)-aim*(attack_flash/.22)*(14.0 if weapon=="rpg" else 11.5)
 		var swing := sin((1-attack_flash/.22)*PI)*1.5 if weapon=="sword" and attack_flash>0 else 0.0

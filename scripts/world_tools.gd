@@ -1,5 +1,5 @@
 extends RefCounted
-const PIT_WALL := [Color("76543c"),Color("65442f"),Color("51362a"),Color("3f2c26"),Color("2c2323"),Color("201d22"),Color("17171e"),Color("111319"),Color("0c1016"),Color("080c12")]
+const PIT_WALL := [Color("76543c"),Color("674832"),Color("5c3f2e"),Color("51382b"),Color("473229"),Color("402e28"),Color("382b27"),Color("332925"),Color("2e2724"),Color("2b2523")]
 ## Optional world editing. Only the current room runs; other rooms keep saved data.
 const TOOLS := ["axe","shears","drill"]
 var g:Node2D
@@ -138,11 +138,11 @@ func stamp(pos:Vector2)->void:
     if y-depth<0 or mask.get_pixel(x,y-depth).r<.5:top_depth=depth;break
    var upper_edge:=mask.get_pixel(x,y-1).r<.5
    var side_edge:=mask.get_pixel(x-1,y).r<.5 or mask.get_pixel(x+1,y).r<.5
-   var color:=Color("a88255") if upper_edge else Color("49362d") if side_edge else Color("090d14")
+   var color:=Color("a88255") if upper_edge else Color("49362d") if side_edge else Color("2b2523")
    if top_depth>1:
     color=PIT_WALL[mini(9,top_depth-2)]
     if top_depth in [3,6] and posmod(x*13+y*7,17)<4:color=color.lightened(.035)
-    elif top_depth>9 and posmod(x*31+y*17,23)<2:color=Color("10141c")
+    elif top_depth>9 and posmod(x*31+y*17,23)<2:color=Color("3a3029")
 
    image.set_pixel(x,y,color)
 func has_sample(pos:Vector2)->bool:
