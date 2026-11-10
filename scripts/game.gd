@@ -77,7 +77,7 @@ var held_item := ""
 var magazine := 30
 var reload_time := 0.0
 var rpg_reload := 0.0
-const RPG_RELOAD := 1.62
+const RPG_RELOAD := 3.24
 var grass_texture: Texture2D
 var generating_paths := false
 var resting := ""
@@ -1117,6 +1117,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.kind=="medkit":return true
 	if obj.kind=="flashlight_pedestal":return false
 	if obj.kind=="cat_fish":return not save_data.cat_fish and not save_data.cat_tamed
 	if obj.kind=="cat_hut":return not save_data.cat_tamed
@@ -1198,6 +1199,7 @@ func find_nearest() -> void:
 			if objects[i].kind=="pet_cat" and available(objects[i]) and player.distance_to(objects[i].pos)<60 and interaction_reachable(objects[i]):nearest=i;break
 
 func item_name(obj: Dictionary) -> String:
+	if obj.kind=="medkit":return tx("item_medkit")
 	if obj.kind in ["cat_fish","cat_hut","pet_cat","stats_stone"]:return tx("item_"+obj.kind)
 	if obj.kind=="secret_book":return tx("secret_book_name")
 	if obj.kind in ["axe","shears","drill"]:return tx("item_"+obj.kind)
@@ -1285,6 +1287,7 @@ func draw_item_names() -> void:
 		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,14,CREAM)
 
 func action_text(obj: Dictionary) -> String:
+	if obj.kind=="medkit":return tx("use_medkit")
 	if obj.kind=="cat_fish":return tx("take_fish")
 	if obj.kind=="cat_hut":return tx("feed_cat" if save_data.cat_fish else "meet_cat")
 	if obj.kind=="pet_cat":return tx("pet_cat_action")
@@ -1338,6 +1341,9 @@ func interact() -> void:
 	var id: String = obj.id
 	if task_time>0: return
 	if companion.interact(obj):find_nearest();return
+	if obj.kind=="medkit":
+		if health>=8:notify(tx("health_full"));return
+		health=8;objects.erase(obj);burst(player,12,Color("a9e7b6"));sfx("chime");notify(tx("medkit_used"));find_nearest();persist();return
 	if obj.kind=="stats_stone":stats.show(self);return
 	if obj.kind in ["axe","shears","drill"]:world_tools.pickup(obj.kind);return
 	if obj.kind=="secret_book":show_secret_book();return
@@ -1619,7 +1625,6 @@ func burst(pos: Vector2, count: int, color: Color) -> void:
 func spawn_wave() -> void:
 	wave += 1
 	poison_zones.clear()
-	health = mini(8,health+3)
 	wave_timer = 3.0
 	battle.spawn()
 
@@ -1633,7 +1638,6 @@ func update_combat(delta: float) -> void:
 				combat_done = true
 				shots.assign(shots.filter(func(shot):return shot.kind not in ["enemy_bullet","enemy_rocket"]))
 				poison_zones.clear()
-				health = 8
 				notify(tx("combat_complete"))
 				sfx()
 		return
@@ -2407,7 +2411,8 @@ func draw_extra_effects() -> void:
 		elif shot.kind=="enemy_rocket":
 			draw_set_transform(p,shot.vel.angle());draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55);draw_set_transform(Vector2.ZERO)
 			draw_circle(p-shot.vel.normalized()*13,randf_range(4,7),Color("ffc56b"))
-		else: draw_line(p,p-shot.vel.normalized()*(7 if shot.kind=="enemy_bullet" else 10),Color("efaaa1") if shot.kind=="enemy_bullet" else Color("ffe3a7"),2 if shot.kind=="enemy_bullet" else 3)
+		elif shot.kind=="enemy_bullet":battle.draw_bullet(shot,p)
+		else:draw_line(p,p-shot.vel.normalized()*10,Color("ffe3a7"),3)
 	if (level==4 or save_data.finished) and not weapon.is_empty():
 		var p := screen(player)+Vector2(14,-28)-aim*(attack_flash/.22)*(14.0 if weapon=="rpg" else 11.5)
 		var swing := sin((1-attack_flash/.22)*PI)*1.5 if weapon=="sword" and attack_flash>0 else 0.0

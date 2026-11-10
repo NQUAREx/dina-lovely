@@ -9,12 +9,15 @@ func spawn()->void:
   var angle:float=TAU*i/count
   var pos:=Vector2(13.5,14.5)*48+Vector2(cos(angle)*390,sin(angle)*235)
   enemy(2 if g.wave==10 else i%mini(g.wave+1,5),pos,1000 if g.wave==10 else 7+g.wave*3+(i%3)*3,g.wave==10)
- var pistols:int=2 if g.wave==10 else 1+g.wave/4
- var rifles:int=2 if g.wave==10 else maxi(0,(g.wave-2)/3)
+ var pistols:int=4 if g.wave==10 else 2+g.wave/3
+ var rifles:int=4 if g.wave==10 else 1+maxi(0,(g.wave-2)/3)
  for i in range(pistols+rifles+(1 if g.wave==10 else 0)):
   var kind:=5 if i<pistols else 6 if i<pistols+rifles else 7
-  enemy(kind,Vector2(6.5+i*3,10.5)*48,12+g.wave*3)
- g.notify(g.tx("boss_announcement") if g.wave==10 else g.tx("wave_announcement")%g.wave)
+  var angle:float=TAU*i/(pistols+rifles+(1 if g.wave==10 else 0))+.3
+  var pos:=Vector2(13.5,14.5)*48+Vector2(cos(angle)*350,sin(angle)*250)
+  enemy(kind,g.accessory_drop_position(pos),12+g.wave*3)
+ if g.wave==5:spawn_medkit()
+ else:g.notify(g.tx("boss_announcement") if g.wave==10 else g.tx("wave_announcement")%g.wave)
 func gunner(e:Dictionary,delta:float)->void:
  if e.state=="spawn":
   if e.timer<=0:e.state="chase"
@@ -26,7 +29,7 @@ func gunner(e:Dictionary,delta:float)->void:
   var direction:=toward.normalized().rotated(randf_range(-.095,.095) if e.type==5 else randf_range(-.045,.045))
   var rocket:bool=e.type==7
   g.shots.append({"pos":e.pos+Vector2(0,-24)+direction*28,"vel":direction*(270 if rocket else 410 if e.type==6 else 340),"life":3.0,"kind":"enemy_rocket" if rocket else "enemy_bullet","age":0.0})
-  e.fired_at=g.time;e.cooldown=2.8 if rocket else .30 if e.type==6 else .78;e.target=g.player
+  e.fired_at=g.time;e.cooldown=randf_range(4.5,6.7) if rocket else randf_range(.18,.48) if e.type==6 else randf_range(.5,1.15);e.target=g.player
   g.sfx_at("rpg_launch" if rocket else "rifle" if e.type==6 else "pistol",e.pos)
  var motion:=toward.normalized()*(65 if toward.length()>460 else -55 if toward.length()<180 else 0)*delta
  if not g.blocked(e.pos+motion):e.pos+=motion
@@ -68,3 +71,20 @@ func draw_gun(e:Dictionary,p:Vector2)->void:
  else:g.draw_sprite("enemy_pistol" if e.type==5 else "weapon_rifle",Vector2(0,18),Color.WHITE,.45 if e.type==5 else .65)
  g.draw_set_transform(Vector2.ZERO)
  if recoil>0:g.draw_texture_rect(g.glow,Rect2(origin+direction*28-Vector2(14,14),Vector2(28,28)),false,Color(1,.8,.4,recoil))
+
+func spawn_medkit()->void:
+ if g.objects.any(func(o):return o.id=="wave5_medkit"):return
+ var origin:=Vector2(13.5,21.0)*48
+ var point:Vector2=g.accessory_drop_position(origin)
+ for offset in [Vector2.ZERO,Vector2(-144,0),Vector2(144,0),Vector2(-288,0),Vector2(288,0),Vector2(0,-96),Vector2(-144,-96),Vector2(144,-96)]:
+  var candidate:Vector2=origin+offset;var bounds:=Rect2(candidate-Vector2(30,44),Vector2(60,52))
+  if not g.valid_ground(candidate) or g.blocked(candidate):continue
+  if g.objects.any(func(o):return o.kind not in ["doorway","arch","pet_cat"] and g.item_visual_bounds(o).grow(12).intersects(bounds)):continue
+  point=candidate;break
+ g.objects.append({"kind":"medkit","id":"wave5_medkit","pos":point,"solid":false})
+ g.notify(g.tx("medkit_spawned"))
+func draw_bullet(shot:Dictionary,p:Vector2)->void:
+ var tail:Vector2=p-Vector2(shot.vel).normalized()*24
+ g.draw_line(p,tail,Color("1b1727"),8)
+ g.draw_line(p,tail,Color("ff995d"),4)
+ g.draw_circle(p,4,Color("fff1bd"))

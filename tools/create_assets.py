@@ -681,6 +681,14 @@ for name in ['hedge_tree','hedge_tree_apples']:
  im.resize((64,96),Image.Resampling.NEAREST).save(A/(name+'.png'))
 for name in ['gate_key','lock_open_key']:
  i=NAMES.index(name);atlas.crop(((i%16)*32,(i//16)*48,(i%16+1)*32,(i//16+1)*48)).save(A/(name+'.png'))
+# A separate original first-aid case; fixed atlas position appended after retained artwork.
+def medkit(d):
+ d.ellipse((4,40,28,45),fill='#272938');d.rectangle((11,23,21,28),fill='#4c4857');d.rectangle((13,24,19,27),fill='#b9b4ac')
+ d.polygon([(4,29),(7,26),(25,26),(29,30),(29,41),(26,44),(6,44),(3,40)],fill='#676676')
+ d.rectangle((5,28,26,40),fill='#f0e8d4');d.rectangle((5,39,26,42),fill='#b9b3ae');d.line((6,28,25,28),fill='#fff9e6');d.line((27,30,27,40),fill='#908b98')
+ d.rectangle((13,30,18,38),fill='#d85d78');d.rectangle((10,32,21,35),fill='#d85d78');d.line((14,30,17,30),fill='#ffb4b5')
+ for px in [7,24]:d.rectangle((px,36,px+1,40),fill='#817a86')
+sprite('medkit',medkit)
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)

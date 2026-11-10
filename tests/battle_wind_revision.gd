@@ -20,7 +20,7 @@ func run():
   for shooter in shooters:
    shooter.state="chase";shooter.cooldown=0;g.player=shooter.pos+Vector2(100,100);var count=g.shots.size();g.update_gunner(shooter,.016);assert(g.shots.size()==count+1 and shooter.state=="chase" and g.shots.back().vel.length()>=270)
   if wave==10:
-   assert(shooters.filter(func(e):return e.type==5).size()==2 and shooters.filter(func(e):return e.type==6).size()==2 and shooters.filter(func(e):return e.type==7).size()==1)
+   assert(shooters.filter(func(e):return e.type==5).size()==4 and shooters.filter(func(e):return e.type==6).size()==4 and shooters.filter(func(e):return e.type==7).size()==1)
    var boss=g.enemies.filter(func(e):return e.boss)[0];assert(boss.hp>100);boss.state="chase";boss.slime_cd=0;g.battle.boss(boss,.016);assert(g.poison_zones.size()==1)
    g.player=g.poison_zones[0].pos;g.invincible=0;g.battle.update_poison(1);assert(g.health==7)
  g.enemies.clear();g.wave_timer=0;g.update_combat(.016);assert(g.combat_done and g.poison_zones.is_empty())

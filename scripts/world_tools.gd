@@ -1,4 +1,5 @@
 extends RefCounted
+const PIT_WALL := [Color("76543c"),Color("65442f"),Color("51362a"),Color("3f2c26"),Color("2c2323"),Color("201d22"),Color("17171e"),Color("111319"),Color("0c1016"),Color("080c12")]
 ## Optional world editing. Only the current room runs; other rooms keep saved data.
 const TOOLS := ["axe","shears","drill"]
 var g:Node2D
@@ -129,17 +130,19 @@ func stamp(pos:Vector2)->void:
   for x in range(maxi(1,int(centre.x)-16),mini(mask.get_width()-1,int(centre.x)+17)):
    var noise:float=sin(x*17.31+y*7.91)*.07
    if ((Vector2(x+.5,y+.5)-centre)/Vector2(15.5,9.5)).length()<1+noise:mask.set_pixel(x,y,Color.WHITE)
- for y in range(maxi(1,int(centre.y)-18),mini(mask.get_height()-1,int(centre.y)+19)):
+ for y in range(maxi(1,int(centre.y)-12),mini(mask.get_height()-1,int(centre.y)+33)):
   for x in range(maxi(1,int(centre.x)-18),mini(mask.get_width()-1,int(centre.x)+19)):
    if mask.get_pixel(x,y).r<.5:continue
-   var top_depth:=0
-   for depth in range(1,13):
+   var top_depth:=20
+   for depth in range(1,21):
     if y-depth<0 or mask.get_pixel(x,y-depth).r<.5:top_depth=depth;break
-   var edge:=mask.get_pixel(x,y-1).r<.5 or mask.get_pixel(x-1,y).r<.5 or mask.get_pixel(x+1,y).r<.5
-   var color:=Color("b18a58") if edge else Color("a27b50") if mask.get_pixel(x,y+1).r<.5 else Color("3a3029") if posmod(x*31+y*17,19)<3 else Color("4a3427")
+   var upper_edge:=mask.get_pixel(x,y-1).r<.5
+   var side_edge:=mask.get_pixel(x-1,y).r<.5 or mask.get_pixel(x+1,y).r<.5
+   var color:=Color("a88255") if upper_edge else Color("49362d") if side_edge else Color("090d14")
    if top_depth>1:
-    color=[Color("211e25"),Color("282127"),Color("32262a"),Color("3c2c28"),Color("493027"),Color("53372b"),Color("5c3e2d"),Color("65452f"),Color("60402d"),Color("51382b")][mini(9,top_depth-2)]
-    if posmod(x*13+y*7,17)<3:color=color.lightened(.12)
+    color=PIT_WALL[mini(9,top_depth-2)]
+    if top_depth in [3,6] and posmod(x*13+y*7,17)<4:color=color.lightened(.035)
+    elif top_depth>9 and posmod(x*31+y*17,23)<2:color=Color("10141c")
 
    image.set_pixel(x,y,color)
 func has_sample(pos:Vector2)->bool:

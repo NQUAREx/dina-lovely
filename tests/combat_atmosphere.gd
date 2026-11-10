@@ -9,7 +9,7 @@ func run():
  g.build_level(4);g.wave=0
  for wave in range(1,11):
   g.enemies.clear();g.spawn_wave()
-  assert(g.enemies.filter(func(e):return e.type==5).size()==(2 if wave==10 else 1+wave/4))
+  assert(g.enemies.filter(func(e):return e.type==5).size()==(4 if wave==10 else 2+wave/3))
   if wave==10:assert(g.enemies.filter(func(e):return e.get("boss",false))[0].hp==1000)
  var gunner=g.enemies.filter(func(e):return e.type==5)[0]
  g.enemies.assign([gunner]);gunner.state="chase";gunner.cooldown=0;g.player=gunner.pos+Vector2(100,200);g.combat_done=false
