@@ -90,3 +90,6 @@ s=re.sub(r"(?:\s*window\.gardenLoadProgress\?\.\(current,total\);)+", "\n\t\t\t\
 if callback not in s:
  s=s.replace("'onProgress': function (current, total) {", "'onProgress': function (current, total) {\n\t\t\t\t"+callback)
 p.write_text(s)
+
+for frame_asset in ["frame_top.png","frame_bottom.png"]:
+ shutil.copyfile(root/"assets"/frame_asset,p.parent/frame_asset)

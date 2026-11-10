@@ -32,7 +32,10 @@ func run():
  var hut=g.objects.filter(func(o):return o.kind=="cat_hut")[0];var fish=g.objects.filter(func(o):return o.kind=="cat_fish")[0]
  assert(route(g,Vector2i(spawn/48),Vector2i(fish.pos/48)).size()>0)
  g.player=fish.pos;g.nearest=g.objects.find(fish);g.interact();assert(g.save_data.cat_fish)
- g.player=hut.pos+Vector2(0,48);g.nearest=g.objects.find(hut);g.interact();assert(g.save_data.cat_tamed and not g.save_data.cat_fish)
+ for offset in [Vector2(-48,16),Vector2(48,16),Vector2(0,-48),Vector2(-28,-20),Vector2(28,-20)]:
+  g.player=hut.pos+offset;assert(not g.interaction_reachable(hut))
+ for offset in [Vector2(-28,20),Vector2(28,20),Vector2(-28,-20),Vector2(28,-20)]:assert(g.blocked(hut.pos+offset))
+ g.player=hut.pos+Vector2(0,48);assert(g.interaction_reachable(hut));g.nearest=g.objects.find(hut);g.interact();assert(g.save_data.cat_tamed and not g.save_data.cat_fish)
  var initial=g.companion.position;g.companion.update(.1);assert(g.companion.position==initial)
  var path=route(g,Vector2i(g.player/48),Vector2i(spawn/48))
  for point in path.slice(0,mini(30,path.size())):
@@ -41,7 +44,7 @@ func run():
    g.move_player(.016,(point-g.player).normalized()*minf(1,g.player.distance_to(point)/(g.SPEED*.016)));g.companion.update(.016)
    assert(not g.blocked(g.companion.position))
  for n in range(100):g.companion.update(.016)
- assert(g.companion.position.distance_to(g.player)<50 and not g.companion.prints.is_empty())
+ assert(g.companion.position.distance_to(g.player)<85 and not g.companion.prints.is_empty())
  assert(g.save_data.stats.steps>0 and g.save_data.stats.distance>0)
  g.held_item="rake";g.find_nearest();assert(g.nearest<0 or g.objects[g.nearest].kind!="pet_cat")
  g.prepare_room_cache(0)

@@ -1,4 +1,7 @@
 (()=>{
+ const garlands=['top','bottom'].map(edge=>{const image=document.createElement('img');image.src='frame_'+edge+'.png';image.alt='';image.setAttribute('aria-hidden','true');image.style.cssText='position:fixed;z-index:40;pointer-events:none;image-rendering:pixelated;object-fit:fill';document.documentElement.append(image);return image;});
+ const layoutGarlands=()=>{const canvas=document.getElementById('canvas');if(!canvas)return;const r=canvas.getBoundingClientRect();const height=r.width*40/270;garlands.forEach((image,i)=>Object.assign(image.style,{left:r.left+'px',width:r.width+'px',height:height+'px',top:(i?r.bottom-height*.50:r.top-height*.60)+'px'}));};
+ addEventListener('resize',layoutGarlands);window.visualViewport?.addEventListener('resize',layoutGarlands);addEventListener('load',layoutGarlands);new ResizeObserver(layoutGarlands).observe(document.documentElement);requestAnimationFrame(layoutGarlands);
  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
  const standalone=matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches||navigator.standalone;
  const mobile=ios||/Android/.test(navigator.userAgent);

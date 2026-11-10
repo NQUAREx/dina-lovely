@@ -328,20 +328,27 @@ func setup_ui() -> void:
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(hud)
 	var top := Panel.new()
-	top.position = Vector2(16, 70)
+	top.position = Vector2(16, 16)
 	top.size = Vector2(508, 100)
 	top.add_theme_stylebox_override("panel", panel_style(Color(0.12,0.14,0.22,0.92)))
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(top)
 	objective = label("", 18)
-	objective.position = Vector2(32, 84)
-	objective.size = Vector2(390, 46)
+	objective.position = Vector2(32, 25)
+	objective.size = Vector2(374, 42)
 	hud.add_child(objective)
 	status = label("", 14, Color("c1bdce"))
-	status.position = Vector2(32, 132)
-	status.size = Vector2(470, 34)
+	status.position = Vector2(32, 72)
+	status.size = Vector2(374, 30)
 	hud.add_child(status)
-	var menu_button := button("Ⅱ", show_menu, 68)
+	var menu_button := button("", show_menu, 68)
+	menu_button.tooltip_text=tx("menu_action")
+	menu_button.icon=preload("res://assets/pause_icon.png")
+	menu_button.icon_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	menu_button.expand_icon=true
+	menu_button.add_theme_constant_override("icon_max_width",40)
+	menu_button.custom_minimum_size=Vector2(68,68)
+	menu_button.size=Vector2(68,68)
 	menu_button.name = "MenuButton"
 	hud.add_child(menu_button)
 	hint = label("", 15)
@@ -384,14 +391,14 @@ func setup_ui() -> void:
 func layout_ui() -> void:
 	var size := get_viewport_rect().size
 	if not is_instance_valid(hud): return
-	hud.get_node("MenuButton").position = Vector2(444, 80)
+	hud.get_node("MenuButton").position = Vector2(440, 32)
 	action_button.position = Vector2(337, 824)
 	action_button.custom_minimum_size = Vector2(180,76)
 	attack_button.position = Vector2(365, 720)
 	attack_button.custom_minimum_size = Vector2(150,82)
 	hint.position = Vector2(36, 914)
 	hint.size = Vector2(468, 32)
-	toast.position = Vector2(32, 180)
+	toast.position = Vector2(32, 126)
 	toast.size = Vector2(476, 76)
 	rotate_overlay.visible = false
 	var orientation_text: Label = rotate_overlay.get_node("OrientationMessage")
@@ -897,6 +904,8 @@ func blocked(pos: Vector2) -> bool:
 			if obj.kind=="pond":
 				# Full drawn pond footprint; its anchor is the bottom, not its centre.
 				if ((pos-obj.pos-Vector2(0,-44))/Vector2(73,65)).length()<1:return true
+			elif obj.kind=="cat_hut":
+				if Rect2(obj.pos+Vector2(-34,-48),Vector2(68,76)).has_point(pos):return true
 			elif pos.distance_to(obj.pos)<(58 if obj.kind=="house" else 24):return true
 	return false
 
@@ -1146,6 +1155,7 @@ func required_flowers_ready() -> bool:return required_flower_count()==6
 func blooms_ready() -> bool:return required_flowers_ready()
 
 func interaction_reachable(obj: Dictionary) -> bool:
+	if obj.kind=="cat_hut":return companion.can_feed(obj)
 	var target:Vector2=obj.pos
 	var length:=player.distance_to(target)
 	var embedded:bool=obj.get("hidden_hedge",false) or obj.kind in ["berries","tree_apples","hedge_target"] or (world_tools.tree_target(obj) and obj.get("integrated_hedge",false))
@@ -1561,7 +1571,7 @@ func finish_game() -> void:
 
 func update_hud() -> void:
 	if not is_instance_valid(objective): return
-	objective.text = str(level+1) + " / 7   ·   " + tx(TITLES[level])
+	objective.text = tx(TITLES[level])
 	match level:
 		0:
 			var count := 0
@@ -2114,7 +2124,7 @@ func _draw_world() -> void:
 	draw_garden_needs()
 	if not drawing_neighbor:draw_item_names()
 	# Deterministic ambient fireflies and butterflies, no nodes allocated per frame.
-	for i in range(110):
+	for i in range(132):
 		var world := Vector2(fposmod(i*137.7,grid[0].length()*TILE),fposmod(i*193.3,grid.size()*TILE))+Vector2(sin(time*.3+i)*26,cos(time*.4+i)*18)
 		if not valid_ground(world) or corridor_row(floori(world.y/TILE)) or world.y<6*TILE or world.y>(grid.size()-6)*TILE: continue
 		var p := screen(world)

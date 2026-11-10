@@ -12,6 +12,7 @@ var stride:=0.0
 var anim:=0.0
 var last_player:=Vector2.INF
 var autosave:=0.0
+var repath_wait:=0.0
 func _init(game:Node2D):g=game
 func place(rng:RandomNumberGenerator)->void:
  if g.level!=0:return
@@ -46,9 +47,10 @@ func restore()->void:
  if not g.save_data.cat_tamed:return
  trail.clear();prints.clear();last_player=g.player
  position=g.accessory_drop_position(g.player-g.walk_facing*28)
+ if g.blocked(position) or not clear_segment(position,g.player):position=g.player
  if int(g.save_data.cat_room)==g.level and g.save_data.cat_position.size()==2:
   var saved:=Vector2(g.save_data.cat_position[0],g.save_data.cat_position[1])
-  if saved.distance_to(g.player)<100 and not g.blocked(saved):position=saved
+  if saved.distance_to(g.player)<100 and not g.blocked(saved) and clear_segment(saved,g.player):position=saved
  trail.append({"pos":g.player,"time":clock})
 func record()->void:
  if not g.save_data.cat_tamed:return
@@ -57,8 +59,9 @@ func record()->void:
 func interact(obj:Dictionary)->bool:
  if obj.kind=="cat_fish":g.save_data.cat_fish=true;g.persist();g.sfx("chime");g.notify(g.tx("cat_fish_found"));return true
  if obj.kind=="cat_hut":
+  if not can_feed(obj):return true
   if not g.save_data.cat_fish:g.notify(g.tx("cat_needs_fish"));return true
-  g.save_data.cat_fish=false;g.save_data.cat_tamed=true;position=obj.pos+Vector2(0,34);trail=[{"pos":g.player,"time":clock}];last_player=g.player
+  g.save_data.cat_fish=false;g.save_data.cat_tamed=true;position=obj.pos+Vector2(0,48);trail=[{"pos":g.player,"time":clock}];last_player=g.player
   g.save_data.cat_room=g.level;g.save_data.cat_position=[position.x,position.y];g.food_heart_burst();g.persist();g.sfx("chime");g.notify(g.tx("cat_tamed"));return true
  if obj.kind=="pet_cat":
   g.stats.add(g,"pets");g.burst(position,5,Color("eba3b9"));g.sfx("ui");g.persist();return true
@@ -77,7 +80,7 @@ func save()->void:
  g.save_data.cat_room=g.level;g.save_data.cat_position=[position.x,position.y]
 func update(delta:float)->void:
  if not g.playing or g.paused or g.transition:moving=false;return
- clock+=delta;autosave+=delta
+ clock+=delta;autosave+=delta;repath_wait=maxf(0,repath_wait-delta)
  if autosave>8:autosave=0;save();g.persist()
  for n in range(prints.size()-1,-1,-1):
   prints[n].life-=delta
@@ -85,18 +88,24 @@ func update(delta:float)->void:
  if not g.save_data.cat_tamed:return
  if last_player==Vector2.INF or last_player.distance_to(g.player)>3:
   trail.append({"pos":g.player,"time":clock});last_player=g.player
+ if g.blocked(position):
+  var safe:=bridge_start(position)
+  if safe!=Vector2.INF:position=safe
  var before:=position;var budget:float=g.SPEED*1.18*delta
  while not trail.is_empty() and trail[0].time<=clock-.55 and budget>0:
   var point:Vector2=trail[0].pos;var distance:=position.distance_to(point)
   if distance<.1:trail.pop_front();continue
   var amount:=minf(budget,distance)
-  if trail.size()==1:amount=minf(amount,maxf(0,distance-30))
+  if trail.size()==1:amount=minf(amount,maxf(0,distance-80))
   if amount<=.001:break
   var next:=position.move_toward(point,amount)
-  if g.blocked(next):
-   if not g.blocked(Vector2(next.x,position.y)):next=Vector2(next.x,position.y)
-   elif not g.blocked(Vector2(position.x,next.y)):next=Vector2(position.x,next.y)
-   else:break
+  if not clear_segment(position,next):
+   if repath_wait<=0:
+    repath_wait=.4
+    var detour:=bridge(position,point)
+    if not detour.is_empty():
+     for i in range(detour.size()-1,-1,-1):trail.push_front({"pos":detour[i],"time":clock-.55})
+   break
   position=next;budget-=amount
   if position.distance_to(point)<1:position=point;trail.pop_front()
  moving=position.distance_to(before)>.05
@@ -125,3 +134,49 @@ func draw_prints()->void:
   if not g.shadow_floor_cell(Vector2i(mark.pos/48)):continue
   var color:=Color("a39180") if mark.stone else Color("223a2b");color.a=.68*minf(1,mark.life/2)
   g.draw_set_transform(g.screen(mark.pos),mark.angle);g.draw_sprite("cat_paw",Vector2.ZERO,color,.42);g.draw_set_transform(Vector2.ZERO)
+
+func can_feed(obj:Dictionary)->bool:
+ var relative:Vector2=g.player-obj.pos
+ if relative.y<30 or absf(relative.x)>28:return false
+ var front:Vector2=obj.pos+Vector2(0,36)
+ for n in range(ceili(g.player.distance_to(front)/3)+1):
+  var point:Vector2=g.player.lerp(front,float(n)/maxf(1,ceili(g.player.distance_to(front)/3)))
+  for offset in [Vector2(-9,-6),Vector2(9,-6),Vector2(-9,6),Vector2(9,6)]:
+   var cell:=Vector2i((point+offset)/48)
+   if cell.x<0 or cell.y<0 or cell.y>=g.grid.size() or cell.x>=g.grid[0].length() or g.grid[cell.y][cell.x]!=".":return false
+ return true
+func clear_segment(a:Vector2,b:Vector2)->bool:
+ var count:=maxi(1,ceili(a.distance_to(b)/3))
+ for i in range(1,count+1):
+  if g.blocked(a.lerp(b,float(i)/count)):return false
+ return true
+func bridge_start(point:Vector2)->Vector2:
+ var best:=Vector2.INF;var distance:=INF
+ for y in range(-3,4):
+  for x in range(-3,4):
+   var p:Vector2=(point/12).round()*12+Vector2(x,y)*12
+   if not g.blocked(p) and p.distance_squared_to(point)<distance:best=p;distance=p.distance_squared_to(point)
+ return best
+func bridge(start:Vector2,goal:Vector2)->Array[Vector2]:
+ # Small local grid only when a breadcrumb is obstructed; normal motion follows actual footsteps.
+ var first:=Vector2i((start/12).round());var queue:Array[Vector2i]=[];var parents:Dictionary={}
+ for y in range(-2,3):
+  for x in range(-2,3):
+   var cell:=first+Vector2i(x,y);var point:=Vector2(cell)*12
+   if not g.blocked(point) and clear_segment(start,point):queue.append(cell);parents[cell]=cell
+ var head:=0;var finish:=Vector2i(-99999,-99999)
+ var bounds:=Rect2(start.min(goal)-Vector2(96,96),start.max(goal)-start.min(goal)+Vector2(192,192))
+ while head<queue.size() and head<2500:
+  var cell:=queue[head];head+=1;var point:=Vector2(cell)*12
+  if point.distance_to(goal)<=24 and clear_segment(point,goal):finish=cell;break
+  for offset in [Vector2i.UP,Vector2i.DOWN,Vector2i.LEFT,Vector2i.RIGHT]:
+   var next:Vector2i=cell+offset;var target:=Vector2(next)*12
+   if parents.has(next) or not bounds.has_point(target) or not clear_segment(point,target):continue
+   parents[next]=cell;queue.append(next)
+ var result:Array[Vector2]=[]
+ if finish.x==-99999:return result
+ while true:
+  result.push_front(Vector2(finish)*12)
+  if parents[finish]==finish:break
+  finish=parents[finish]
+ return result

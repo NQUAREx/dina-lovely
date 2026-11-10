@@ -740,3 +740,7 @@ for loaded in [False,True]:
  else:
   ld.rectangle((48,11,51,16),fill='#8b9b83');ld.rectangle((50,12,51,15),fill='#283b32')
  launcher.save(A/('rpg_loaded.png' if loaded else 'rpg_empty.png'))
+
+# Page seam garlands and pause button share the original pixel-art palette.
+import runpy
+runpy.run_path(str(R/"tools/create_frame_art.py"))
