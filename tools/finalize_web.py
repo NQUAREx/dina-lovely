@@ -28,6 +28,22 @@ import json, shutil
 root=p.parent.parent
 content=json.loads((root/'content/letters.json').read_text())
 shutil.copyfile(root/'tools/mobile_shell.js',p.parent/'mobile.js')
+shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
+from PIL import Image, ImageDraw
+paper_image=Image.new("RGBA",(464,660))
+paper_draw=ImageDraw.Draw(paper_image)
+paper_draw.polygon([(0,4),(456,0),(464,656),(4,660)],fill="#fffaf1")
+paper_draw.rectangle((15,16,449,644),outline="#d8c6b1",width=2)
+paper_lines=Image.new("RGBA",paper_image.size)
+line_draw=ImageDraw.Draw(paper_lines)
+for y in range(145,580,29):line_draw.line((29,y,435,y),fill=(140,140,153,26),width=1)
+paper_image=Image.alpha_composite(paper_image,paper_lines)
+paper_image.save(p.parent/"reply-paper.png")
+atlas_sprites=json.loads((root/'assets/atlas.json').read_text())
+with Image.open(root/'assets/atlas.png') as atlas_image:
+ for sprite_name,file_name in [('note','reply-envelope.png'),('note_open','reply-envelope-open.png')]:
+  sprite_id=atlas_sprites[sprite_name];x=sprite_id%16*32;y=sprite_id//16*48
+  atlas_image.crop((x,y,x+32,y+48)).save(p.parent/file_name)
 manifest={"name":content["game_title"],"short_name":content["app_short_name"],"id":"./","start_url":"./","scope":"./","display":"fullscreen","orientation":"portrait","background_color":"#242538","theme_color":"#242538","icons":[{"src":"index.apple-touch-icon.png","sizes":"180x180","type":"image/png"}]}
 (p.parent/'manifest.webmanifest').write_text(json.dumps(manifest,ensure_ascii=False))
 s=p.read_text()

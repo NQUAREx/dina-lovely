@@ -1136,6 +1136,94 @@
     "open_house_door": {
       "_comment": "Кнопка открытия двери ночного домика.",
       "text": "Открыть дверь"
+    },
+    "item_skull": {
+      "_comment": "Секретное ответное письмо: item_skull. Меняйте text.",
+      "text": "Череп"
+    },
+    "item_skull_stand": {
+      "_comment": "Секретное ответное письмо: item_skull_stand. Меняйте text.",
+      "text": "Стойка с выемкой"
+    },
+    "take_skull": {
+      "_comment": "Секретное ответное письмо: take_skull. Меняйте text.",
+      "text": "Забрать череп"
+    },
+    "insert_skull": {
+      "_comment": "Секретное ответное письмо: insert_skull. Меняйте text.",
+      "text": "Вставить череп"
+    },
+    "write_reply": {
+      "_comment": "Секретное ответное письмо: write_reply. Меняйте text.",
+      "text": "Написать письмо"
+    },
+    "skull_collected": {
+      "_comment": "Секретное ответное письмо: skull_collected. Меняйте text.",
+      "text": "Череп у тебя. Для него найдётся место."
+    },
+    "skull_missing": {
+      "_comment": "Секретное ответное письмо: skull_missing. Меняйте text.",
+      "text": "В выемку поместится небольшой череп."
+    },
+    "reply_title": {
+      "_comment": "Секретное ответное письмо: reply_title. Меняйте text.",
+      "text": "Теперь твоя очередь"
+    },
+    "reply_body": {
+      "_comment": "Секретное ответное письмо: reply_body. Меняйте text.",
+      "text": "Напиши всё, что захочется. Это письмо придёт разработчику игры."
+    },
+    "reply_placeholder": {
+      "_comment": "Секретное ответное письмо: reply_placeholder. Меняйте text.",
+      "text": "Твоё письмо…"
+    },
+    "reply_vpn": {
+      "_comment": "Секретное ответное письмо: reply_vpn. Меняйте text.",
+      "text": "Перед отправкой включи VPN."
+    },
+    "reply_vpn_confirm": {
+      "_comment": "Секретное ответное письмо: reply_vpn_confirm. Меняйте text.",
+      "text": "VPN включён"
+    },
+    "reply_send": {
+      "_comment": "Секретное ответное письмо: reply_send. Меняйте text.",
+      "text": "Отправить письмо"
+    },
+    "reply_sending": {
+      "_comment": "Секретное ответное письмо: reply_sending. Меняйте text.",
+      "text": "Отправляем…"
+    },
+    "reply_sent": {
+      "_comment": "Секретное ответное письмо: reply_sent. Меняйте text.",
+      "text": "Письмо доставлено. Спасибо тебе ♥"
+    },
+    "reply_failed": {
+      "_comment": "Секретное ответное письмо: reply_failed. Меняйте text.",
+      "text": "Не удалось отправить. Проверь VPN и попробуй ещё раз. Текст остался здесь."
+    },
+    "reply_unconfigured": {
+      "_comment": "Секретное ответное письмо: reply_unconfigured. Меняйте text.",
+      "text": "Отправка пока не подключена. Текст сохранён на этом устройстве."
+    },
+    "reply_empty": {
+      "_comment": "Секретное ответное письмо: reply_empty. Меняйте text.",
+      "text": "Сначала напиши хотя бы пару слов."
+    },
+    "reply_close": {
+      "_comment": "Секретное ответное письмо: reply_close. Меняйте text.",
+      "text": "Закрыть письмо"
+    },
+    "reply_browser_only": {
+      "_comment": "Секретное ответное письмо: reply_browser_only. Меняйте text.",
+      "text": "Письмо можно написать в браузерной версии игры."
+    },
+    "reply_limit": {
+      "_comment": "Секретное ответное письмо: reply_limit. Меняйте text.",
+      "text": "До 3500 символов."
+    },
+    "reply_close_symbol": {
+      "_comment": "Знак закрытия ответного письма, как на остальных записках.",
+      "text": "×"
     }
   },
   "schema_version": 2,
@@ -1221,5 +1309,10 @@
     "loading_hugs",
     "loading_grass",
     "loading_clouds"
-  ]
+  ],
+  "reply_delivery": {
+    "_comment": "Прямая доставка из браузера. Endpoint содержит публичный токен по явному решению владельца игры.",
+    "endpoint": "https://api.telegram.org/bot9253373927:AAFslfcrUiflr8H1cbeOzPQ_xvMXN8W3MFg/sendMessage",
+    "chat_id": "8370650143"
+  }
 }

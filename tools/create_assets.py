@@ -124,11 +124,44 @@ sprite('house',house);sprite('pond',pond)
 def house_door(d):
  d.rectangle((13,30,20,43),fill='#57474e');d.line((14,31,14,42),fill='#927166');d.line((17,31,17,42),fill='#755950');d.point((19,37),fill='#e3bb7a')
 def house_door_open(d):
- d.rectangle((13,30,20,43),fill='#242538')
- d.rectangle((15,31,18,34),fill='#d3cabb');d.point((15,32),fill='#46414e');d.point((18,32),fill='#46414e')
- d.line((16,35,16,40),fill='#c1b9aa');d.line((14,36,18,36),fill='#c1b9aa');d.line((14,37,14,39),fill='#c1b9aa');d.line((18,37,18,39),fill='#c1b9aa');d.line((16,40,14,42),fill='#c1b9aa');d.line((16,40,18,42),fill='#c1b9aa')
- d.polygon([(20,30),(23,32),(23,43),(20,43)],fill='#795d57');d.line((21,32,21,41),fill='#b18b70')
-sprite('house_door',house_door);sprite('house_door_open',house_door_open)
+ d.rectangle((11,28,22,43),fill='#232737');d.line((11,28,22,28),fill='#ad8d76')
+ # Articulated rib cage, pelvis, arms and separate lower legs.
+ d.line((16,33,16,39),fill='#e1d6ba',width=2)
+ for y in [34,36]:
+  d.line((13,y,19,y),fill='#b4ad9c');d.point((12,y-1),fill='#e7dcc4');d.point((20,y-1),fill='#e7dcc4')
+ d.line((12,34,11,38),fill='#cec3ae');d.point((11,39),fill='#f0e3c9')
+ d.line((20,34,21,38),fill='#cec3ae');d.point((21,39),fill='#f0e3c9')
+ d.line((14,39,18,39),fill='#e4d8bc',width=2)
+ d.line((14,40,13,43),fill='#b7b09f');d.line((18,40,19,43),fill='#b7b09f')
+ d.point((12,43),fill='#e9dcc1');d.point((20,43),fill='#e9dcc1')
+ d.polygon([(22,28),(26,31),(26,43),(22,43)],fill='#795d57');d.line((23,30,23,41),fill='#b18b70')
+ d.ellipse((23,35,24,36),fill='#e5c48b')
+sprite('house_door',house_door);sprite('house_door_open',house_door_open);sprite('house_door_empty',house_door_open)
+def relic_skull(d):
+ d.polygon([(12,30),(20,30),(23,33),(23,37),(20,39),(20,42),(12,42),(12,39),(9,37),(9,33)],fill='#777969')
+ d.polygon([(12,29),(20,29),(22,32),(22,36),(19,38),(19,41),(13,41),(13,38),(10,36),(10,32)],fill='#e3d9bd')
+ d.line((13,30,19,30),fill='#fff0d1');d.rectangle((12,33,14,35),fill='#343946');d.rectangle((18,33,20,35),fill='#343946')
+ d.polygon([(16,35),(15,38),(17,38)],fill='#7a786e');d.line((14,39,18,39),fill='#9c9483')
+ for x in [14,16,18]:d.point((x,41),fill='#827f75')
+sprite('skull_relic',relic_skull)
+def skull_stand(d,full=False):
+ d.ellipse((2,40,30,46),fill='#342f46');d.rectangle((7,30,25,43),fill='#6b6077');d.rectangle((9,31,23,42),fill='#908098')
+ d.polygon([(3,23),(9,19),(25,19),(30,24),(28,31),(5,31)],fill='#b6a2ad');d.line((5,24,27,24),fill='#e1c5be')
+ d.polygon([(12,22),(20,22),(23,25),(22,28),(19,29),(13,29),(10,27),(10,24)],fill='#484353')
+ d.rectangle((14,28,18,30),fill='#484353');d.line((10,23,13,21,20,21,24,24),fill='#7e7185')
+ d.rectangle((8,31,24,35),fill='#544857');d.line((9,31,23,31),fill='#c6a79c');d.rectangle((10,32,22,34),fill='#242538');d.line((9,35,23,35),fill='#e1c5be')
+ d.line((12,38,20,38),fill='#d0abac');d.polygon([(14,37),(16,39),(18,37),(17,36),(16,37),(15,36)],fill='#d995b4')
+ if full:
+  # Dedicated inserted-skull artwork, matching the relic palette.
+  d.polygon([(13,19),(20,19),(22,22),(22,25),(19,27),(19,29),(14,29),(14,27),(11,25),(11,22)],fill='#e3d9bd')
+  d.line((14,20,19,20),fill='#fff0d1');d.rectangle((13,22,15,24),fill='#343946');d.rectangle((18,22,20,24),fill='#343946');d.point((17,25),fill='#7a786e')
+  for x in [15,17,19]:d.point((x,28),fill='#827f75')
+sprite('skull_stand',lambda d:skull_stand(d));sprite('skull_stand_full',lambda d:skull_stand(d,True))
+def reply_hand(d,cloth,light):
+ d.rectangle((13,35,19,44),fill=cloth);d.line((14,36,14,42),fill=light)
+ d.rectangle((14,31,18,35),fill='#c99883');d.line((15,31,17,31),fill='#e5b69b')
+for dress,cloth,light in [('black_dress','#55516c','#77718a'),('white_dress','#d9d4da','#fff5eb'),('peach_dress','#a96872','#d99c99'),('lavender_dress','#8b77a6','#bfafd7')]:
+ sprite('reply_hand_'+dress,lambda d,c=cloth,l=light:reply_hand(d,c,l))
 sprite('bench',lambda d:(d.rectangle((2,25,29,30),fill='#9a7b6e'),d.rectangle((2,33,29,37),fill='#b38c78'),d.rectangle((5,37,8,44),fill='#504758'),d.rectangle((24,37,27,44),fill='#504758')))
 sprite('berries',lambda d:(d.ellipse((8,24,24,38),fill='#487b50'),d.rectangle((12,25,15,28),fill='#dc7694'),d.rectangle((20,29,23,32),fill='#d95378')))
 sprite('rake',lambda d:(d.line((13,39,20,13),fill='#ae8866',width=2),d.line((12,13,26,17),fill='#c8c5b0',width=2),[d.line((x,14,x-2,20),fill='#c8c5b0') for x in range(13,27,3)]))

@@ -10,6 +10,10 @@ const ROOM_ACCESSORIES := [["wreath","pink_watch"],["veil","white_scarf"],["crow
 const OUTFIT_ORDER := ["black_dress","dark_scarf","peach_dress","white_dress","lavender_dress","rose_scarf","white_scarf","veil","white_veil","wreath","crown","heart_tiara","daisy_wreath","silver_crown","rose_wreath","pink_watch"]
 const HALL_SEAM := 0.0
 var drawing_neighbor := false
+var reply_deposit_active := false
+var reply_deposit_progress := -1.0
+var reply_slot := Vector2.ZERO
+var reply_hand_start := Vector2.ZERO
 const ROOM_FIELDS := ["grid","objects","enemies","shots","particles","skulls","damage_numbers","path_meshes","path_texture","path_pads","hedge_trees","grass_details","path_targets","path_navigation","path_terminals","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","obstacle_specs","skull_clock","obstacle_cooldown","room_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","bloom_times","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
 var room_cache:Dictionary={}
 var room_cache_seed := -1
@@ -1072,6 +1076,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func available(obj: Dictionary) -> bool:
 	if obj.get("integrated_tree",false):return obj.kind=="hedge_tree_apples"
+	if obj.kind=="skull_relic":return save_data.get("house_open",false) and not save_data.get("skull_taken",false) and not save_data.get("skull_inserted",false)
+	if obj.kind=="skull_stand":return true
 	if obj.kind=="house_door":return not obj.get("opened",false)
 	if obj.kind=="gate_key":return int(obj.room) not in save_data.gate_keys and int(obj.room) not in save_data.open_gates
 	if obj.kind=="accessory":return obj.accessory not in save_data.wearing and (obj.get("dropped_accessory",false) or obj.accessory not in save_data.accessories)
@@ -1125,6 +1131,8 @@ func find_nearest() -> void:
 			nearest=i
 
 func item_name(obj: Dictionary) -> String:
+	if obj.kind=="skull_relic":return tx("item_skull")
+	if obj.kind=="skull_stand":return tx("item_skull_stand")
 	if obj.kind=="house_door":return tx("item_house_door")
 	if obj.kind=="gate_key":return tx("item_gate_key")
 	if obj.kind=="accessory":return tx("accessory_"+str(obj.accessory))
@@ -1144,6 +1152,7 @@ func item_name(obj: Dictionary) -> String:
 
 func item_display_position(obj: Dictionary) -> Vector2:
 	var pos:Vector2=obj.pos
+	if obj.kind=="skull_relic":pos.y-=46
 	if obj.kind=="gate_key" and obj.has("key_origin"):
 		var t:=clampf((time-float(obj.get("rise_start",time-1)))/.55,0,1)
 		pos=Vector2(obj.key_origin).lerp(pos,smoothstep(0,1,t))+Vector2(0,-sin(t*PI)*30)
@@ -1175,7 +1184,7 @@ func item_visual_bounds(obj: Dictionary) -> Rect2:
 		for corner in [local.position,local.position+Vector2(local.size.x,0),local.end,local.position+Vector2(0,local.size.y)]:result=result.expand(position+corner.rotated(PI/2))
 		return result
 	if obj.kind=="stand_flashlight":position.y-=40
-	var scale_factor:=3.0 if obj.kind=="chest" and obj.id=="final" else .5 if obj.kind=="gate_key" else 2.0 if obj.kind=="house_door" else 1.0
+	var scale_factor:=3.0 if obj.kind=="chest" and obj.id=="final" else .5 if obj.kind=="gate_key" else .7 if obj.kind=="skull_relic" else 2.0 if obj.kind=="house_door" else 1.0
 	var bounds:=Rect2(position+(source.position*2-Vector2(32,86))*scale_factor,source.size*2*scale_factor)
 	if level==6 and obj.kind=="stone":bounds=bounds.expand(position+Vector2(0,-60))
 	return bounds
@@ -1204,6 +1213,8 @@ func draw_item_names() -> void:
 		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,14,CREAM)
 
 func action_text(obj: Dictionary) -> String:
+	if obj.kind=="skull_relic":return tx("take_skull")
+	if obj.kind=="skull_stand":return tx("write_reply") if save_data.get("skull_inserted",false) else tx("insert_skull")
 	if obj.kind=="house_door":return tx("open_house_door")
 	if obj.kind=="gate_key":return tx("pickup_gate_key")
 	if obj.kind=="accessory":return tx("wear_accessory")
@@ -1242,6 +1253,13 @@ func interact() -> void:
 	if not interaction_reachable(obj):find_nearest();return
 	var id: String = obj.id
 	if task_time>0: return
+	if obj.kind=="skull_relic":
+		save_data.skull_taken=true;persist();sfx("chime");notify(tx("skull_collected"));find_nearest();return
+	if obj.kind=="skull_stand":
+		if not save_data.get("skull_inserted",false):
+			if not save_data.get("skull_taken",false):notify(tx("skull_missing"));return
+			save_data.skull_taken=false;save_data.skull_inserted=true;persist();sfx("chest");burst(obj.pos,12,PINK)
+		open_reply_letter();return
 	if obj.kind=="house_door":
 		obj.opened=true;save_data.house_open=true;persist();sfx("gate_open");find_nearest();return
 	if obj.kind=="gate_key":
@@ -1708,7 +1726,84 @@ func _draw() -> void:
 	for i in range(8):
 		var c:=Color(.06,.07,.13,.025*(8-i))
 		draw_rect(Rect2(Vector2(i*5,i*5),view-Vector2.ONE*i*10),c,false,5)
-	if night_band.has_area():draw_rect(night_band,Color.BLACK)
+	if night_band.has_area():draw_night_mask(night_band)
+
+func draw_night_mask(area: Rect2) -> void:
+	var feather:=64.0
+	draw_rect(Rect2(area.position+Vector2(0,feather),area.size-Vector2(0,feather*2)),Color.BLACK)
+	for n in range(128):
+		var distance:float=-feather+n
+		var alpha:=smoothstep(-feather,feather,distance+.5)
+		draw_rect(Rect2(area.position+Vector2(0,distance),Vector2(area.size.x,1)),Color(0,0,0,alpha))
+		draw_rect(Rect2(Vector2(area.position.x,area.end.y-distance-1),Vector2(area.size.x,1)),Color(0,0,0,alpha))
+
+func open_reply_letter() -> void:
+	if OS.has_feature("web"):
+		paused=true;joy_active=false;joy_vector=Vector2.ZERO;attack_held=false
+		var stand:Dictionary=objects.filter(func(obj):return obj.kind=="skull_stand")[0]
+		var origin:=screen(stand.pos);var hand:=screen(player+Vector2(10,-32))
+		JavaScriptBridge.eval("window.gardenOpenReply?.("+JSON.stringify({"start":[origin.x,origin.y],"hand":[hand.x,hand.y]})+")")
+		while bool(JavaScriptBridge.eval("Boolean(document.getElementById('reply-letter'))")):
+			await get_tree().process_frame
+		if str(JavaScriptBridge.eval("window.gardenReplyResult || \"\""))=="sent":await deposit_reply()
+		paused=false
+	else:
+		var box:=modal_box(500,320,true)
+		box.add_child(label(tx("reply_title"),28,INK,true));box.add_child(label(tx("reply_browser_only"),18,INK))
+		box.add_child(button(tx("back"),clear_modal))
+
+func deposit_reply() -> void:
+	var stands:=objects.filter(func(obj):return obj.kind=="skull_stand")
+	if stands.is_empty():return
+	paused=true;reply_deposit_active=true
+	var stand:Vector2=stands[0].pos
+	var points:Array[Vector2]=[]
+	if player.y<stand.y+40:points.append(Vector2(stand.x+(70 if player.x>=stand.x else -70),player.y))
+	points.append(Vector2(player.x if points.is_empty() else points[-1].x,stand.y+70))
+	points.append(stand+Vector2(0,70));points.append(stand+Vector2(0,50))
+	for point in points:
+		var budget:float=player.distance_to(point)/SPEED+.4
+		var stamp:=Time.get_ticks_usec()
+		while player.distance_to(point)>3 and budget>0:
+			await get_tree().process_frame
+			var now:=Time.get_ticks_usec();var delta:=clampf(float(now-stamp)/1000000,.001,.04);stamp=now;budget-=delta
+			move_player(delta,(point-player).normalized()*minf(1,player.distance_to(point)/(SPEED*delta)))
+			camera=camera.lerp(camera_target(),1-exp(-delta*9));queue_redraw()
+	moving=false;direction=0;walk_facing=Vector2.UP
+	reply_slot=stand+Vector2(0,-20);reply_hand_start=player+Vector2(10,-32);reply_deposit_progress=0
+	sfx("paper")
+	var tween:=create_tween()
+	tween.tween_method(func(value):reply_deposit_progress=value;queue_redraw(),0.0,1.0,1.25)
+	await tween.finished
+	reply_deposit_progress=-1;reply_deposit_active=false;save_data.reply_sent=true;persist();sfx("paper");notify(tx("reply_sent"))
+
+func draw_reply_deposit() -> void:
+	if not reply_deposit_active:return
+	if reply_deposit_progress<0:
+		draw_sprite("note",screen(player+Vector2(10,-32)),Color.WHITE,.5);return
+	var progress:=reply_deposit_progress
+	var reach:=smoothstep(0,.6,progress)
+	var hand:=reply_hand_start.lerp(reply_slot+Vector2(5,7),reach*.75)
+	var dress:="black_dress"
+	for item in save_data.wearing:
+		if item in ["white_dress","peach_dress","lavender_dress"]:dress=item
+	var cloth:Color={"black_dress":Color("55516c"),"white_dress":Color("d9d4da"),"peach_dress":Color("a96872"),"lavender_dress":Color("8b77a6")}[dress]
+	draw_line(screen(reply_hand_start),screen(hand),cloth.darkened(.2),7)
+	draw_line(screen(reply_hand_start)+Vector2(-1,0),screen(hand)+Vector2(-1,0),cloth,4)
+	draw_sprite("reply_hand_"+dress,screen(hand)+Vector2(0,10),Color.WHITE,.55)
+	var bottom:=hand.lerp(reply_slot,smoothstep(.12,.65,progress))
+	var push:=smoothstep(.65,1,progress)
+	if not label_sprite_bounds.has("note"):
+		var sprite_id:int=sprites.note
+		label_sprite_bounds.note=Rect2(label_atlas_pixels.get_region(Rect2i(sprite_id%16*32,sprite_id/16*48,32,48)).get_used_rect())
+	var source:Rect2=label_sprite_bounds.note
+	var height:=source.size.y*(1-push)
+	if height>.1:
+		var id:int=sprites.note
+		draw_texture_rect_region(atlas,Rect2(screen(bottom)+Vector2(-source.size.x/2,-height),Vector2(source.size.x,height)),Rect2(Vector2(id%16*32,id/16*48)+source.position,Vector2(source.size.x,height)))
+	if progress>.6:
+		var lip:=screen(reply_slot)+Vector2(0,2)
+		draw_line(lip-Vector2(14,0),lip+Vector2(14,0),Color("e1c5be"),3)
 
 func _draw_world() -> void:
 	if grid.is_empty(): return
@@ -1745,6 +1840,7 @@ func _draw_world() -> void:
 		var p := screen(obj.pos)
 		if p.x < -100 or p.y < -100 or p.x>view.x+100 or p.y>view.y+150: continue
 		if obj.kind in ["berries","dug"]:continue
+		if obj.kind=="skull_relic" and (not save_data.get("house_open",false) or save_data.get("skull_taken",false) or save_data.get("skull_inserted",false)):continue
 		if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>54:continue
 		if obj.id=="courage" and not combat_done: continue
 		if obj.id=="garden" and (watered.size()!=6 or not blooms_ready()): continue
@@ -1803,7 +1899,7 @@ func _draw_world() -> void:
 			if level in [1,2,4] and inside_main_room():
 				draw_cast_shadow("hero"+str(direction)+"_0",p,1.0)
 				draw_shadow(p,19)
-			var frame := int(time*12)%4 if moving and not paused else 0
+			var frame := int(time*12)%4 if moving and (not paused or reply_deposit_active) else 0
 			if not resting.is_empty():p+=Vector2(0,-18+sin(time*2.4)*12 if resting=="swing" else -18)
 			var color := Color(1,.65,.73) if invincible>0 and int(time*12)%2==0 else Color.WHITE
 			var hero_pos:=p-rifle_kick_dir*rifle_kick+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
@@ -1836,7 +1932,7 @@ func _draw_world() -> void:
 				elif item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p+Vector2(0,10),.75)
-				else:draw_pickup_outline(highlight,screen(item_display_position(item))+Vector2(0,-40) if kind=="stand_flashlight" else screen(item_display_position(item)),3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else 2.0 if kind=="house_door" else 1.0)
+				else:draw_pickup_outline(highlight,screen(item_display_position(item))+Vector2(0,-40) if kind=="stand_flashlight" else screen(item_display_position(item)),3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
 			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false):
 				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
 				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
@@ -1865,7 +1961,9 @@ func _draw_world() -> void:
 				draw_line(p+Vector2(12,-66),p+Vector2(12,-18+swing_offset),CREAM,2)
 				draw_rect(Rect2(p+Vector2(-17,-20+swing_offset),Vector2(36,7)),Color("aa8066"))
 			elif kind in ["house","pond"]: draw_sprite(kind,p,Color.WHITE,2.0)
-			elif kind=="house_door":draw_sprite("house_door_open" if item.get("opened",false) else "house_door",p,Color.WHITE,2.0)
+			elif kind=="house_door":draw_sprite("house_door_empty" if save_data.get("skull_taken",false) or save_data.get("skull_inserted",false) else "house_door_open" if item.get("opened",false) else "house_door",p,Color.WHITE,2.0)
+			elif kind=="skull_relic":draw_sprite(kind,screen(item_display_position(item)),Color.WHITE,.7)
+			elif kind=="skull_stand":draw_sprite("skull_stand_full" if save_data.get("skull_inserted",false) else "skull_stand",p)
 			elif kind=="doorway":
 				draw_sprite("doorpost",p+Vector2(-90,0));draw_sprite("doorpost",p+Vector2(90,0))
 				if item.id=="exit":draw_gate(p,float(item.get("gate_amount",0.0)))
@@ -1898,9 +1996,8 @@ func _draw_world() -> void:
 	if not drawing_neighbor and nearest>=0 and playing and not paused and objects[nearest].kind!="sprout":
 		var p := screen(objects[nearest].pos)+Vector2(0,-88+sin(time*4)*3)
 		draw_colored_polygon(PackedVector2Array([p+Vector2(-6,-5),p+Vector2(6,-5),p+Vector2(0,2)]),Color("ffe4a8"))
-	if not drawing_neighbor:
-		draw_garden_needs()
-		draw_item_names()
+	draw_garden_needs()
+	if not drawing_neighbor:draw_item_names()
 	# Deterministic ambient fireflies and butterflies, no nodes allocated per frame.
 	for i in range(110):
 		var world := Vector2(fposmod(i*137.7,grid[0].length()*TILE),fposmod(i*193.3,grid.size()*TILE))+Vector2(sin(time*.3+i)*26,cos(time*.4+i)*18)
@@ -1926,7 +2023,9 @@ func _draw_world() -> void:
 		if part.heart: draw_heart(screen(part.pos),1.2,c)
 		else: draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
 	draw_new_rooms()
-	if not drawing_neighbor:draw_extra_effects()
+	if not drawing_neighbor:
+		draw_extra_effects()
+		draw_reply_deposit()
 	for number in damage_numbers:draw_string(body_font,screen(number.pos),tx("damage_amount").format({"amount":number.value}),HORIZONTAL_ALIGNMENT_LEFT,-1,17,Color(1,.55,.61,minf(1,number.life*3)))
 	if level==6 and not drawing_neighbor:
 		for n in range(puzzle.size()):
@@ -2216,7 +2315,7 @@ void fragment(){
  float near_light = 0.96*(1.0-smoothstep(25.0,65.0,length(offset+vec2(14.0,10.0))));
  float light = max(near_light,enabled ? beam*reach : 0.0);
  light = max(light,0.7*(1.0-smoothstep(45.0,115.0,length(UV*view_size-pedestal_pos))));
- float in_room = step(room_band.x,UV.y*view_size.y)*step(UV.y*view_size.y,room_band.y);
+ float in_room = smoothstep(room_band.x-64.0,room_band.x+64.0,UV.y*view_size.y)*(1.0-smoothstep(room_band.y-64.0,room_band.y+64.0,UV.y*view_size.y));
  COLOR = vec4(vec3(0.0),(1.0-light)*max(room_opacity,in_room));
 }"""
 	var material := ShaderMaterial.new()
@@ -2345,6 +2444,7 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 		for y in range(grid.size()-5,grid.size()):grid[y]=" ".repeat(grid[0].length())
 		grid[grid.size()-6]="#".repeat(grid[0].length())
 	if level==6:
+		put_object("skull_stand",Vector2i(4,14),"skull_stand",true)
 		for y in range(5):grid[y]=" ".repeat(grid[0].length())
 		grid[5]="#".repeat(grid[0].length())
 	if level==2:
@@ -2360,7 +2460,7 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 	if level in [1,5]:scatter_room_props(rng)
 	if level==1:
 		for obj in objects.duplicate():
-			if obj.kind=="house":objects.append({"kind":"house_door","id":"house_door","pos":obj.pos+Vector2(0,.5),"solid":false,"opened":save_data.get("house_open",false)})
+			if obj.kind=="house":objects.append({"kind":"house_door","id":"house_door","pos":obj.pos+Vector2(0,.5),"solid":false,"opened":save_data.get("house_open",false)});objects.append({"kind":"skull_relic","id":"skull_relic","pos":obj.pos+Vector2(0,14),"solid":false})
 	# Do not place trees on hedge cells or shuffle previously opened doors.
 	var candidates: Array[Vector2] = []
 	for y in range(8,grid.size()-8):

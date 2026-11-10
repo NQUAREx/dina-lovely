@@ -1,0 +1,23 @@
+const fs=require('fs');const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
+(async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_BIN||undefined,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+ const p=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/143 Mobile Safari/537.36'});
+ const origin=process.env.GAME_TEST_ORIGIN||'http://127.0.0.1:8790';
+ const d=JSON.parse(fs.readFileSync('content/letters.json','utf8'));d.reply_delivery.endpoint='';let calls=0;
+ await p.route('https://raw.githubusercontent.com/**',r=>r.fulfill({json:d}));
+ await p.route(origin+'/letter-shell.js',r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync('tools/mobile_shell.js','utf8')}));
+ await p.route(origin+'/reply-test',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><script src="/letter-shell.js"></script>'}));
+ await p.goto(origin+'/reply-test');await p.waitForFunction(()=>typeof gardenOpenReply==='function');
+ await p.evaluate(()=>{document.getElementById('mobile-gate')?.remove();gardenOpenReply()});
+ await p.waitForFunction(()=>document.getElementById('reply-letter').dataset.phase==='writing');const bounds=await p.locator('#reply-letter form').boundingBox();if(bounds.height>=700||bounds.width>=360)throw Error('Letter is fullscreen');await p.locator('#reply-letter textarea').fill('Привет! Это пробное письмо ♥');
+ await p.locator('#reply-letter button[type=submit]').click();if(!(await p.locator('#reply-letter [role=status]').innerText()).includes('VPN'))throw Error('VPN status absent');
+ await p.locator('#reply-letter input[type=checkbox]').check();await p.locator('#reply-letter button[type=submit]').click();if(!(await p.locator('#reply-letter [role=status]').innerText()).includes('не подключена'))throw Error('Missing endpoint status');
+ await p.evaluate(()=>gardenContent.reply_delivery.endpoint='https://relay.example.test/send');
+ await p.route('https://relay.example.test/send',r=>{calls++;return r.fulfill({status:calls===1?502:200,headers:{'Access-Control-Allow-Origin':'*'},json:{ok:calls>1}})});
+ await p.locator('#reply-letter button[type=submit]').click();await p.waitForFunction(()=>document.querySelector('#reply-letter [role=status]').textContent.includes('Не удалось'));
+ if(!(await p.locator('#reply-letter textarea').inputValue()).includes('Привет'))throw Error('Draft lost');
+ await p.screenshot({path:'/tmp/reply-letter-preview.png'});
+ await p.locator('#reply-letter button[type=submit]').click();await p.waitForFunction(()=>document.querySelector('#reply-letter [role=status]').textContent.includes('доставлено'));
+ if(calls!==2)throw Error('Unexpected duplicate send');await p.waitForFunction(()=>window.gardenReplyResult==='sent');if(await p.evaluate(()=>gardenReplyResult)!=='sent')throw Error('Missing animation result');await p.waitForFunction(()=>!document.getElementById('reply-letter')); if(await p.evaluate(()=>localStorage.getItem('garden-reply-draft'))!==null)throw Error('Draft not cleared');
+ console.log('PASS ordinary-size reply paper, opening and envelope packing, keyboard/VPN/draft/retry/status; mocked network only');await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
