@@ -133,7 +133,7 @@ func try_crown(point: Vector2, radius: float) -> void:
 		var other:Dictionary=crowns[index]
 		if point.distance_squared_to(other.base)<pow(radius+float(other.radius)+.35,2):return
 	var index:=crowns.size()
-	crowns.append({"base":point,"offset":Vector2.ZERO,"velocity":Vector2.ZERO,"radius":radius,"variant":rng.randi_range(0,11),"berry":"","press":0.0,"depression":0.0,"depression_velocity":0.0,"released":false})
+	crowns.append({"base":point,"offset":Vector2.ZERO,"velocity":Vector2.ZERO,"radius":radius,"variant":rng.randi_range(0,11),"berry":"","press":0.0,"depression":0.0,"depression_velocity":0.0,"released":false,"sway":0.0,"sway_velocity":0.0,"last_pressure":0.0})
 	var bin:=Vector2i(point/BIN)
 	if not bins.has(bin):bins[bin]=[]
 	bins[bin].append(index)
@@ -163,10 +163,16 @@ func update(delta: float, player: Vector2) -> void:
 		var required_drop:=maxf(0,ceilf(player.y-28+roundf(node.radius*1.48))-((node.base+node.offset).round().y-16))
 		if pressure>0 and required_drop>22:
 			node.released=true;pressure=0.0
+		if pressure>.005 and node.last_pressure<=.005:
+			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(14+pressure*6)
+		node.last_pressure=pressure
+		node.sway_velocity+=(-node.sway*45-node.sway_velocity*1.5)*delta
+		node.sway=clampf(node.sway+node.sway_velocity*delta,-2.1,2.1)
+		if absf(node.sway)<.025 and absf(node.sway_velocity)<.1:node.sway=0.0;node.sway_velocity=0.0
 		contact_strength=maxf(contact_strength,pressure)
 		node.press=move_toward(float(node.press),pressure,delta*5)
 		var target:=away.normalized()*5.5*pressure
-		node.velocity+=(target-node.offset)*145*delta-node.velocity*12*delta
+		node.velocity+=(target-node.offset)*145*delta-node.velocity*7.5*delta
 		var desired:Vector2=node.offset+node.velocity*delta
 		desired=desired.limit_length(6)
 		# Sweep each crown against its neighbours: it can bend but cannot overlap them.
@@ -195,12 +201,12 @@ func update(delta: float, player: Vector2) -> void:
 			node.depression=minf(22,maxf(0,ceilf(player.y-28+leaf_radius)-((node.base+node.offset).round().y-16)))
 			node.depression_velocity=0.0
 		else:
-			node.depression_velocity+=(-node.depression*130-node.depression_velocity*12)*delta
+			node.depression_velocity+=(-node.depression*130-node.depression_velocity*7)*delta
 			node.depression=clampf(node.depression+node.depression_velocity*delta,-1.5,22)
 			if absf(node.depression)<.03 and absf(node.depression_velocity)<.1:node.depression=0.0;node.depression_velocity=0.0
 
 		motion_strength=maxf(motion_strength,maxf(node.offset.distance_to(previous_offset),absf(node.depression-previous_depression))/maxf(delta,.001))
-		if pressure==0 and node.depression==0 and node.offset.length()<.04 and node.velocity.length()<.1 and node.press==0:
+		if pressure==0 and node.depression==0 and node.offset.length()<.04 and node.velocity.length()<.1 and node.press==0 and node.sway==0 and node.sway_velocity==0:
 			node.offset=Vector2.ZERO;node.velocity=Vector2.ZERO;done.append(index)
 	for index in done:active.erase(index)
 
@@ -243,7 +249,7 @@ func crown_in_contact(index: int, player: Vector2) -> bool:
 func crown_pose(index: int, player: Vector2) -> Vector3:
 	var node:Dictionary=crowns[index]
 	var radius:=roundf(node.radius*1.48*(1-node.press*.07))
-	var centre:Vector2=(node.base+node.offset).round()-Vector2(0,16)+Vector2(0,roundf(node.depression))
+	var centre:Vector2=(node.base+node.offset+Vector2(float(node.get("sway",0)),0)).round()-Vector2(0,16)+Vector2(0,roundf(node.depression))
 	# Bend the whole contacting crown down to leg height, never slice its texture.
 	if crown_in_contact(index,player):centre.y=maxf(centre.y,minf(ceilf(player.y-28+radius),node.base.round().y+6))
 	return Vector3(centre.x,centre.y,radius)

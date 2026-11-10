@@ -165,9 +165,8 @@
     "sha256": "118151e5b61e640cfe0929c75729fe25bd17c50c0d52decaed37c4c46f66c599"
   },
   "rpg_launch": {
-    "pack": "Kenney CC0 / Tinysized SFX CC0 (reload)",
+    "source_file": "Kenney Sci-Fi Sounds / explosionCrunch_004.ogg + thrusterFire_002.ogg",
     "license": "CC0",
-    "source_file": "explosionCrunch_004 + short thruster transient",
     "sha256": "67db786b536e4aa686d18af4cec06c8f60dd3748542b18187a48082656f50bed"
   },
   "rpg_explosion": {
@@ -183,17 +182,14 @@
     "sha256": "7ef65f3edfce09216f87fe6d36c52c0ab648d3d7bd31128096e6d778f5bd914b"
   },
   "rpg_flight": {
-    "pack": "Kenney Sci-Fi Sounds",
+    "source_file": "Kenney Sci-Fi Sounds / thrusterFire_004.ogg, normalized",
     "license": "CC0",
-    "source_file": "thrusterFire_003.ogg",
-    "sha256": "66b217a8a0a8cb21a5a76f749734ea0c04869eb5d05ec20554935984c6a6f9b5"
+    "sha256": "93c395af71744e1e79f56b4e69dae73fce7f8574aae4803da878011a62d58a1a"
   },
   "gate_open": {
-    "source_file": "rpg-audio/Audio/creak1.ogg",
-    "pack": "Kenney RPG Audio",
+    "source_file": "Kenney RPG Audio / creak1.ogg + creak3.ogg, recorded layers slowed and normalized",
     "license": "CC0",
-    "processing": "Mono 44.1kHz PCM, loudness normalization, short attack and natural release",
-    "sha256": "d2b94476355c4dce655bdce63411a001bf23779e423be2e59e2af9d2a0878d46"
+    "sha256": "f02a5d3df2ce60da0b3b7f816e0227ef2d22e460658a3f0aa3f46dbc8e5826af"
   },
   "gate_unlock": {
     "source": "Kenney RPG Audio / metalLatch.ogg",
@@ -217,5 +213,10 @@
     "pack": "Kenney Sci-Fi Sounds",
     "license": "CC0",
     "sha256": "1f06078821c521af884713183c84347313c7c180b796f8f97594ad915b4e906f"
+  },
+  "pistol": {
+    "source_file": "Existing recorded rifle sample, pitch raised and normalized",
+    "license": "CC0",
+    "sha256": "dee1e71faf718150c200e71a0e0a86f9682ddef7aa497b8c9ea9d4ff7b7d3b05"
   }
 }

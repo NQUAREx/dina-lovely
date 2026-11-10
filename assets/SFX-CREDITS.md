@@ -27,3 +27,5 @@ Gate opening: Kenney RPG Audio `creak1.ogg`, CC0, normalized and faded; shipped 
 `gate_unlock.wav`: Kenney RPG Audio, `metalLatch.ogg`, CC0.
 
 Optional tools: `axe.wav` (wood-twigs-break-02.wav), `shears.wav` (scissors-close-01.wav) from the existing CC0 fantasy SFX pack; `drill_loop.wav` from Kenney Sci-Fi Sounds (engineCircular_004.ogg), CC0.
+
+Gate update: Kenney RPG Audio creak1 + creak3, slowed recorded layers. RPG launch/flight: Kenney Sci-Fi Sounds explosionCrunch_004 + thrusterFire_002 / thrusterFire_004. Pistol: existing recorded rifle sample, raised pitch. All CC0; no synthesized tones.

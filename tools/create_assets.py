@@ -89,7 +89,7 @@ def weapon(d,kind):
   d.polygon([(17,28),(21,28),(22,34),(25,38),(21,40),(18,35)],fill='#545963');d.line((19,30,20,35,23,38),fill='#899093')
 
  else:
-  d.rectangle((3,23,26,31),fill='#697e70');d.rectangle((5,24,24,26),fill='#a7b496');d.polygon([(25,21),(31,27),(25,33)],fill='#be9a8c');d.rectangle((8,31,12,38),fill='#594b60');d.rectangle((16,30,19,35),fill='#594b60')
+  d.rectangle((1,24,26,28),fill='#46554c');d.line((3,24,24,24),fill='#a6b18c');d.rectangle((9,25,18,29),fill='#92704d');d.rectangle((11,29,14,36),fill='#5b4946');d.rectangle((18,28,21,32),fill='#655447');d.line((15,20,15,24),fill='#434c47');d.polygon([(24,22),(28,20),(31,26),(28,31),(24,29)],fill='#809575');d.line((28,21,30,26),fill='#bdc29c')
 for kind in ['rpg','rifle','sword']:
  def rack(d,k=kind):
   d.rectangle((3,34,28,39),fill='#886775');d.rectangle((5,39,8,45),fill='#4e4358');d.rectangle((24,39,27,45),fill='#4e4358');weapon(d,k)
@@ -111,6 +111,10 @@ def mound(d):
 def skull(d):
  d.ellipse((9,26,24,39),fill='#c9c3af');d.rectangle((12,35,21,42),fill='#d6ccae');d.rectangle((11,30,15,34),fill='#38313d');d.rectangle((19,30,22,34),fill='#38313d');d.polygon([(16,34),(14,37),(18,37)],fill='#51434b');d.line((14,39,14,42),fill='#7a6569');d.line((18,39,18,42),fill='#7a6569')
 sprite('flashlight',flashlight);sprite('shovel',shovel);sprite('mound',mound);sprite('skull',skull)
+def flashlight_rest(d):
+ d.polygon([(5,20),(23,18),(23,25),(5,24)],fill='#687d80');d.line((7,20,21,19),fill='#b2c5bb',width=2)
+ d.rectangle((21,17,25,26),fill='#bed0bf');d.rectangle((25,18,28,25),fill='#fff1a9');d.rectangle((12,20,16,22),fill='#e3bc85')
+sprite('flashlight_rest',flashlight_rest)
 sprite('dug',lambda d:(d.ellipse((2,30,30,44),fill='#87674f'),d.ellipse((6,32,26,42),fill='#382f3b'),d.line((8,32,22,31),fill='#ba9270')))
 sprite('moving_bar',lambda d:(d.rectangle((5,24,26,41),fill='#4b4050'),d.rectangle((5,24,26,29),fill='#b6a1a0'),d.rectangle((5,30,26,38),fill='#bf9d70'),d.polygon([(5,30),(10,30),(18,38),(13,38)],fill='#594956'),d.polygon([(17,30),(22,30),(26,34),(26,38),(25,38)],fill='#594956')))
 sprite('rack_empty',lambda d:(d.rectangle((3,34,28,39),fill='#886775'),d.rectangle((5,39,8,45),fill='#4e4358'),d.rectangle((24,39,27,45),fill='#4e4358')))
@@ -208,6 +212,21 @@ def fallen_tree(d):
  for x,y,r in [(23,30,7),(27,33,5),(20,35,7)]:leaf(d,x,y,r)
 for name,fn in [('axe',axe),('shears',shears),('drill',drill),('secret_book',book_stand),('tool_table_piece',table_piece),('fallen_tree',fallen_tree)]:sprite(name,fn)
 
+def gunner(d):
+ d.ellipse((7,19,25,42),fill='#4b5266');d.polygon([(7,33),(25,33),(28,43),(19,41),(14,44),(5,42)],fill='#67758a')
+ d.ellipse((7,12,25,30),fill='#9eafb2');d.ellipse((10,14,22,27),fill='#bbc7bd');d.rectangle((10,18,22,22),fill='#41495a')
+ d.rectangle((12,19,14,20),fill='#eed9a6');d.rectangle((18,19,20,20),fill='#eed9a6');d.line((8,28,21,37),fill='#bd9e70',width=2)
+ d.rectangle((13,33,18,35),fill='#ece0be');d.line((9,39,13,39),fill='#3c4558');d.line((21,39,25,39),fill='#3c4558')
+sprite('enemy_gunner',gunner)
+def pistol(d):
+ d.rectangle((10,23,29,27),fill='#485160');d.line((12,23,28,23),fill='#c2cac6');d.rectangle((28,24,31,26),fill='#2e3743')
+ d.polygon([(14,27),(20,27),(18,35),(13,34)],fill='#8b6e55');d.point((15,29),fill='#c8a27b')
+sprite('enemy_pistol',pistol)
+def fallen_gunner(d):
+ d.ellipse((4,34,29,44),fill='#485363');d.ellipse((7,29,24,40),fill='#acb9b0')
+ for x in [11,19]:d.line((x-2,32,x+2,36),fill='#465160');d.line((x+2,32,x-2,36),fill='#465160')
+ d.rectangle((21,39,30,41),fill='#4f5863');d.rectangle((23,41,25,44),fill='#8b6e55')
+sprite('corpse6',fallen_gunner)
 def weeds(d):
  d.ellipse((2,33,30,46),fill='#4f5037')
  for i in range(100):
@@ -573,7 +592,7 @@ for n,name in enumerate(['hedge_tree','hedge_tree_apples']):
 retained=Image.open(R/'tools/art_source/retained.png').convert('RGBA')
 retained_names=json.loads((R/'tools/art_source/retained.json').read_text())
 for name in NAMES:
- if name not in retained_names:continue
+ if name not in retained_names or name in ["weapon_rpg","weapon_rpg_empty","rack_rpg"]:continue
  old=retained_names[name];new=NAMES.index(name)
  atlas.paste(retained.crop(((old%16)*32,(old//16)*48,(old%16+1)*32,(old//16+1)*48)),((new%16)*32,(new//16)*48))
 # Maze trees use the exact ordinary tree canopy and bark, not enlarged shrub leaves.
@@ -635,3 +654,18 @@ for i in range(90):
  x=random.randrange(4,45);y=random.randrange(6,168);bd.line((x,y,x,y+random.randrange(2,7)),fill=random.choice(['#ad8056','#cba575','#9c724c']))
 for x,y in [(9,21),(28,62),(17,111),(38,147)]:bd.ellipse((x-2,y-4,x+2,y+4),outline='#9a6c47');bd.line((x,y-1,x,y+1),fill='#71503c')
 bench.save(A/'tool_table.png')
+
+# Long RPG-7-style silhouette: separate loaded/empty shoulder launcher artwork.
+for loaded in [False,True]:
+ launcher=Image.new('RGBA',(64,32));ld=ImageDraw.Draw(launcher)
+ ld.polygon([(1,10),(7,11),(7,17),(1,19)],fill='#4c5750');ld.line((1,10,1,18),fill='#acb19a',width=2)
+ ld.rectangle((6,11,49,16),fill='#4e6351');ld.line((7,11,47,11),fill='#a4b18c');ld.line((8,15,49,15),fill='#34463e')
+ ld.rectangle((16,11,32,17),fill='#9b764e');ld.line((17,12,30,12),fill='#d2a16a');ld.line((20,14,28,14),fill='#704e36')
+ ld.polygon([(23,17),(29,17),(27,29),(22,28)],fill='#655042');ld.line((24,19,23,26),fill='#bc9264')
+ ld.rectangle((34,16,38,23),fill='#4d4841');ld.line((34,22,37,22),fill='#9c8b70')
+ ld.rectangle((34,6,41,10),fill='#414b48');ld.line((35,6,40,6),fill='#adb5a0');ld.rectangle((37,10,39,12),fill='#77836f')
+ if loaded:
+  ld.rectangle((48,12,52,15),fill='#bec2a1');ld.polygon([(51,9),(57,7),(63,13),(57,20),(51,17)],fill='#6c805f');ld.line((52,9,57,8,61,12),fill='#bdc49a');ld.line((52,17,57,19,62,14),fill='#3e5544')
+ else:
+  ld.rectangle((48,11,51,16),fill='#8b9b83');ld.rectangle((50,12,51,15),fill='#283b32')
+ launcher.save(A/('rpg_loaded.png' if loaded else 'rpg_empty.png'))

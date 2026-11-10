@@ -125,11 +125,18 @@ func stamp(pos:Vector2)->void:
   for x in range(maxi(1,int(centre.x)-16),mini(mask.get_width()-1,int(centre.x)+17)):
    var noise:float=sin(x*17.31+y*7.91)*.07
    if ((Vector2(x+.5,y+.5)-centre)/Vector2(15.5,9.5)).length()<1+noise:mask.set_pixel(x,y,Color.WHITE)
- for y in range(maxi(1,int(centre.y)-12),mini(mask.get_height()-1,int(centre.y)+13)):
+ for y in range(maxi(1,int(centre.y)-18),mini(mask.get_height()-1,int(centre.y)+19)):
   for x in range(maxi(1,int(centre.x)-18),mini(mask.get_width()-1,int(centre.x)+19)):
    if mask.get_pixel(x,y).r<.5:continue
+   var top_depth:=0
+   for depth in range(1,8):
+    if y-depth<0 or mask.get_pixel(x,y-depth).r<.5:top_depth=depth;break
    var edge:=mask.get_pixel(x,y-1).r<.5 or mask.get_pixel(x-1,y).r<.5 or mask.get_pixel(x+1,y).r<.5
-   var color:=Color("9a7650") if mask.get_pixel(x,y+1).r<.5 else Color("856546") if edge else Color("533f35") if mask.get_pixel(x,y-2).r<.5 else Color("72523d") if posmod(x*31+y*17,19)<3 else Color("644936")
+   var color:=Color("b18a58") if edge else Color("a27b50") if mask.get_pixel(x,y+1).r<.5 else Color("3a3029") if posmod(x*31+y*17,19)<3 else Color("4a3427")
+   if top_depth>1:
+    color=[Color("302a29"),Color("372c28"),Color("49352a"),Color("65432f"),Color("765037"),Color("67472f")][mini(5,top_depth-2)]
+    if posmod(x*13+y*7,17)<3:color=color.lightened(.12)
+
    image.set_pixel(x,y,color)
 func has_sample(pos:Vector2)->bool:
  var room:=str(g.level)
@@ -147,6 +154,7 @@ func excavate(pos:Vector2)->void:
   var hidden:=Vector2(g.save_data.dig_target[0],g.save_data.dig_target[1])
   if not g.save_data.buried_exposed and pos.distance_to(hidden)<90 and "buried" not in g.save_data.letters:
    g.save_data.buried_exposed=true;g.save_data.dig_target=[pos.x,pos.y];g.objects.append({"kind":"note","id":"buried","solid":false,"pos":pos,"rise_start":g.time});g.notify(g.tx("buried_note_exposed"))
+  elif not g.save_data.buried_exposed:g.notify(g.tx("buried_note_near") if pos.distance_to(hidden)<260 else g.tx("digging_empty"))
  g.burst(pos,7,Color("aa8263"));g.persist()
 func update(delta:float)->void:
  drilling=g.held_item=="drill" and g.playing and not g.paused and not g.transition and soil(ground_point())
