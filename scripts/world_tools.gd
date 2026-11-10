@@ -163,6 +163,7 @@ func excavate(pos:Vector2)->void:
   if not g.save_data.buried_exposed and pos.distance_to(hidden)<90 and "buried" not in g.save_data.letters:
    g.save_data.buried_exposed=true;g.save_data.dig_target=[pos.x,pos.y];g.objects.append({"kind":"note","id":"buried","solid":false,"pos":pos,"rise_start":g.time});g.notify(g.tx("buried_note_exposed"))
   elif not g.save_data.buried_exposed:g.notify(g.tx("buried_note_near") if pos.distance_to(hidden)<260 else g.tx("digging_empty"))
+ g.rune_stones.excavate(pos)
  g.burst(pos,7,Color("aa8263"));g.persist()
 func update(delta:float)->void:
  drilling=g.held_item=="drill" and g.playing and not g.paused and not g.transition and soil(ground_point())

@@ -2,16 +2,16 @@ extends SceneTree
 func _initialize():call_deferred("run")
 func run():
  var g=load("res://main.tscn").instantiate();root.add_child(g);await process_frame;g.new_game();g.clear_modal();g.set_process(false);g.set_physics_process(false);g.sound_on=false;g.activate_cached_room(4);g.save_data.level=4;g.health=3.5
- for wave in range(1,11):
+ for wave in range(1,8):
   g.enemies.clear();g.spawn_wave();assert(g.wave==wave and is_equal_approx(g.health,3.5))
   var guns=g.enemies.filter(func(e):return e.type in [5,6,7])
-  if wave<=5:assert(guns.is_empty())
-  if wave in [6,7,8,9]:assert(guns.size()>=6)
-  if wave==10:
-   assert(g.enemies.size()==24 and g.enemies.filter(func(e):return e.type==7).size()==4 and g.enemies.filter(func(e):return e.type==6).size()==6 and g.enemies.filter(func(e):return e.type==3).size()==5 and g.enemies.filter(func(e):return e.boss).size()==1)
+  if wave<=3:assert(guns.is_empty())
+  if wave in [4,5,6]:assert(guns.size() in [2,4,6])
+  if wave==7:
+   assert(g.enemies.size()==7 and g.enemies.filter(func(e):return e.type==7).size()==2 and g.enemies.filter(func(e):return e.type==6).size()==2 and g.enemies.filter(func(e):return e.type==5).size()==2 and g.enemies.filter(func(e):return e.boss).size()==1)
  g.objects.assign(g.objects.filter(func(o):return not o.solid));g.enemies.clear();g.player=Vector2(850,700)
  for kind in [5,6,7]:
-  g.enemies.clear();g.battle.enemy(kind,Vector2(600,700),40);var e=g.enemies[0];e.state="patrol";e.cooldown=0;e.sense=0;g.player=Vector2(800,700);g.shots.clear()
+  g.enemies.clear();g.battle.enemy(kind,Vector2(600,700),40);var e=g.enemies[0];e.state="patrol";e.cooldown=0;e.sense=0;g.player=Vector2(800 if kind==7 else 750,700);g.shots.clear()
   var clip:int=g.battle.GUNS[kind].clip
   for n in range(clip):e.cooldown=0;g.update_gunner(e,.001)
   assert(g.shots.size()==clip and e.reload_left>2 and e.ammo==0)
@@ -39,7 +39,7 @@ func run():
   g.battle.tick(.016);g.update_shots(.016)
   if g.player.distance_to(reloading.pos)<125 and g.attack_cd<=0:g.attack()
  assert(g.enemies.is_empty() and g.health==8)
- g.health=.5;g.wave=8;g.held_item="rifle";g.persist();assert(g.arena_save.valid());g.load_save();g.arena_save.restore_room();assert(is_equal_approx(g.health,.5))
+ g.health=.5;g.wave=6;g.held_item="rifle";g.persist();assert(g.arena_save.valid());g.load_save();g.arena_save.restore_room();assert(is_equal_approx(g.health,.5))
  var checkpoint=g.save_data.arena_checkpoint;checkpoint.erase("balance");g.wave=3;checkpoint.fields.wave=3;g.arena_save.restore_room();assert(g.wave==3 and not g.enemies.any(func(e):return e.type in [5,6,7]) and is_equal_approx(g.health,.5))
- print("PASS ten balanced waves, exact finale, clips/reload/damage, slow retreat, local aggro/patrol, six-body separation, 8.5 HP AK, fractional checkpoint and old-wave migration")
+ print("PASS seven balanced waves, exact finale, clips/reload/damage, slow retreat, local aggro/patrol, six-body separation, 8.5 HP AK, fractional checkpoint and old-wave migration")
  quit()

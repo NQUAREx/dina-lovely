@@ -52,6 +52,7 @@ func restore_room()->void:
  g.time=maxf(g.time,float(state.get("time",0)))
  g.room_remains[4]=unpack(state.get("remains",[]))
  if int(state.get("balance",0))!=g.battle.BALANCE_VERSION and g.wave>0 and not g.combat_done:
+  g.wave=clampi(g.wave,1,g.battle.WAVE_COUNT)
   g.enemies.clear();g.shots.clear();g.poison_zones.clear();g.battle.spawn(false,false)
 func restore_hands()->void:
  if g.level!=4 or not valid():return

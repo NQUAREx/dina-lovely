@@ -33,6 +33,7 @@ const STREAMS := {
 	"sword_hit":preload("res://assets/sword_hit.wav"),
 	"ui":preload("res://assets/ui.wav"),
 	"water":preload("res://assets/water.wav"),
+	"stone_insert":preload("res://assets/gate_unlock.wav"),
 	"rpg_launch":preload("res://assets/rpg_launch.wav"),
 	"rpg_explosion":preload("res://assets/rpg_explosion.wav"),
 	"rpg_load":preload("res://assets/rpg_load.wav"),

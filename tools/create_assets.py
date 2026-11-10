@@ -752,3 +752,5 @@ for loaded in [False,True]:
 # Page seam garlands and pause button share the original pixel-art palette.
 import runpy
 runpy.run_path(str(R/"tools/create_frame_art.py"))
+# Seven carved keepsake stones and separate socket states.
+runpy.run_path(str(R/"tools/create_rune_art.py"))

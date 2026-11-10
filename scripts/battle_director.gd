@@ -1,24 +1,28 @@
 extends RefCounted
-const BALANCE_VERSION := 4
-const BULLET_RANGE := 280.0
-const ROCKET_RANGE := 400.0
-const PREVIOUS_WAVES := [[0,0,0,1,1],[0,0,1,1,2,2],[0,0,1,1,2,2,4],[0,0,1,1,2,2,4,4],[0,0,1,1,2,2,3,4,4],[0,0,1,1,2,2,4,4,5],[0,0,1,1,2,2,3,4,5,5],[0,0,1,1,2,2,3,4,5,6],[0,0,1,1,2,2,3,4,5,6,6],[-1,7,7,6,6,3,3,0,0,1,1,2,4]]
-const WAVES := [[0,0,1,1,2,2,4,4],[0,1,1,2,2,2,3,4,4,4],[0,1,1,2,2,2,3,3,4,4,4,4],[0,1,1,2,2,2,2,3,3,4,4,4,4,4],[0,1,2,2,2,2,3,3,3,4,4,4,4,4,4],[0,1,2,2,3,3,4,4,4,4,5,5,5,6,6,6],[0,1,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,6],[0,1,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,6,7,7],[0,1,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,6,6,7,7,7],[-1,7,7,7,7,6,6,6,6,6,6,5,5,5,3,3,3,3,3,4,4,4,2,2]]
+const BALANCE_VERSION := 5
+const WAVE_COUNT := 7
+const BULLET_RANGE := 196.0
+const ROCKET_RANGE := 280.0
+const WAVES := [
+ [0,0,1,1,2,2,4,4],
+ [0,1,1,2,2,2,3,4,4,4],
+ [0,1,1,2,2,2,3,3,4,4,4,4],
+ [0,1,2,2,3,3,4,4,4,4,4,4,5,5],
+ [0,1,2,2,3,3,3,4,4,4,4,4,5,5,6,6],
+ [0,1,2,2,3,3,3,4,4,4,4,4,5,5,5,6,6,7],
+ [-1,5,5,6,6,7,7]]
 
 const GUNS := {
- 5:{"clip":3,"interval":Vector2(1.05,1.4),"reload":Vector2(2.5,3.1),"range":240.0,"travel":250.0,"speed":275.0,"damage":1.0,"keep":185.0,"move":30.0,"aggro":285.0,"minimum":85.0},
- 6:{"clip":4,"interval":Vector2(.36,.5),"reload":Vector2(3.1,3.8),"range":270.0,"travel":280.0,"speed":330.0,"damage":1.5,"keep":215.0,"move":28.0,"aggro":315.0,"minimum":100.0},
- 7:{"clip":1,"interval":Vector2(1.0,1.3),"reload":Vector2(5.0,6.0),"range":400.0,"travel":400.0,"speed":235.0,"damage":2.0,"keep":315.0,"move":24.0,"aggro":440.0,"minimum":170.0}}
+ 5:{"clip":3,"interval":Vector2(1.05,1.4),"reload":Vector2(2.5,3.1),"range":168.0,"travel":175.0,"speed":275.0,"damage":1.0,"keep":140.0,"move":30.0,"aggro":285.0,"minimum":85.0},
+ 6:{"clip":4,"interval":Vector2(.36,.5),"reload":Vector2(3.1,3.8),"range":189.0,"travel":196.0,"speed":330.0,"damage":1.5,"keep":160.0,"move":28.0,"aggro":315.0,"minimum":100.0},
+ 7:{"clip":1,"interval":Vector2(1.0,1.3),"reload":Vector2(5.0,6.0),"range":280.0,"travel":280.0,"speed":235.0,"damage":2.0,"keep":235.0,"move":24.0,"aggro":440.0,"minimum":170.0}}
 var g:Node2D
 func _init(game:Node2D):g=game
 func enemy(kind:int,pos:Vector2,hp:int,boss:bool=false)->void:
  var serial:int=g.enemies.size()+1
  g.enemies.append({"pos":pos,"home":pos,"hp":hp,"max_hp":hp,"boss":boss,"type":kind,"serial":serial,"state":"spawn","timer":1.3+serial*.15,"target":g.player,"cooldown":randf_range(.8,1.5),"slime_cd":4.5,"aggro":false,"alert":0.0,"sense":0.0,"wander":0.0,"patrol":pos,"reload_left":0.0,"reload_duration":1.0,"ammo":int(GUNS[kind].clip) if GUNS.has(kind) else 0})
 func spawn(medkits:bool=true,announce:bool=true)->void:
- var plan:Array=WAVES[clampi(g.wave-1,0,9)]
- var old_budget:=0.0;var new_budget:=0.0
- for kind in PREVIOUS_WAVES[clampi(g.wave-1,0,9)]:old_budget+=base_hp(kind)
- for kind in plan:new_budget+=base_hp(kind)
+ var plan:Array=WAVES[clampi(g.wave-1,0,WAVE_COUNT-1)]
  var points:Array[Vector2]=[]
  for y in range(7,g.grid.size()-5):
   for x in range(3,g.grid[0].length()-3):
@@ -35,11 +39,11 @@ func spawn(medkits:bool=true,announce:bool=true)->void:
    if gap>=88:break
   if best<0:push_error("No valid arena spawn point");return
   points.erase(chosen)
-  enemy(2 if kind<0 else kind,chosen,maxi(1,roundi(base_hp(kind)*old_budget*2.5/new_budget)),kind<0)
- if medkits and g.wave in [3,6,9]:spawn_medkit()
- elif announce:g.notify(g.tx("boss_announcement") if g.wave==10 else g.tx("wave_announcement")%g.wave)
+  enemy(2 if kind<0 else kind,chosen,roundi(base_hp(kind)),kind<0)
+ if medkits and g.wave in [3,5]:spawn_medkit()
+ elif announce:g.notify(g.tx("boss_announcement") if g.wave==WAVE_COUNT else g.tx("wave_announcement")%g.wave)
 func base_hp(kind:int)->float:
- return 750.0 if kind<0 else 22+g.wave*2 if kind>=5 else 10+g.wave*2+kind*2
+ return 1100.0 if kind<0 else 32+g.wave*4+(kind-5)*4 if kind>=5 else 26+g.wave*4 if kind==4 else 16+g.wave*3+kind*2
 func spawn_clear(point:Vector2)->bool:
  if g.blocked(point):return false
  for n in range(8):
@@ -63,7 +67,7 @@ func brain(e:Dictionary,delta:float)->bool:
  if e.sense<=0:
   e.sense=.18+fmod(float(e.serial),4)*.02
   var radius:float=360 if e.get("boss",false) else GUNS[int(e.type)].aggro if GUNS.has(int(e.type)) else 270 if e.type==3 else 245
-  radius*=1.5
+  radius*=1.05 if GUNS.has(int(e.type)) else 1.5
   var distance:float=e.pos.distance_to(g.player)
   if e.pos.distance_to(e.home)>540 and not e.get("boss",false):e.aggro=false;e.alert=0.0
   elif distance<=radius and sight(e.pos,g.player):e.aggro=true

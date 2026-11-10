@@ -22,7 +22,7 @@ func run():
  assert(rebuilt==order and next.size()==6);print('PASS exactly one solution from seven shuffled room clues')
  g.ensure_riddle();assert(g.save_data.riddle_order==order);g.persist();g.load_save();g.ensure_riddle();assert(g.save_data.riddle_order==order);print('PASS saved answer and clues')
  g.build_level(6);assert(g.objects.filter(func(o):return o.kind=='stone' and o.id in g.content.puzzle.symbols).size()==7);assert(g.objects.any(func(o):return o.id=='final_hint'))
- g.save_data.letters=g.save_data.riddle_letters.duplicate()
+ g.save_data.riddle_stones=g.content.puzzle.symbols.duplicate();g.save_data.riddle_inserted=g.content.puzzle.symbols.duplicate();g.save_data.letters=g.save_data.riddle_letters.duplicate()
  for n in range(7):g.press_riddle_symbol('sun',Vector2.ZERO)
  assert(g.puzzle.size()==7 and g.puzzle.all(func(s):return s=='sun'));g.check_riddle_chest();assert(not g.save_data.finished);assert(g.puzzle.size()==7);print('PASS arbitrary input retained, wrong answer rejected only at chest')
  g.press_riddle_symbol('puzzle_reset',Vector2.ZERO);assert(g.puzzle.is_empty())

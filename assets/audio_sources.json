@@ -220,9 +220,17 @@
     "sha256": "dee1e71faf718150c200e71a0e0a86f9682ddef7aa497b8c9ea9d4ff7b7d3b05"
   },
   "rpg_flight.wav": {
-    "source": "Tinysized SFX tin-whistle-whoosh-02.wav + Kenney thrusterFire_004.ogg",
+    "source": "rocket_engine.001.wav, theMinesAreShakin",
+    "url": "https://opengameart.org/content/rocket-engine",
     "license": "CC0",
-    "processing": "Recorded whistle dominant, band filtering, 80ms cyclic equal-power crossfade, peak 30000",
-    "sha256": "e355f92b5c90d4fb92c0c4149396b3ee4c0a7daaa3c1ee1af53f7ebf07ac227c"
+    "processing": "Full recording, mono 44.1kHz, 130Hz high-pass/8.5kHz low-pass, 220ms equal-power seam, peak 27000",
+    "sha256": "80d48af81ce71c97e49a07446693b8fc8ab2b1b190bf47f98a872dc7bae2f774"
+  },
+  "rpg_launch.wav": {
+    "source": "qubodup, Rocket launch / launch.wav",
+    "url": "https://opengameart.org/content/rocket-launch",
+    "license": "CC0",
+    "processing": "Leading silence removed, 0.8s excerpt, mono 44.1kHz, filter, +19.55dB gain, tail fade and limiter",
+    "sha256": "cf9dbd2a032461269acc00ef8c3c70b114ee259396505465ebb986cfc203bb48"
   }
 }

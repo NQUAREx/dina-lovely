@@ -159,6 +159,7 @@ var foliage_motion:=0.0
 var hedge_contact := false
 var gate_creak_delay := -1.0
 var poison_zones:Array[Dictionary]=[]
+var rune_stones:=preload("res://scripts/riddle_stones.gd").new(self)
 var battle:=preload("res://scripts/battle_director.gd").new(self)
 var rifle_kick := 0.0
 var rifle_kick_dir := Vector2.ZERO
@@ -203,7 +204,7 @@ func _ready() -> void:
 		JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_stones":[],"riddle_inserted":[],"riddle_stone_order":[],"riddle_stone_positions":{},"riddle_stone_exposed":false,"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -255,7 +256,7 @@ func persist() -> void:
 		if is_instance_valid(toast): notify(tx("storage_unavailable"))
 
 func setup_audio() -> void:
-	rocket_voice=AudioStreamPlayer.new()
+	rocket_voice=AudioStreamPlayer.new();rocket_voice.volume_db=-10
 	var flight := preload("res://assets/rpg_flight.wav").duplicate() as AudioStreamWAV
 	flight.loop_mode=AudioStreamWAV.LOOP_FORWARD;flight.loop_begin=0;flight.loop_end=int(flight.get_length()*flight.mix_rate)
 	rocket_voice.stream=flight
@@ -518,7 +519,7 @@ func activate_cached_room(index: int) -> void:
 	chest_open=save_data.finished
 	weapon=held_item if held_item in ["sword","rifle","rpg"] else "";sync_hands()
 	objects.assign(objects.filter(func(obj):return not obj.get("dropped_accessory",false)))
-	restore_accessory_drops();restore_gate_key();normalize_dig_site();world_tools.install();restore_weapon_drops();torch.install();companion.install()
+	restore_accessory_drops();restore_gate_key();normalize_dig_site();world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install()
 	for door in objects:
 		if door.kind=="doorway":door.gate_amount=1.0 if door_is_open(str(door.id)) else 0.0
 	task_time=0;rpg_windup=-1;resting="";nearest=-1
@@ -603,6 +604,7 @@ func collect(id: String) -> void:
 	show_letter(id)
 
 func ensure_riddle() -> void:
+	rune_stones.ensure()
 	var symbols: Array = content.get("puzzle",{}).get("symbols",[])
 	if symbols.size()!=7:return
 	if save_data.riddle_order.size()==7 and save_data.riddle_clues.size()==7 and save_data.riddle_letters.size()==7:return
@@ -631,12 +633,14 @@ func press_riddle_symbol(id: String, pos: Vector2) -> void:
 	if id=="puzzle_reset":
 		puzzle.clear();persist();sfx("ui");notify(tx("puzzle_reset_notice"));return
 	if id not in content.puzzle.symbols:return
+	if not rune_stones.ready():notify(tx("rune_need_all"));return
 	if puzzle.size()>=7:notify(tx("puzzle_full_input"));return
 	puzzle.append(id);persist();sfx("ui");burst(pos,8,Color("ffe1a6"))
 	notify(tx("puzzle_full_input") if puzzle.size()==7 else tx("puzzle_symbol_added").format({"symbol":tx("symbol_"+id)}))
 
 func check_riddle_chest() -> void:
 	if chest_open:show_card();return
+	if not rune_stones.ready():notify(tx("rune_need_all"));return
 	for id in save_data.riddle_letters:
 		if id not in save_data.letters:notify(tx("puzzle_notes_missing"));return
 	if puzzle.size()!=7:notify(tx("puzzle_short_input"));return
@@ -870,8 +874,8 @@ func build_level(index: int) -> void:
 	prepare_grass_details()
 	restore_accessory_drops()
 	restore_gate_key()
-	world_tools.install();restore_weapon_drops();torch.install();companion.install()
-	if index==4:arena_save.restore_room()
+	world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install()
+	if index==4:arena_save.restore_room();rune_stones.install()
 	camera = camera_target()
 	nearest = -1
 	update_hud()
@@ -978,6 +982,7 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	world_tools.update(delta)
+	rune_stones.update()
 	companion.update(delta)
 	arena_save.update(delta)
 	update_foliage_audio(delta)
@@ -989,7 +994,7 @@ func _process(delta: float) -> void:
 		for shot in shots:
 			if shot.kind in ["rpg","enemy_rocket"]:distance=minf(distance,player.distance_to(shot.pos))
 		if sound_on and playing and not paused and distance<1400:
-			rocket_voice.volume_db=-2-20*log(1+distance/420)/log(10.0)
+			rocket_voice.volume_db=lerpf(rocket_voice.volume_db,-10-20*log(1+distance/420)/log(10.0),minf(1,delta*12))
 			if not rocket_voice.playing:rocket_voice.play()
 		else:rocket_voice.stop()
 	for door in objects:
@@ -1127,6 +1132,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.kind=="riddle_stone":return obj.id not in save_data.riddle_stones and (not obj.get("hidden_hedge",false) or obj.pos.distance_to(player)<=54)
 	if obj.kind=="medkit":return true
 	if obj.kind=="flashlight_pedestal":return false
 	if obj.kind=="cat_fish":return not save_data.cat_fish and not save_data.cat_tamed
@@ -1209,6 +1215,7 @@ func find_nearest() -> void:
 			if objects[i].kind=="pet_cat" and available(objects[i]) and player.distance_to(objects[i].pos)<60 and interaction_reachable(objects[i]):nearest=i;break
 
 func item_name(obj: Dictionary) -> String:
+	if obj.kind=="riddle_stone":return rune_stones.name_for(obj)
 	if obj.kind=="medkit":return tx("item_medkit")
 	if obj.kind in ["cat_fish","cat_hut","pet_cat","stats_stone"]:return tx("item_"+obj.kind)
 	if obj.kind=="secret_book":return tx("secret_book_name")
@@ -1232,7 +1239,7 @@ func item_name(obj: Dictionary) -> String:
 	if obj.id in ["can","rake","fertilizer","shovel","flashlight","well"]:return tx("item_"+str(obj.id))
 	if obj.id=="seat":return tx("item_bench")
 	if obj.id=="swing":return tx("item_swing")
-	if level==6 and obj.kind=="stone":return tx("item_puzzle_reset") if obj.id=="puzzle_reset" else tx("symbol_"+str(obj.id))
+	if level==6 and obj.kind=="stone":return tx("item_puzzle_reset") if obj.id=="puzzle_reset" else rune_stones.name_for(obj)
 	return ""
 
 func item_display_position(obj: Dictionary) -> Vector2:
@@ -1241,7 +1248,7 @@ func item_display_position(obj: Dictionary) -> Vector2:
 	if obj.kind=="gate_key" and obj.has("key_origin"):
 		var t:=clampf((time-float(obj.get("rise_start",time-1)))/.55,0,1)
 		pos=Vector2(obj.key_origin).lerp(pos,smoothstep(0,1,t))+Vector2(0,-sin(t*PI)*30)
-	elif obj.kind in ["accessory","cat_fish"]:pos.y+=sin(time*2)*2
+	elif obj.kind in ["accessory","cat_fish","riddle_stone"] and not obj.get("buried_stone",false):pos.y+=sin(time*2)*2
 	elif obj.kind=="note" and obj.id!="buried":pos.y+=sin(time*2+pos.x)*4+25*(1-clampf((time-float(obj.get("rise_start",time-1)))/.45,0,1))
 	return pos
 
@@ -1257,7 +1264,7 @@ func item_visual_bounds(obj: Dictionary) -> Rect2:
 		if bounds.has_area():return bounds
 	if obj.get("integrated_hedge",false):return Rect2(position+Vector2(-32,-96),Vector2(64,80))
 	if obj.kind in ["doorway","arch"]:return Rect2(position+Vector2(-100,-90),Vector2(200,90))
-	var name:String="house_door_open" if obj.kind=="house_door" and obj.get("opened",false) else "accessory_"+str(obj.accessory) if obj.kind=="accessory" else ("flashlight" if obj.get("ground_tool",false) else "flashlight_rest") if obj.kind=="stand_flashlight" else obj.kind
+	var name:String=rune_stones.texture(obj) if obj.kind=="riddle_stone" or (level==6 and obj.kind=="stone") else "house_door_open" if obj.kind=="house_door" and obj.get("opened",false) else "accessory_"+str(obj.accessory) if obj.kind=="accessory" else ("flashlight" if obj.get("ground_tool",false) else "flashlight_rest") if obj.kind=="stand_flashlight" else obj.kind
 	if not sprites.has(name):return Rect2(position-Vector2(24,32),Vector2(48,32))
 	if not label_sprite_bounds.has(name):
 		var id:int=sprites[name]
@@ -1297,6 +1304,7 @@ func draw_item_names() -> void:
 		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,14,CREAM)
 
 func action_text(obj: Dictionary) -> String:
+	if obj.kind=="riddle_stone":return tx("pickup_rune")
 	if obj.kind=="medkit":return tx("use_medkit")
 	if obj.kind=="cat_fish":return tx("take_fish")
 	if obj.kind=="cat_hut":return tx("feed_cat" if save_data.cat_fish else "meet_cat")
@@ -1333,7 +1341,7 @@ func action_text(obj: Dictionary) -> String:
 		if float(plants.get(obj.id,{}).get("remaining",0))>0: return tx("plant_growing")
 		return tx("water_action")
 	if obj.id == "final": return tx("open_chest")
-	if level==6 and obj.kind=="stone":return tx("puzzle_reset_action") if obj.id=="puzzle_reset" else tx("symbol_"+str(obj.id))
+	if level==6 and obj.kind=="stone":return tx("puzzle_reset_action") if obj.id=="puzzle_reset" else tx("press_rune") if obj.id in save_data.riddle_inserted else tx("insert_rune")
 	return tx("read_letter")
 
 func interact() -> void:
@@ -1342,7 +1350,7 @@ func interact() -> void:
 	if task_time>0:return
 	if nearest>=0 and world_tools.use_object(objects[nearest]):return
 	if new_bed_action_ready():world_tools.make_bed();return
-	if level==3 and save_data.shovel and task_time<=0 and (nearest<0 or (objects[nearest].id not in ["exit","back","buried","gate_key_3"] and objects[nearest].kind!="accessory")):
+	if level==3 and save_data.shovel and task_time<=0 and (nearest<0 or (objects[nearest].id not in ["exit","back","buried","gate_key_3"] and objects[nearest].kind not in ["accessory","riddle_stone"])):
 		dig_here()
 		return
 	if nearest<0: return
@@ -1351,6 +1359,7 @@ func interact() -> void:
 	var id: String = obj.id
 	if task_time>0: return
 	if companion.interact(obj):find_nearest();return
+	if obj.kind=="riddle_stone":rune_stones.collect(obj);return
 	if obj.kind=="medkit":
 		if health>=8:notify(tx("health_full"));return
 		health=8;objects.erase(obj);burst(player,12,Color("a9e7b6"));sfx("chime");notify(tx("medkit_used"));find_nearest();persist();return
@@ -1433,7 +1442,7 @@ func interact() -> void:
 	elif id=="final":
 		check_riddle_chest()
 	elif level==6 and obj.kind=="stone":
-		press_riddle_symbol(id,obj.pos)
+		rune_stones.use_socket(id,obj.pos)
 	else: collect(id)
 	find_nearest()
 
@@ -1609,9 +1618,9 @@ func update_hud() -> void:
 		1: status.text = tx("darkness_status") % [dark_letter_count(),tx("flashlight_on") if save_data.flashlight else tx("flashlight_location")]
 		2: status.text = tx("obstacles_status") % save_data.obstacles.size()
 		3: status.text = tx("buried_note_found") if "buried" in save_data.letters else (tx("digging_hint") if save_data.shovel else tx("shovel_location"))
-		4: status.text = tx("combat_status") % [mini(wave,10),tx("combat_chest_hint") if combat_done else {"sword":tx("weapon_sword"),"rifle":tx("weapon_rifle"),"rpg":tx("weapon_rpg")}.get(weapon,tx("weapon_required"))]
+		4: status.text = tx("combat_status") % [mini(wave,battle.WAVE_COUNT),tx("combat_chest_hint") if combat_done else {"sword":tx("weapon_sword"),"rifle":tx("weapon_rifle"),"rpg":tx("weapon_rpg")}.get(weapon,tx("weapon_required"))]
 		5: status.text = tx("garden_status") % [required_flower_count(),tx("water_prefix")+str(water)+" / 6" if garden_can else tx("can_search_hint")]
-		6: status.text = tx("puzzle_status") % puzzle.size()
+		6: status.text = tx("rune_status").format({"found":save_data.riddle_stones.size(),"inserted":save_data.riddle_inserted.size()}) if not rune_stones.ready() else tx("puzzle_status") % puzzle.size()
 	if level==4 and wave>0 and not combat_done:
 		status.text+=" · "+tx("combat_enemies_left").format({"count":enemies.size()})
 	if level>0 and level<6 and room_letters_complete() and not door_is_open("exit"):
@@ -1620,7 +1629,7 @@ func update_hud() -> void:
 	action_button.visible = (nearest>=0 or world_tools.can_bed() or (level==3 and save_data.shovel)) and playing
 	if new_bed_action_ready():action_button.text=tx("new_bed_action")
 	elif nearest>=0:action_button.text=action_text(objects[nearest])
-	if level==3 and save_data.shovel and (nearest<0 or (objects[nearest].id not in ["exit","back","buried","gate_key_3"] and objects[nearest].kind!="accessory")): action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
+	if level==3 and save_data.shovel and (nearest<0 or (objects[nearest].id not in ["exit","back","buried","gate_key_3"] and objects[nearest].kind not in ["accessory","riddle_stone"])): action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
 	switch_button.visible = false
 	attack_button.visible = playing and not weapon.is_empty() and ((level==4 and not combat_done) or save_data.finished)
 	hint.text = (tx("hedge_collision_prefix") + str(Vector2i(player/TILE))) if stuck_seconds>.8 else (tx("movement_hint") if not joy_active else "")
@@ -1646,7 +1655,7 @@ func update_combat(delta: float) -> void:
 	if enemies.is_empty():
 		wave_timer -= delta
 		if wave_timer<=0:
-			if wave<10: spawn_wave()
+			if wave<battle.WAVE_COUNT: spawn_wave()
 			else:
 				combat_done = true
 				shots.assign(shots.filter(func(shot):return shot.kind not in ["enemy_bullet","enemy_rocket"]))
@@ -1694,7 +1703,7 @@ func attack(launch_ready: bool = false) -> void:
 		if weapon=="rpg":
 			stats.add(self,"rockets")
 			rpg_reload=RPG_RELOAD
-			if sound_on:rocket_voice.volume_db=-2;rocket_voice.play()
+			if sound_on and not rocket_voice.playing:rocket_voice.volume_db=-10;rocket_voice.play()
 			for step in range(12):
 				var recoil := player-aim*6
 				if blocked(recoil):break
@@ -1951,6 +1960,7 @@ func _draw_world() -> void:
 		if obj.kind in ["axe","shears","drill","tool_table"] and not save_data.finished:continue
 		if obj.kind in ["hedge_target","tool_table","pet_cat"]:continue
 		if obj.kind=="cat_fish" and (save_data.cat_fish or save_data.cat_tamed):continue
+		if obj.kind=="riddle_stone" and obj.id in save_data.riddle_stones:continue
 		if obj.kind=="stand_flashlight" and (held_item=="flashlight" or int(save_data.flashlight_location.get("room",1))!=level):continue
 		if drawing_neighbor and corridor_row(floori(obj.pos.y/TILE)):continue
 		if obj.kind=="accessory" and not available(obj):continue
@@ -2056,8 +2066,8 @@ func _draw_world() -> void:
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width,5)),INK)
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width*float(enemy.hp)/float(enemy.get("max_hp",enemy.hp)),5)),PINK)
 		else:
-			if not drawing_neighbor and task_time<=0 and not item.has("wall") and item.pos.distance_squared_to(player)<9025 and available(item) and interaction_reachable(item) and kind not in ["doorway","arch","stone"]:
-				var highlight := "house_door" if kind=="house_door" else "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else ("flashlight" if item.get("ground_tool",false) else "flashlight_rest") if kind=="stand_flashlight" else kind
+			if not drawing_neighbor and task_time<=0 and not item.has("wall") and item.pos.distance_squared_to(player)<9025 and available(item) and interaction_reachable(item) and kind not in ["doorway","arch"]:
+				var highlight := rune_stones.texture(item) if kind=="riddle_stone" or (level==6 and kind=="stone") else "house_door" if kind=="house_door" else "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else ("flashlight" if item.get("ground_tool",false) else "flashlight_rest") if kind=="stand_flashlight" else kind
 				if kind=="sprout":draw_pickup_outline("bed_border"+str(world_tools.variant(item.id)),p,.9+float(world_tools.variant(item.id))*.035)
 				elif item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
@@ -2106,6 +2116,8 @@ func _draw_world() -> void:
 			elif kind.begins_with("rack_") and item.id in save_data.weapons_taken: draw_sprite("rack_empty",p)
 			elif kind=="mound": draw_sprite("dug" if item.id in save_data.dug else "mound",p)
 			elif kind=="chest": draw_sprite("chest_open" if ((item.id=="final" and chest_open) or item.id in save_data.letters) else "chest",p,Color.WHITE,3.0 if item.id=="final" else 1.0)
+			elif kind=="riddle_stone":draw_sprite(rune_stones.texture(item),screen(item_display_position(item)))
+			elif level==6 and kind=="stone":draw_sprite(rune_stones.texture(item),p)
 			elif kind=="note" and item.id=="buried":draw_buried_paper(p,item.id in save_data.letters)
 			elif kind=="note_open" and item.id=="buried":draw_buried_paper(p,true)
 			elif kind in ["flowers","blueflowers"]:
@@ -2114,12 +2126,12 @@ func _draw_world() -> void:
 			elif kind=="accessory":draw_sprite("accessory_"+str(item.accessory),screen(item_display_position(item)))
 			elif kind=="note": draw_sprite(kind,screen(item_display_position(item)))
 			else: draw_sprite(kind,p)
-			if level==6 and kind=="stone" and not item.id.is_empty(): symbol(item.id,p+Vector2(0,-42),Color("ffe4ad") if item.id in puzzle else Color("b5a3bb"))
 			if kind in ["arch","doorway"]:
 				var open: bool = door_is_open(str(item.id))
 				draw_texture_rect(glow,Rect2(p-Vector2(65,110),Vector2(130,150)),false,Color(.9,1,.9,1 if open else .2))
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
 
+	rune_stones.draw_insertions()
 	# Batched radial textures approximate soft warm light without expensive real-time lights.
 	for item in renderables:
 		if item.kind in ["lamp","candle","candle_heart","heart_stand","note"] or (item.kind=="chest" and chest_open):
