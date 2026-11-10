@@ -1,8 +1,10 @@
 extends RefCounted
-const BALANCE_VERSION := 3
+const BALANCE_VERSION := 4
 const BULLET_RANGE := 280.0
 const ROCKET_RANGE := 400.0
-const WAVES := [[0,0,0,1,1],[0,0,1,1,2,2],[0,0,1,1,2,2,4],[0,0,1,1,2,2,4,4],[0,0,1,1,2,2,3,4,4],[0,0,1,1,2,2,4,4,5],[0,0,1,1,2,2,3,4,5,5],[0,0,1,1,2,2,3,4,5,6],[0,0,1,1,2,2,3,4,5,6,6],[-1,7,7,6,6,3,3,0,0,1,1,2,4]]
+const PREVIOUS_WAVES := [[0,0,0,1,1],[0,0,1,1,2,2],[0,0,1,1,2,2,4],[0,0,1,1,2,2,4,4],[0,0,1,1,2,2,3,4,4],[0,0,1,1,2,2,4,4,5],[0,0,1,1,2,2,3,4,5,5],[0,0,1,1,2,2,3,4,5,6],[0,0,1,1,2,2,3,4,5,6,6],[-1,7,7,6,6,3,3,0,0,1,1,2,4]]
+const WAVES := [[0,0,1,1,2,2,4,4],[0,1,1,2,2,2,3,4,4,4],[0,1,1,2,2,2,3,3,4,4,4,4],[0,1,1,2,2,2,2,3,3,4,4,4,4,4],[0,1,2,2,2,2,3,3,3,4,4,4,4,4,4],[0,1,2,2,3,3,4,4,4,4,5,5,5,6,6,6],[0,1,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,6],[0,1,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,6,7,7],[0,1,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,6,6,7,7,7],[-1,7,7,7,7,6,6,6,6,6,6,5,5,5,3,3,3,3,3,4,4,4,2,2]]
+
 const GUNS := {
  5:{"clip":3,"interval":Vector2(1.05,1.4),"reload":Vector2(2.5,3.1),"range":240.0,"travel":250.0,"speed":275.0,"damage":1.0,"keep":185.0,"move":30.0,"aggro":285.0,"minimum":85.0},
  6:{"clip":4,"interval":Vector2(.36,.5),"reload":Vector2(3.1,3.8),"range":270.0,"travel":280.0,"speed":330.0,"damage":1.5,"keep":215.0,"move":28.0,"aggro":315.0,"minimum":100.0},
@@ -14,12 +16,35 @@ func enemy(kind:int,pos:Vector2,hp:int,boss:bool=false)->void:
  g.enemies.append({"pos":pos,"home":pos,"hp":hp,"max_hp":hp,"boss":boss,"type":kind,"serial":serial,"state":"spawn","timer":1.3+serial*.15,"target":g.player,"cooldown":randf_range(.8,1.5),"slime_cd":4.5,"aggro":false,"alert":0.0,"sense":0.0,"wander":0.0,"patrol":pos,"reload_left":0.0,"reload_duration":1.0,"ammo":int(GUNS[kind].clip) if GUNS.has(kind) else 0})
 func spawn(medkits:bool=true,announce:bool=true)->void:
  var plan:Array=WAVES[clampi(g.wave-1,0,9)]
- for i in range(plan.size()):
-  var kind:int=plan[i];var angle:float=TAU*i/plan.size()+.4
-  var pos:=Vector2(13.5,15.5)*48+Vector2(cos(angle)*360,sin(angle)*230)
-  enemy(2 if kind<0 else kind,g.accessory_drop_position(pos),750 if kind<0 else 22+g.wave*2 if kind>=5 else 10+g.wave*2+kind*2,kind<0)
+ var old_budget:=0.0;var new_budget:=0.0
+ for kind in PREVIOUS_WAVES[clampi(g.wave-1,0,9)]:old_budget+=base_hp(kind)
+ for kind in plan:new_budget+=base_hp(kind)
+ var points:Array[Vector2]=[]
+ for y in range(7,g.grid.size()-5):
+  for x in range(3,g.grid[0].length()-3):
+   var point:=Vector2(x+.5,y+.5)*48+Vector2(randf_range(-9,9),randf_range(-9,9))
+   if point.distance_to(g.player)<190 or not spawn_clear(point):continue
+   points.append(point)
+ points.shuffle()
+ for kind in plan:
+  var chosen:Vector2=Vector2.ZERO;var best:=-1.0
+  for point in points:
+   var gap:=INF
+   for existing in g.enemies:gap=minf(gap,point.distance_to(existing.pos))
+   if gap>best:best=gap;chosen=point
+   if gap>=88:break
+  if best<0:push_error("No valid arena spawn point");return
+  points.erase(chosen)
+  enemy(2 if kind<0 else kind,chosen,maxi(1,roundi(base_hp(kind)*old_budget*2.5/new_budget)),kind<0)
  if medkits and g.wave in [3,6,9]:spawn_medkit()
  elif announce:g.notify(g.tx("boss_announcement") if g.wave==10 else g.tx("wave_announcement")%g.wave)
+func base_hp(kind:int)->float:
+ return 750.0 if kind<0 else 22+g.wave*2 if kind>=5 else 10+g.wave*2+kind*2
+func spawn_clear(point:Vector2)->bool:
+ if g.blocked(point):return false
+ for n in range(8):
+  if g.blocked(point+Vector2.from_angle(n*TAU/8)*38):return false
+ return true
 func ensure(e:Dictionary)->void:
  if int(e.get("brain_version",0))==BALANCE_VERSION:return
  var defaults={"home":e.pos,"serial":maxi(1,g.enemies.find(e)+1),"aggro":false,"alert":0.0,"sense":0.0,"wander":0.0,"patrol":e.pos,"reload_left":0.0,"reload_duration":1.0,"ammo":int(GUNS[int(e.type)].clip) if GUNS.has(int(e.type)) else 0}
@@ -38,8 +63,9 @@ func brain(e:Dictionary,delta:float)->bool:
  if e.sense<=0:
   e.sense=.18+fmod(float(e.serial),4)*.02
   var radius:float=360 if e.get("boss",false) else GUNS[int(e.type)].aggro if GUNS.has(int(e.type)) else 270 if e.type==3 else 245
+  radius*=1.5
   var distance:float=e.pos.distance_to(g.player)
-  if e.pos.distance_to(e.home)>360 and not e.get("boss",false):e.aggro=false;e.alert=0.0
+  if e.pos.distance_to(e.home)>540 and not e.get("boss",false):e.aggro=false;e.alert=0.0
   elif distance<=radius and sight(e.pos,g.player):e.aggro=true
   elif distance>radius+110 and e.alert<=0:e.aggro=false
  return bool(e.aggro) or e.alert>0
@@ -84,7 +110,7 @@ func melee(e:Dictionary,delta:float)->void:
  var speed:float=55 if e.get("boss",false) else 55+int(e.type)*6+min(g.wave,9)*2
  if e.type==3:speed=185.0 if fposmod(g.time+float(e.serial)*.41,2.2)<.7 else 70.0
  if e.type==4:speed=58
- move(e,(goal-Vector2(e.pos)).normalized()*speed,delta)
+ move(e,(goal-Vector2(e.pos)).normalized()*speed*1.25,delta)
 func gunner(e:Dictionary,delta:float)->void:
  ensure(e)
  if e.state=="spawn":return
@@ -106,7 +132,7 @@ func gunner(e:Dictionary,delta:float)->void:
  if distance<float(profile.keep)-30:velocity=-toward.normalized()*float(profile.move)
  elif distance>float(profile.keep)+35:velocity=toward.normalized()*float(profile.move)
  elif e.reload_left>0:velocity=toward.orthogonal().normalized()*sin(float(e.serial)*2.4)*12
- move(e,velocity,delta)
+ move(e,velocity*1.3,delta)
 func radius(e:Dictionary)->float:
  return 37 if e.get("boss",false) else 14 if e.type==5 else 20
 func separate()->void:
