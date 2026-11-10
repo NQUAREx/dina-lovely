@@ -131,7 +131,7 @@ const Preloader = /** @constructor */ function () { // eslint-disable-line no-un
 			start: function (controller) {
 				onloadprogress(reader, controller).then(function () {
 					controller.close();
-				});
+				}).catch(function (error) { controller.error(error); });
 			},
 		}), { headers: response.headers });
 	}
@@ -142,7 +142,7 @@ const Preloader = /** @constructor */ function () { // eslint-disable-line no-un
 			loaded: 0,
 			done: false,
 		};
-		return fetch(file).then(function (response) {
+		return (window.gardenFetchAsset ? window.gardenFetchAsset(file) : fetch(file)).then(function (response) {
 			if (!response.ok) {
 				return Promise.reject(new Error(`Failed loading file '${file}'`));
 			}
@@ -540,11 +540,11 @@ const InternalConfig = function (initConfig) { // eslint-disable-line no-unused-
 					onSuccess(result['instance'], result['module']);
 				}
 				if (typeof (WebAssembly.instantiateStreaming) !== 'undefined') {
-					WebAssembly.instantiateStreaming(Promise.resolve(r), imports).then(done);
+					WebAssembly.instantiateStreaming(Promise.resolve(r), imports).then(done).catch(function (error) { window.dispatchEvent(new CustomEvent('garden-asset-error', { detail: String(error) })); });
 				} else {
 					r.arrayBuffer().then(function (buffer) {
-						WebAssembly.instantiate(buffer, imports).then(done);
-					});
+						return WebAssembly.instantiate(buffer, imports).then(done);
+					}).catch(function (error) { window.dispatchEvent(new CustomEvent('garden-asset-error', { detail: String(error) })); });
 				}
 				r = null;
 				return {};
@@ -710,25 +710,18 @@ const Engine = (function () {
 				}
 				const me = this;
 				function doInit(promise) {
-					// Care! Promise chaining is bogus with old emscripten versions.
-					// This caused a regression with the Mono build (which uses an older emscripten version).
-					// Make sure to test that when refactoring.
-					return new Promise(function (resolve, reject) {
-						promise.then(function (response) {
-							const cloned = new Response(response.clone().body, { 'headers': [['content-type', 'application/wasm']] });
-							Godot(me.config.getModuleConfig(loadPath, cloned)).then(function (module) {
-								const paths = me.config.persistentPaths;
-								module['initFS'](paths).then(function (err) {
-									me.rtenv = module;
-									if (me.config.unloadAfterInit) {
-										Engine.unload();
-									}
-									resolve();
-								});
-							});
+					return promise.then(function (response) {
+						const cloned = new Response(response.body, { headers: [['content-type', 'application/wasm']] });
+						return Godot(me.config.getModuleConfig(loadPath, cloned));
+					}).then(function (module) {
+						return module['initFS'](me.config.persistentPaths).then(function (err) {
+							if (err) { throw err; }
+							me.rtenv = module;
+							if (me.config.unloadAfterInit) { Engine.unload(); }
 						});
 					});
 				}
+
 				preloader.setProgressFunc(this.config.onProgress);
 				initPromise = doInit(loadPromise);
 				return initPromise;

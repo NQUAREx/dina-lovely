@@ -16,6 +16,7 @@ if marker not in s:
   const button=document.createElement('button');button.textContent=window.gardenContent?.ui?.recovery_return?.text||' ';button.onclick=()=>location.reload();
   Object.assign(button.style,{padding:'16px',background:'#70536e',color:'#f5e3cf',border:'1px solid #e5a6bd',borderRadius:'12px',font:'18px sans-serif'});box.append(button);document.body.append(box);
  }
+ window.addEventListener('garden-asset-error',()=>recover('recovery_load_failed'));
  canvas.addEventListener('webglcontextlost',()=>recover('recovery_context_lost'));
  const notice=document.getElementById('status-notice');
  if(notice)new MutationObserver(()=>{if(notice.textContent.trim())recover('recovery_load_failed');}).observe(notice,{childList:true,subtree:true});
@@ -106,3 +107,25 @@ for frame_asset in ["frame_top.png","frame_bottom.png"] + [f"frame_{part}_{room}
 s=p.read_text()
 s=re.sub(r'(<meta name="viewport" content=")[^"]*(")',r'\1width=device-width, user-scalable=no, initial-scale=1.0, viewport-fit=cover\2',s)
 p.write_text(s)
+
+# Lossless transport compression: all mechanics and WASM bytes remain identical.
+import gzip
+from patch_web_loader import patch_loader
+wasm=p.parent/'index.wasm'
+compressed=gzip.compress(wasm.read_bytes(),compresslevel=9,mtime=0)
+wasm_name='engine.'+hashlib.sha256(compressed).hexdigest()[:12]+'.wasm.gz'
+for old in p.parent.glob('engine.*.wasm.gz'):
+ if old.name!=wasm_name:old.unlink()
+(p.parent/wasm_name).write_bytes(compressed)
+loader=(root/'tools/asset_loader.js').read_text().replace('__WASM_GZIP__',wasm_name)
+(p.parent/'asset-loader.js').write_text(loader)
+patch_loader(p.parent/'index.js')
+s=p.read_text()
+loader_version=hashlib.sha256(loader.encode()).hexdigest()[:12]
+if 'asset-loader.js' not in s:
+ s=s.replace('<script src="index.js"', '<script src="asset-loader.js?v='+loader_version+'"></script><script src="index.js"')
+# Cache-bust the patched engine JS too; existing installed apps must not retain its old loader.
+engine_version=hashlib.sha256((p.parent/'index.js').read_bytes()).hexdigest()[:12]
+s=re.sub(r'<script src="index.js(?:\?[^"]*)?"', '<script src="index.js?v='+engine_version+'"',s)
+p.write_text(s)
+print('WASM transport:',wasm.stat().st_size,'->',len(compressed),'bytes')
