@@ -6,7 +6,7 @@ func run():
  for room in range(7):
   g.build_level(room);var items=g.objects.filter(func(o):return o.kind=='accessory' and not o.get('dropped_accessory',false));assert(items.size()==2)
   for item in items:assert(not g.blocked(item.pos));g.collect_accessory(item.accessory);assert(not g.available(item))
- assert(g.save_data.accessories.size()==14);assert(g.save_data.wearing.filter(func(item):return g.ACCESSORY_SLOTS[item]=='head').size()==1);assert(g.save_data.loose_accessories.size()==9)
+ assert(g.save_data.accessories.size()==16);assert(g.save_data.wearing.filter(func(item):return g.ACCESSORY_SLOTS[item]=='head').size()==1);assert(g.save_data.loose_accessories.size()==11)
  for item in g.ACCESSORIES:
   for direction in range(4):
    for frame in range(4):assert(g.sprites.has('wear_'+item+'_'+str(direction)+'_'+str(frame)))
@@ -22,10 +22,10 @@ func run():
  for n in range(9):g.update_food_hearts(.13)
  assert(g.food_hearts_left==0 and g.particles.size()==10);g.update_food_hearts(5);assert(g.particles.size()==10)
  g.build_level(6);assert(g.objects.filter(func(o):return o.kind=='heart_stand').size()==4);assert(g.objects.any(func(o):return o.kind=='column_wreath'));assert(g.objects.all(func(o):return o.kind!='candle'))
- g.persist();g.load_save();assert(g.save_data.accessories.size()==14 and g.save_data.loose_accessories.size()==9)
- var drop_room=int(g.save_data.loose_accessories.filter(func(d):return d.accessory=='wreath')[0].room);g.build_level(drop_room);var old_wreath=g.objects.filter(func(o):return o.kind=='accessory' and o.accessory=='wreath' and o.get('dropped_accessory',false))[0];assert(g.available(old_wreath));g.collect_accessory('wreath');assert('wreath' in g.save_data.wearing);assert(g.save_data.loose_accessories.any(func(d):return d.accessory=='heart_tiara' and int(d.room)==drop_room));assert(g.save_data.loose_accessories.size()==9)
- g.save_data=g.default_save();g.save_data.accessories=['wreath','crown','brooch'];g.save_data.wearing=['crown','brooch'];g.repair_accessory_save(true);assert(g.save_data.wearing==['crown']);assert(g.save_data.loose_accessories.size()==1 and g.save_data.loose_accessories[0].accessory=='wreath');assert('brooch' not in g.save_data.accessories)
- print('PASS 14 accessories / 2 per room, slot swaps/drop/re-pick/save/migration, 18 burst + 10 timed hearts, aligned frames and existing garden/gate controls')
+ g.persist();g.load_save();assert(g.save_data.accessories.size()==16 and g.save_data.loose_accessories.size()==11)
+ var drop_room=int(g.save_data.loose_accessories.filter(func(d):return d.accessory=='wreath')[0].room);g.build_level(drop_room);var old_wreath=g.objects.filter(func(o):return o.kind=='accessory' and o.accessory=='wreath' and o.get('dropped_accessory',false))[0];assert(g.available(old_wreath));g.collect_accessory('wreath');assert('wreath' in g.save_data.wearing);assert(g.save_data.loose_accessories.any(func(d):return d.accessory=='heart_tiara' and int(d.room)==drop_room));assert(g.save_data.loose_accessories.size()==11)
+ g.save_data=g.default_save();g.save_data.accessories=['wreath','crown','brooch'];g.save_data.wearing=['crown','brooch'];g.repair_accessory_save(true);assert('crown' in g.save_data.wearing and 'black_dress' in g.save_data.wearing and 'dark_scarf' in g.save_data.wearing and 'brooch' not in g.save_data.wearing);assert(g.save_data.loose_accessories.size()==1 and g.save_data.loose_accessories[0].accessory=='wreath');assert('brooch' not in g.save_data.accessories)
+ print('PASS 14 room accessories + 2 base garments / 2 finds per room, slot swaps/drop/re-pick/save/migration, 18 burst + 10 timed hearts, aligned frames and existing garden/gate controls')
  var path=g.SAVE_PATH;g.queue_free();await process_frame
  if previous_save.is_empty():DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
  else:var file=FileAccess.open(path,FileAccess.WRITE);file.store_string(previous_save);file.close()

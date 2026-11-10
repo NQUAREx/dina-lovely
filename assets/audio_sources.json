@@ -187,5 +187,12 @@
     "license": "CC0",
     "source_file": "thrusterFire_003.ogg",
     "sha256": "66b217a8a0a8cb21a5a76f749734ea0c04869eb5d05ec20554935984c6a6f9b5"
+  },
+  "gate_open": {
+    "source_file": "rpg-audio/Audio/creak1.ogg",
+    "pack": "Kenney RPG Audio",
+    "license": "CC0",
+    "processing": "Mono 44.1kHz PCM, loudness normalization, short attack and natural release",
+    "sha256": "d2b94476355c4dce655bdce63411a001bf23779e423be2e59e2af9d2a0878d46"
   }
 }

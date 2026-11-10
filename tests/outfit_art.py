@@ -7,7 +7,7 @@ root = Path(__file__).resolve().parents[1]
 names = json.loads((root / 'assets/atlas.json').read_text())
 content = json.loads((root / 'content/letters.json').read_text())
 atlas = Image.open(root / 'assets/atlas.png').convert('RGBA')
-items = ['wreath', 'veil', 'crown', 'rose_scarf', 'peach_dress', 'heart_tiara', 'pink_watch', 'white_scarf', 'white_dress', 'daisy_wreath', 'silver_crown', 'rose_wreath', 'lavender_dress', 'white_veil']
+items = ['black_dress', 'dark_scarf', 'wreath', 'veil', 'crown', 'rose_scarf', 'peach_dress', 'heart_tiara', 'pink_watch', 'white_scarf', 'white_dress', 'daisy_wreath', 'silver_crown', 'rose_wreath', 'lavender_dress', 'white_veil']
 
 def sprite(name):
     index = names[name]
@@ -36,4 +36,4 @@ for item in items:
                         for x in range(x1, x2 + 1):
                             assert image.getpixel((x, y))[3] == 0
                             assert base.getpixel((x, y))[:3] == (214, 163, 131)
-print('PASS 14 icons, 224 aligned outfit frames, plain veils with two skin-only rectangular openings, no brooch')
+print('PASS 16 icons, 256 aligned outfit frames, plain veils with two skin-only rectangular openings, no brooch')

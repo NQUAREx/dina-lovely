@@ -413,10 +413,6 @@
       "_comment": "Сообщение или действие игры (plant_growing). Меняйте text, ключ не переименовывайте.",
       "text": "Растёт…"
     },
-    "water_stage_prefix": {
-      "_comment": "Подпись действия полива; номер стадии добавляется программой.",
-      "text": "Полить · этап "
-    },
     "open_chest": {
       "_comment": "Сообщение или действие игры (open_chest). Меняйте text, ключ не переименовывайте.",
       "text": "Открыть"
@@ -1084,6 +1080,54 @@
     "item_puzzle_reset": {
       "_comment": "Название предмета puzzle_reset при приближении.",
       "text": "Сброс узора"
+    },
+    "accessory_black_dress": {
+      "_comment": "Подпись или подсказка механики accessory_black_dress.",
+      "text": "Чёрное платье"
+    },
+    "accessory_dark_scarf": {
+      "_comment": "Подпись или подсказка механики accessory_dark_scarf.",
+      "text": "Тёмный платок"
+    },
+    "item_gate_key": {
+      "_comment": "Подпись или подсказка механики item_gate_key.",
+      "text": "Ключ от калитки"
+    },
+    "gate_key_required": {
+      "_comment": "Подпись или подсказка механики gate_key_required.",
+      "text": "Сначала подбери ключ возле открытой записки."
+    },
+    "gate_key_found": {
+      "_comment": "Подпись или подсказка механики gate_key_found.",
+      "text": "Ключ от калитки у тебя."
+    },
+    "gate_key_ground": {
+      "_comment": "Подсказка ключа и калитки gate_key_ground.",
+      "text": "Подбери ключ у записки"
+    },
+    "gate_key_ready": {
+      "_comment": "Подсказка ключа и калитки gate_key_ready.",
+      "text": "Ключ найден — открой ворота"
+    },
+    "gate_key_intro": {
+      "_comment": "Подпись или подсказка механики gate_key_intro.",
+      "text": "Из последнего нужного конверта появится ключ. Подбери его и открой северные ворота."
+    },
+    "rooms_preparing": {
+      "_comment": "Подпись или подсказка механики rooms_preparing.",
+      "text": "Готовим комнаты…"
+    },
+    "pickup_gate_key": {
+      "_comment": "Подсказка ключа и калитки pickup_gate_key.",
+      "text": "Взять ключ"
+    },
+    "gate_key_action": {
+      "_comment": "Подсказка ключа и калитки gate_key_action.",
+      "text": "Нужен ключ"
+    },
+    "water_action": {
+      "_comment": "Кнопка полива грядки без счётчика.",
+      "text": "Полить"
     }
   },
   "schema_version": 2,

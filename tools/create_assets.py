@@ -367,13 +367,15 @@ def footprint(d):
  d.ellipse((12,32,19,39),fill='#fff4dd');d.rectangle((13,36,18,41),fill='#fff4dd');d.rectangle((13,43,18,45),fill='#fff4dd')
  d.point((13,33),fill=(0,0,0,0));d.point((18,44),fill=(0,0,0,0))
 sprite('footprint',footprint)
-ACCESSORIES=['wreath','veil','crown','rose_scarf','peach_dress','heart_tiara','pink_watch','white_scarf','white_dress','daisy_wreath','silver_crown','rose_wreath','lavender_dress','white_veil']
+ACCESSORIES=['black_dress','dark_scarf','wreath','veil','crown','rose_scarf','peach_dress','heart_tiara','pink_watch','white_scarf','white_dress','daisy_wreath','silver_crown','rose_wreath','lavender_dress','white_veil']
 HEAD_ITEMS=['wreath','crown','heart_tiara','daisy_wreath','silver_crown','rose_wreath']
 DRESS_PALETTES={
+ 'black_dress':{k:k for k in ['302d48','55516c','77718a','403c58','bd9eaf']},
  'peach_dress':{'302d48':'593a4b','55516c':'a96872','77718a':'d99c99','403c58':'83505f','bd9eaf':'e3b2a7'},
  'white_dress':{'302d48':'9992a4','55516c':'d9d4da','77718a':'fff5eb','403c58':'b7adbd','bd9eaf':'fff9ee'},
  'lavender_dress':{'302d48':'514565','55516c':'8b77a6','77718a':'bfafd7','403c58':'6a597d','bd9eaf':'e0cce6'}}
 SCARF_PALETTES={
+ 'dark_scarf':{k:k for k in ['65576d','8e7c90','c7b0be','b29baa']},
  'rose_scarf':{'65576d':'7d4a62','8e7c90':'b4758d','c7b0be':'e8afbb','b29baa':'c994aa'},
  'white_scarf':{'65576d':'aba5b4','8e7c90':'ddd8df','c7b0be':'fff7ee','b29baa':'eee8e5'}}
 def head_piece(d,item,b=0):
@@ -408,7 +410,7 @@ def accessory_pickup(d,item):
   d.polygon([(10,23),(23,23),(26,42),(7,42)],fill=base)
   for x in [10,18]:d.rectangle((x,27,x+4,28),fill=(0,0,0,0))
  elif item in SCARF_PALETTES:
-  base,light=('#d4cdda','#fff5ed') if item=='white_scarf' else ('#bc8097','#edb2c0')
+  base,light=('#d4cdda','#fff5ed') if item=='white_scarf' else ('#65576d','#c7b0be') if item=='dark_scarf' else ('#bc8097','#edb2c0')
   d.polygon([(8,25),(23,22),(27,40),(17,36),(8,42),(5,34)],fill=base);d.line((9,27,20,25,23,36),fill=light,width=2)
  elif item in DRESS_PALETTES:
   palette=DRESS_PALETTES[item]
@@ -440,6 +442,29 @@ for item in ACCESSORIES:
     x=7 if direction in [0,1] else 24;y=33+b
     d.rectangle((x-1,y,x+2,y+1),fill='#b36c94');d.rectangle((x,y-1,x+1,y+2),fill='#f0b1cc');d.point((x,y),fill='#fff1e5');d.point((x+1,y+1),fill='#9e739e')
    i=len(NAMES);NAMES.append('wear_'+item+'_'+str(direction)+'_'+str(frame));atlas.paste(im,((i%16)*32,(i//16)*48))
+# Distinct quest loot, inserted-key padlock and compact garden task badges.
+def gate_key(d):
+ d.ellipse((6,23,17,34),fill='#8b6849');d.ellipse((7,23,17,33),fill='#e4ba68');d.ellipse((10,26,14,30),fill=(0,0,0,0))
+ d.line((15,31,27,42),fill='#936548',width=4);d.line((15,30,28,41),fill='#f0ca7e',width=2)
+ d.line((24,36,22,39,25,42),fill='#f7d794',width=2);d.point((9,25),fill='#fff1bc')
+sprite('gate_key',gate_key)
+def open_key_lock(d):
+ padlock(d,True)
+ d.line((17,38,29,38),fill='#ffe1a0',width=2);d.line((24,39,24,42),fill='#cc995b',width=2);d.line((28,39,28,41),fill='#f1c77c',width=2)
+ d.ellipse((27,34,31,40),outline='#f6dba0',width=1)
+sprite('lock_open_key',open_key_lock)
+def need_badge(d,kind):
+ d.polygon([(7,17),(24,17),(27,20),(27,35),(24,38),(7,38),(4,35),(4,20)],fill='#343f53')
+ d.line((8,18,23,18),fill='#9fbdc4');d.polygon([(13,38),(18,38),(16,42)],fill='#bfd9d6')
+ if kind=='rake':
+  d.line((11,33,19,23),fill='#ae8866',width=2);d.line((16,21,23,27),fill='#c8c5b0',width=2)
+  for x,y in [(16,21),(19,23),(22,26)]:d.line((x,y,x-2,y+3),fill='#c8c5b0')
+ elif kind=='fertilizer':
+  d.polygon([(12,22),(21,22),(23,33),(11,33)],fill='#b89d81');d.line((13,24,20,24),fill='#f0d6a5');d.line((16,27,16,30),fill='#678a6e');d.line((14,28,18,28),fill='#678a6e');d.point((17,27),fill='#abc18e')
+ elif kind=='water':
+  d.polygon([(16,21),(11,28),(10,31),(12,34),(20,34),(23,31),(21,27)],fill='#426d80')
+  d.polygon([(16,23),(12,29),(12,31),(14,33),(19,33),(21,30),(19,27)],fill='#7bb9bb');d.line((13,28,13,31),fill='#b8e8ed',width=2)
+for kind in ['rake','fertilizer','water']:sprite('need_'+kind,lambda d,k=kind:need_badge(d,k))
 # Subtle engraved hearts live in the final floor texture itself.
 romance=Image.open(A/'ground.png').convert('RGB');rd=ImageDraw.Draw(romance)
 for tile in [1,3]:
@@ -482,6 +507,8 @@ for name in ['hedge_tree','hedge_tree_apples']:
    r,g,b,a=im.getpixel((x,y))
    if a and g>r and g>b:im.putpixel((x,y),(round(r*.86),round(g*.98),min(255,round(b*1.12)),a))
  im.resize((64,96),Image.Resampling.NEAREST).save(A/(name+'.png'))
+for name in ['gate_key','lock_open_key']:
+ i=NAMES.index(name);atlas.crop(((i%16)*32,(i//16)*48,(i%16+1)*32,(i//16+1)*48)).save(A/(name+'.png'))
 atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)
