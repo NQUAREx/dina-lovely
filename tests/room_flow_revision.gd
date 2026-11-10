@@ -14,7 +14,7 @@ func run() -> void:
 	assert(g.save_data.buried_exposed)
 	g.task_kind="dig:624:600";g.task_target=Vector2(624,600);g.task_time=.1;g.update_tasks(.2)
 	assert(g.objects.filter(func(obj):return obj.id=="buried").size()==1)
-	assert(g.objects.filter(func(obj):return obj.kind=="dug" and obj.pos.distance_to(Vector2(600,600))<55).size()==1)
+	assert(g.world_tools.state().excavations.size()>=1 and g.objects.filter(func(obj):return obj.kind=="dug").is_empty())
 	assert(Vector2(g.save_data.dig_target[0],g.save_data.dig_target[1])==Vector2(600,600))
 	g.build_level(3);assert(g.objects.filter(func(obj):return obj.id=="buried").size()==1)
 	g.build_level(1);var seat=g.objects.filter(func(obj):return obj.kind=="bench" and obj.id=="seat")[0]

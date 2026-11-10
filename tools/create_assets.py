@@ -165,6 +165,49 @@ for dress,cloth,light in [('black_dress','#55516c','#77718a'),('white_dress','#d
 sprite('bench',lambda d:(d.rectangle((2,25,29,30),fill='#9a7b6e'),d.rectangle((2,33,29,37),fill='#b38c78'),d.rectangle((5,37,8,44),fill='#504758'),d.rectangle((24,37,27,44),fill='#504758')))
 sprite('berries',lambda d:(d.ellipse((8,24,24,38),fill='#487b50'),d.rectangle((12,25,15,28),fill='#dc7694'),d.rectangle((20,29,23,32),fill='#d95378')))
 sprite('rake',lambda d:(d.line((13,39,20,13),fill='#ae8866',width=2),d.line((12,13,26,17),fill='#c8c5b0',width=2),[d.line((x,14,x-2,20),fill='#c8c5b0') for x in range(13,27,3)]))
+# Optional tools use their own authored sprites, independent of weapons.
+def axe(d):
+ d.line((11,43,21,18),fill='#624c42',width=4);d.line((12,42,22,18),fill='#bb9565',width=2)
+ d.polygon([(18,18),(22,15),(28,17),(30,23),(25,27),(21,24)],fill='#424653')
+ d.polygon([(21,17),(27,18),(29,23),(25,25),(22,23)],fill='#c9d1cf');d.line((27,19,28,23,25,25),fill='#f7eed8',width=1)
+ d.rectangle((18,20,21,24),fill='#817665')
+def shears(d):
+ d.polygon([(10,35),(8,27),(10,17),(13,16),(15,30)],fill='#515967');d.polygon([(20,35),(24,28),(23,17),(20,16),(17,30)],fill='#515967')
+ d.line((11,18,11,26,15,32),fill='#e0e4db',width=2);d.line((21,18,22,26,17,32),fill='#b9c9c5',width=2)
+ d.rectangle((14,29,18,33),fill='#9eaaab');d.point((16,31),fill='#f5e7c8')
+ for x in [10,21]:
+  d.rectangle((x-4,34,x+3,42),fill='#786a65');d.rectangle((x-3,35,x+2,41),fill='#d9bb80');d.rectangle((x-1,37,x+1,39),fill='#302d48')
+def drill(d):
+ d.rectangle((10,20,22,32),fill='#55667a');d.rectangle((12,19,20,30),fill='#bda36b');d.line((13,20,18,20),fill='#f1d59a')
+ d.rectangle((7,23,11,26),fill='#6d5960');d.rectangle((21,23,25,26),fill='#6d5960');d.line((8,24,10,24),fill='#d2af82')
+ d.rectangle((14,31,18,35),fill='#b7c0c0');d.polygon([(12,35),(20,35),(18,40),(16,46),(13,40)],fill='#667a85')
+ for y in [35,38,41]:d.line((13,y,19,y+2),fill='#d4d9cf',width=1)
+ d.rectangle((12,23,14,25),fill='#d77781');d.rectangle((18,26,20,29),fill='#394453')
+def shears_closed(d):
+ shears(d);d.rectangle((7,14,25,33),fill=(0,0,0,0))
+ d.polygon([(12,33),(14,17),(16,16),(17,30),(21,33)],fill='#5d6c77');d.line((15,18,14,30),fill='#e1e6d8',width=2);d.line((18,18,18,29),fill='#bdcbc5',width=2);d.rectangle((14,30,18,33),fill='#9eaaab')
+sprite('shears_closed',shears_closed)
+def drill_spin(d,phase):
+ drill(d);d.polygon([(12,35),(20,35),(18,40),(16,46),(13,40)],fill='#667a85')
+ for y in range(35+phase,43,3):d.line((13,y,19,y+2),fill='#d4d9cf',width=1)
+for phase in range(2):sprite('drill_spin'+str(phase),lambda d,p=phase:drill_spin(d,p))
+def book_stand(d):
+ d.ellipse((6,40,27,45),fill='#3c3448');d.rectangle((13,25,20,42),fill='#8b6b69');d.line((14,27,14,40),fill='#c09a82')
+ d.polygon([(3,18),(25,15),(30,31),(7,35)],fill='#675063');d.line((5,19,25,16),fill='#c19c8b')
+ d.polygon([(5,17),(15,18),(19,29),(8,31)],fill='#efe0c5');d.polygon([(15,18),(25,15),(29,27),(19,29)],fill='#fff3da')
+ d.line((15,18,19,29),fill='#ae917f');d.line((8,20,14,21),fill='#bca59c');d.line((9,23,15,24),fill='#bca59c');d.line((19,20,24,19),fill='#c7b2a6');d.line((20,23,25,22),fill='#c7b2a6')
+ d.line((20,28,22,34),fill='#d47c9f',width=2)
+def table_piece(d):
+ d.rectangle((5,23,27,44),fill='#614953');d.rectangle((7,24,25,42),fill='#95745c')
+ for x in [8,14,20]:d.line((x,25,x,41),fill='#745946')
+ d.rectangle((3,21,29,29),fill='#bc9468');d.line((4,22,27,22),fill='#e1bb84');d.line((4,28,28,28),fill='#83624c')
+ for x in [7,24]:d.line((x,30,x,44),fill='#513e43',width=2)
+def fallen_tree(d):
+ d.ellipse((2,36,12,44),fill='#483e37');d.rectangle((4,33,10,40),fill='#886249');d.ellipse((3,31,11,36),fill='#cba16c');d.ellipse((5,32,9,34),outline='#886249')
+ d.line((11,40,26,36),fill='#58483e',width=5);d.line((12,38,27,35),fill='#b08b60',width=2)
+ for x,y,r in [(23,30,7),(27,33,5),(20,35,7)]:leaf(d,x,y,r)
+for name,fn in [('axe',axe),('shears',shears),('drill',drill),('secret_book',book_stand),('tool_table_piece',table_piece),('fallen_tree',fallen_tree)]:sprite(name,fn)
+
 def weeds(d):
  d.ellipse((2,33,30,46),fill='#4f5037')
  for i in range(100):
@@ -579,3 +622,16 @@ d.polygon([(223,217),(264,217),(271,258),(219,258)],fill='#8e7c90')
 d.line((263,254,277,254),fill='#51495f',width=9)
 im.save(A/'keepsake.png')
 print('Created original pixel artwork. Sound assets are licensed recordings; see assets/SFX-CREDITS.md')
+# One continuous long workbench, not a stack of repeated furniture tiles.
+bench=Image.new('RGBA',(48,190));bd=ImageDraw.Draw(bench)
+bd.rectangle((5,177,43,188),fill='#302b3b')
+for x in [7,35]:
+ bd.rectangle((x,164,x+6,188),fill='#5f4549');bd.line((x+1,166,x+1,185),fill='#98715a')
+bd.polygon([(4,1),(43,1),(47,5),(47,177),(3,177),(0,172),(0,5)],fill='#75513f')
+for x,c in [(3,'#b58b60'),(14,'#c29a6c'),(25,'#b28a5f'),(36,'#be9366')]:bd.rectangle((x,4,min(45,x+10),171),fill=c)
+for x in [13,24,35]:bd.line((x,5,x,170),fill='#886245')
+bd.line((4,2,43,2,45,4),fill='#e0bc87',width=2);bd.line((3,173,45,173),fill='#e1b780',width=2)
+for i in range(90):
+ x=random.randrange(4,45);y=random.randrange(6,168);bd.line((x,y,x,y+random.randrange(2,7)),fill=random.choice(['#ad8056','#cba575','#9c724c']))
+for x,y in [(9,21),(28,62),(17,111),(38,147)]:bd.ellipse((x-2,y-4,x+2,y+4),outline='#9a6c47');bd.line((x,y-1,x,y+1),fill='#71503c')
+bench.save(A/'tool_table.png')

@@ -199,5 +199,23 @@
     "source": "Kenney RPG Audio / metalLatch.ogg",
     "license": "CC0-1.0",
     "url": "https://kenney.nl/assets/rpg-audio"
+  },
+  "axe": {
+    "source_file": "wood-twigs-break-02.wav",
+    "pack": "Existing CC0 fantasy SFX",
+    "license": "CC0",
+    "sha256": "40d8c1ecc7790981a2c82b297652abcca80501005aa512db5e76e1ece4cf941f"
+  },
+  "shears": {
+    "source_file": "scissors-close-01.wav",
+    "pack": "Existing CC0 fantasy SFX",
+    "license": "CC0",
+    "sha256": "a2d9d897efd8a3666137e3350d28b5f7fbdaaec4c0166cc67a2d7f2aafd4a360"
+  },
+  "drill_loop": {
+    "source_file": "engineCircular_004.ogg",
+    "pack": "Kenney Sci-Fi Sounds",
+    "license": "CC0",
+    "sha256": "1f06078821c521af884713183c84347313c7c180b796f8f97594ad915b4e906f"
   }
 }

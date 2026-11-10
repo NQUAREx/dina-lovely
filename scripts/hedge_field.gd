@@ -23,7 +23,7 @@ var visible_candidates:Array[int]=[]
 var rng := RandomNumberGenerator.new()
 
 func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dictionary, material: Image = null) -> void:
-	crowns.clear();chains.clear();segments.clear();segment_cells.clear();bins.clear();active.clear();draw_order.clear();trunks.clear();body_tiles.clear();body_texture=null;last_player=Vector2.INF;contact_strength=0.0;motion_strength=0.0
+	removed_cells.clear();crowns.clear();chains.clear();segments.clear();segment_cells.clear();bins.clear();active.clear();draw_order.clear();trunks.clear();body_tiles.clear();body_texture=null;last_player=Vector2.INF;contact_strength=0.0;motion_strength=0.0
 	grid=map.duplicate();rng.seed=seed_value+38911
 	visible_first=Vector2i(-9999,-9999);visible_candidates.clear()
 	for tree in trees.values():trunks.append(tree.pos)
@@ -151,7 +151,7 @@ func update(delta: float, player: Vector2) -> void:
 	delta=minf(delta,1.0/30.0)
 	last_player=player;contact_strength=0.0;motion_strength=0.0
 	for index in near_ids(player,60):
-		if crowns[index].base.distance_to(player)<52:active[index]=true
+		if not crowns[index].get("hidden",false) and crowns[index].base.distance_to(player)<52:active[index]=true
 	var done:Array[int]=[]
 	for index in active:
 		var node:Dictionary=crowns[index]
@@ -175,7 +175,7 @@ func update(delta: float, player: Vector2) -> void:
 		var neighbours:Array[int]=node.neighbours
 		var valid:=surface_fits(next,own_radius*.75)
 		for other_index in neighbours:
-			if other_index==index:continue
+			if other_index==index or crowns[other_index].get("hidden",false):continue
 			var other:Dictionary=crowns[other_index]
 			var other_radius:float=other.radius*(1-other.press*.07)
 			if next.distance_squared_to(other.base+other.offset)<pow(own_radius+other_radius+.1,2):valid=false;break
@@ -186,7 +186,7 @@ func update(delta: float, player: Vector2) -> void:
 			var trial:Vector2=node.offset.lerp(Vector2.ZERO,minf(1,delta*10))
 			var clear:=true
 			for other_index in neighbours:
-				if other_index==index:continue
+				if other_index==index or crowns[other_index].get("hidden",false):continue
 				var other:Dictionary=crowns[other_index]
 				if (node.base+trial).distance_squared_to(other.base+other.offset)<pow(own_radius+float(other.radius)*(1-float(other.press)*.07)+.1,2):clear=false;break
 			if clear or pressure==0:node.offset=trial
@@ -220,7 +220,9 @@ func blocks(point: Vector2) -> bool:
 	for y in range(cell.y-1,cell.y+2):
 		for x in range(cell.x-1,cell.x+2):
 			for index in segment_cells.get(Vector2i(x,y),[]):
-				var offset:Vector2=(point-closest_on_segment(point,segments[index]))/Vector2(18,15)
+				var closest:=closest_on_segment(point,segments[index])
+				if not wall(Vector2i(closest/TILE)):continue
+				var offset:Vector2=(point-closest)/Vector2(18,15)
 				if offset.length_squared()<1:return true
 	return false
 
@@ -263,7 +265,7 @@ func visible_ids(bounds: Rect2) -> PackedInt32Array:
 		visible_candidates.sort_custom(func(a,b):return crowns[a].rank<crowns[b].rank)
 	var result:=PackedInt32Array()
 	for index in visible_candidates:
-		if bounds.has_point(crowns[index].base):result.append(index)
+		if not crowns[index].get("hidden",false) and bounds.has_point(crowns[index].base):result.append(index)
 	return result
 
 func build_body(material: Image) -> void:
@@ -318,3 +320,17 @@ func body_offset(point: Vector2) -> Vector2:
 		var w:=maxf(0,1-node.base.distance_to(point)/48)
 		offset+=node.offset*w;weight+=w
 	return offset/maxf(1,weight)*.65
+
+var removed_cells:Dictionary={}
+func remove_cell(cell:Vector2i)->void:
+	if removed_cells.has(cell):return
+	removed_cells[cell]=true
+	grid[cell.y]=grid[cell.y].substr(0,cell.x)+"."+grid[cell.y].substr(cell.x+1)
+	for index in near_ids((Vector2(cell)+Vector2(.5,.5))*TILE,52):
+		if Vector2i(crowns[index].base/TILE)==cell:crowns[index].hidden=true;active.erase(index)
+	if body_texture!=null:
+		var image:=body_texture.get_image()
+		for y in range(cell.y*24,mini(image.get_height(),cell.y*24+31)):
+			if y>=(cell.y+1)*24 and wall(cell+Vector2i.DOWN):continue
+			for x in range(cell.x*24,mini(image.get_width(),(cell.x+1)*24)):image.set_pixel(x,y,Color.TRANSPARENT)
+		body_texture.update(image)

@@ -18,6 +18,7 @@ const ROOM_FIELDS := ["grid","objects","enemies","shots","particles","skulls","d
 var room_cache:Dictionary={}
 var room_cache_seed := -1
 var room_build_count := 0
+var world_tools := preload("res://scripts/world_tools.gd").new(self)
 const SPEED := 150.0
 const SAVE_PATH := "user://garden_save_v1.json"
 const TITLES := ["room_maze", "room_darkness", "room_obstacles", "room_digging", "room_combat", "room_garden", "room_final"]
@@ -27,6 +28,7 @@ const PINK := Color("e5a6bd")
 const INK := Color("45394f")
 var hedge_tree_textures:Dictionary={"hedge_tree":preload("res://assets/hedge_tree.png"),"hedge_tree_apples":preload("res://assets/hedge_tree_apples.png")}
 var hedge_material: Texture2D = preload("res://assets/hedge_material.png")
+var tool_table_texture:Texture2D=preload("res://assets/tool_table.png")
 var atlas: Texture2D = preload("res://assets/atlas.png")
 var romance_ground: Texture2D = preload("res://assets/ground_romance.png")
 var ground: Texture2D = preload("res://assets/ground.png")
@@ -188,7 +190,7 @@ func _ready() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -208,6 +210,7 @@ func load_save() -> void:
 			save_data.version = 2
 			save_data.level = clampi(old_level,0,6)
 			save_data.seed = int(parsed.get("seed",save_data.seed))
+			save_data.bed_serial=int(parsed.get("bed_serial",0))
 			save_data.water = clampi(int(parsed.get("water", 0)), 0, 6)
 			if not parsed.has("weapons_taken") and not str(save_data.weapon).is_empty(): save_data.weapons_taken.append(save_data.weapon)
 	repair_accessory_save(legacy_accessories)
@@ -484,7 +487,7 @@ func activate_cached_room(index: int) -> void:
 	chest_open=save_data.finished
 	weapon=held_item if held_item in ["sword","rifle","rpg"] else "";sync_hands()
 	objects.assign(objects.filter(func(obj):return not obj.get("dropped_accessory",false)))
-	restore_accessory_drops();restore_gate_key();normalize_dig_site()
+	restore_accessory_drops();restore_gate_key();normalize_dig_site();world_tools.install()
 	for door in objects:
 		if door.kind=="doorway":door.gate_amount=1.0 if door_is_open(str(door.id)) else 0.0
 	task_time=0;rpg_windup=-1;resting="";nearest=-1
@@ -826,9 +829,12 @@ func build_level(index: int) -> void:
 		for row in range(grid.size()):
 			if corridor_row(row):foliage_grid[row]=foliage_grid[row].replace("#"," ")
 		hedge_field=HedgeField.new();hedge_field.build(foliage_grid,int(save_data.seed)+level*16427,hedge_trees,berry_cells,hedge_material.get_image())
+	if level==6:
+		objects.assign(objects.filter(func(obj):return obj.kind not in ["crate","column","column_wreath","lamp","candle","candle_heart","heart_stand"] or not Rect2(Vector2(22.5*48,7.8*48),Vector2(2.8*48,7.6*48)).has_point(obj.pos)))
 	prepare_grass_details()
 	restore_accessory_drops()
 	restore_gate_key()
+	world_tools.install()
 	camera = camera_target()
 	nearest = -1
 	update_hud()
@@ -850,6 +856,7 @@ func camera_target() -> Vector2:
 	return Vector2(clampf(player.x,half.x-48,grid[0].length()*TILE-half.x+48),y)
 
 func blocked(pos: Vector2) -> bool:
+	if level==6 and save_data.finished and Rect2(Vector2(23.25*48,8.2*48),Vector2(1.5*48,6.8*48)).grow(10).has_point(pos):return true
 	if pos.y<0 or pos.y>=grid.size()*TILE:
 		for offset in [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]:
 			var point:Vector2=pos+offset
@@ -929,6 +936,7 @@ func _physics_process(delta: float) -> void:
 		else: stuck_seconds = 0.0
 
 func _process(delta: float) -> void:
+	world_tools.update(delta)
 	update_foliage_audio(delta)
 	if playing and not paused:
 		var previous := rpg_reload;rpg_reload=maxf(0,rpg_reload-delta)
@@ -1075,10 +1083,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
-	if obj.get("integrated_tree",false):return obj.kind=="hedge_tree_apples"
+	if obj.get("integrated_tree",false):return world_tools.tree_target(obj) or obj.kind=="hedge_tree_apples"
 	if obj.kind=="skull_relic":return save_data.get("house_open",false) and not save_data.get("skull_taken",false) and not save_data.get("skull_inserted",false)
 	if obj.kind=="skull_stand":return true
 	if obj.kind=="house_door":return not obj.get("opened",false)
+	if obj.kind in ["axe","shears","drill"]:return save_data.finished and held_item!=obj.kind
+	if obj.kind=="secret_book":return true
+	if world_tools.tree_target(obj) or world_tools.flower_target(obj) or obj.kind=="hedge_target":return true
 	if obj.kind=="gate_key":return int(obj.room) not in save_data.gate_keys and int(obj.room) not in save_data.open_gates
 	if obj.kind=="accessory":return obj.accessory not in save_data.wearing and (obj.get("dropped_accessory",false) or obj.accessory not in save_data.accessories)
 	if obj.kind=="doorway":return obj.id=="exit" and not door_is_open("exit")
@@ -1094,22 +1105,27 @@ func available(obj: Dictionary) -> bool:
 	if id.is_empty(): return false
 	if id == "crossing": return id not in save_data.letters
 	if id == "courage": return combat_done and id not in save_data.letters
-	if id == "garden": return watered.size()==6 and id not in save_data.letters and blooms_ready()
+	if id == "garden": return required_flowers_ready() and id not in save_data.letters and blooms_ready()
 	if obj.kind == "note": return id not in save_data.letters
 	if id == "can": return held_item!="can"
 	if id == "fertilizer": return not has_fertilizer
-	if obj.kind == "sprout": return id not in watered
+	if obj.kind == "sprout": return id not in watered or held_item=="rake"
 	return true
 
-func blooms_ready() -> bool:
-	for v in bloom_times.values():
-		if v<1: return false
-	return true
+func required_flower_count() -> int:
+	var count:=0
+	for id in range(6):
+		if str(id) in watered:count+=1
+	return count
+
+func required_flowers_ready() -> bool:return required_flower_count()==6
+
+func blooms_ready() -> bool:return required_flowers_ready()
 
 func interaction_reachable(obj: Dictionary) -> bool:
 	var target:Vector2=obj.pos
 	var length:=player.distance_to(target)
-	var embedded:bool=obj.get("hidden_hedge",false) or obj.kind in ["berries","tree_apples"]
+	var embedded:bool=obj.get("hidden_hedge",false) or obj.kind in ["berries","tree_apples","hedge_target"] or (world_tools.tree_target(obj) and obj.get("integrated_hedge",false))
 	for step in range(1,ceili(length/2)):
 		var point:=player.lerp(target,float(step)*2/maxf(length,1))
 		var cell:=Vector2i(point/TILE)
@@ -1122,6 +1138,7 @@ func interaction_reachable(obj: Dictionary) -> bool:
 	return true
 
 func find_nearest() -> void:
+	world_tools.refresh_targets()
 	nearest = -1
 	var distance_squared:=79.0*79.0
 	for i in range(objects.size()):
@@ -1131,6 +1148,11 @@ func find_nearest() -> void:
 			nearest=i
 
 func item_name(obj: Dictionary) -> String:
+	if obj.kind=="secret_book":return tx("secret_book_name")
+	if obj.kind in ["axe","shears","drill"]:return tx("item_"+obj.kind)
+	if world_tools.tree_target(obj):return tx("item_tree")
+	if world_tools.flower_target(obj):return tx("item_flower")
+	if obj.kind=="hedge_target":return tx("item_hedge")
 	if obj.kind=="skull_relic":return tx("item_skull")
 	if obj.kind=="skull_stand":return tx("item_skull_stand")
 	if obj.kind=="house_door":return tx("item_house_door")
@@ -1170,7 +1192,7 @@ func item_visual_bounds(obj: Dictionary) -> Rect2:
 			var part:=Rect2(Vector2(pose.x,pose.y)-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2)
 			bounds=bounds.merge(part) if bounds.has_area() else part
 		if bounds.has_area():return bounds
-	if obj.get("integrated_hedge",false):return Rect2(position+Vector2(-32,-90),Vector2(64,74))
+	if obj.get("integrated_hedge",false):return Rect2(position+Vector2(-32,-96),Vector2(64,80))
 	if obj.kind in ["doorway","arch"]:return Rect2(position+Vector2(-100,-90),Vector2(200,90))
 	var name:String="house_door_open" if obj.kind=="house_door" and obj.get("opened",false) else "accessory_"+str(obj.accessory) if obj.kind=="accessory" else "flashlight" if obj.kind=="stand_flashlight" else obj.kind
 	if not sprites.has(name):return Rect2(position-Vector2(24,32),Vector2(48,32))
@@ -1213,6 +1235,11 @@ func draw_item_names() -> void:
 		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,14,CREAM)
 
 func action_text(obj: Dictionary) -> String:
+	if obj.kind=="secret_book":return tx("read_book")
+	if obj.kind in ["axe","shears","drill"]:return tx("pickup_"+obj.kind)
+	if world_tools.tree_target(obj):return tx("chop_tree")
+	if world_tools.flower_target(obj) or obj.kind=="hedge_target":return tx("snip_plant")
+	if obj.kind=="sprout" and held_item=="rake" and int(plants.get(obj.id,{}).get("stage",0))>=2:return tx("uproot_flower")
 	if obj.kind=="skull_relic":return tx("take_skull")
 	if obj.kind=="skull_stand":return tx("write_reply") if save_data.get("skull_inserted",false) else tx("insert_skull")
 	if obj.kind=="house_door":return tx("open_house_door")
@@ -1245,6 +1272,9 @@ func action_text(obj: Dictionary) -> String:
 func interact() -> void:
 	if paused or transition: return
 	if not resting.is_empty(): stand_up();return
+	if task_time>0:return
+	if nearest>=0 and world_tools.use_object(objects[nearest]):return
+	if new_bed_action_ready():world_tools.make_bed();return
 	if level==3 and save_data.shovel and task_time<=0 and (nearest<0 or (objects[nearest].id not in ["exit","back","buried","gate_key_3"] and objects[nearest].kind!="accessory")):
 		dig_here()
 		return
@@ -1253,6 +1283,8 @@ func interact() -> void:
 	if not interaction_reachable(obj):find_nearest();return
 	var id: String = obj.id
 	if task_time>0: return
+	if obj.kind in ["axe","shears","drill"]:world_tools.pickup(obj.kind);return
+	if obj.kind=="secret_book":show_secret_book();return
 	if obj.kind=="skull_relic":
 		save_data.skull_taken=true;persist();sfx("chime");notify(tx("skull_collected"));find_nearest();return
 	if obj.kind=="skull_stand":
@@ -1342,6 +1374,7 @@ func sync_hands() -> void:
 	if held_item not in ["sword","rifle","rpg"]:weapon=""
 
 func return_held_tool() -> void:
+	world_tools.drop_held()
 	if held_item in ["sword","rifle","rpg"]:
 		var dropped := {"kind":"weapon_"+held_item,"id":"drop_"+held_item+"_"+str(Time.get_ticks_usec()),"weapon":held_item,"pos":Vector2(player.x,clampf(player.y+25,7.5*TILE,(grid.size()-7.5)*TILE)),"solid":false}
 		objects.append(dropped)
@@ -1408,13 +1441,6 @@ func restore_gate_key() -> void:
 func normalize_dig_site() -> void:
 	if level!=3 or not save_data.buried_exposed or save_data.dig_target.size()!=2:return
 	var pos:=Vector2(save_data.dig_target[0],save_data.dig_target[1])
-	var hole_id:=str(int(pos.x))+":"+str(int(pos.y))
-	save_data.dug=save_data.dug.filter(func(key):
-		var parts:PackedStringArray=str(key).split(":")
-		return str(key)==hole_id or parts.size()!=2 or Vector2(float(parts[0]),float(parts[1])).distance_to(pos)>=55)
-	if hole_id not in save_data.dug:save_data.dug.append(hole_id)
-	objects.assign(objects.filter(func(obj):return obj.kind!="dug" or obj.pos==pos or obj.pos.distance_to(pos)>=55))
-	if not objects.any(func(obj):return obj.kind=="dug" and obj.pos==pos):objects.append({"kind":"dug","id":"","solid":false,"pos":pos})
 	var notes:Array=objects.filter(func(obj):return obj.id=="buried")
 	for index in range(1,notes.size()):objects.erase(notes[index])
 	if notes.is_empty():objects.append({"kind":"note","id":"buried","pos":pos,"solid":false})
@@ -1435,11 +1461,11 @@ func draw_garden_needs() -> void:
 		if bed.kind!="sprout":continue
 		var kind:=garden_need(bed)
 		if kind.is_empty():continue
-		var plant_name:="weeds" if bed.id not in save_data.cleaned else "seedling"+str(bed.id) if int(plants.get(bed.id,{}).get("stage",0))==1 else "bloom"+str(bed.id) if int(plants.get(bed.id,{}).get("stage",0))>=2 else "bed_empty"
+		var plant_name:="weeds" if bed.id not in save_data.cleaned else "seedling"+str(world_tools.variant(bed.id)) if int(plants.get(bed.id,{}).get("stage",0))==1 else "bloom"+str(world_tools.variant(bed.id)) if int(plants.get(bed.id,{}).get("stage",0))>=2 else "bed_empty"
 		if not label_sprite_bounds.has(plant_name):
 			var plant_id:int=sprites[plant_name]
 			label_sprite_bounds[plant_name]=Rect2(label_atlas_pixels.get_region(Rect2i(plant_id%16*32,plant_id/16*48,32,48)).get_used_rect())
-		var top:float=bed.pos.y+(label_sprite_bounds[plant_name].position.y*2-86)*(.9+float(bed.id)*.035)
+		var top:float=bed.pos.y+(label_sprite_bounds[plant_name].position.y*2-86)*(.9+float(world_tools.variant(bed.id))*.035)
 		var pos:=screen(Vector2(bed.pos.x,top-32)).round()
 		if not get_viewport_rect().grow(30).has_point(pos):continue
 		var id:int=sprites["need_"+kind]
@@ -1494,18 +1520,19 @@ func update_hud() -> void:
 			var count := 0
 			for id in REQUIRED:
 				if id in save_data.letters: count+=1
-			status.text = tx("maze_status") % [count,save_data.secrets.size(),(tx("maze_exit_open") if door_is_open("exit") else tx("gate_key_ready") if level in save_data.gate_keys else tx("gate_key_ground")) if count==3 else tx("maze_search_hint")]
+			status.text = tx("maze_status") % [count,(tx("maze_exit_open") if door_is_open("exit") else tx("gate_key_ready") if level in save_data.gate_keys else tx("gate_key_ground")) if count==3 else tx("maze_search_hint")]
 		1: status.text = tx("darkness_status") % [dark_letter_count(),tx("flashlight_on") if save_data.flashlight else tx("flashlight_location")]
 		2: status.text = tx("obstacles_status") % save_data.obstacles.size()
 		3: status.text = tx("buried_note_found") if "buried" in save_data.letters else (tx("digging_hint") if save_data.shovel else tx("shovel_location"))
 		4: status.text = "♥ ".repeat(health) + tx("combat_status") % [mini(wave,6),tx("combat_chest_hint") if combat_done else {"sword":tx("weapon_sword"),"rifle":tx("weapon_rifle"),"rpg":tx("weapon_rpg")}.get(weapon,tx("weapon_required"))]
-		5: status.text = tx("garden_status") % [watered.size(),tx("water_prefix")+str(water)+" / 6" if garden_can else tx("can_search_hint")]
+		5: status.text = tx("garden_status") % [required_flower_count(),tx("water_prefix")+str(water)+" / 6" if garden_can else tx("can_search_hint")]
 		6: status.text = tx("puzzle_status") % puzzle.size()
 	if level>0 and level<6 and room_letters_complete() and not door_is_open("exit"):
 		status.text+=" · "+tx("gate_key_ready" if level in save_data.gate_keys else "gate_key_ground")
 	action_button.disabled = task_time>0
-	action_button.visible = (nearest>=0 or (level==3 and save_data.shovel)) and playing
-	if nearest>=0: action_button.text = ""+action_text(objects[nearest])
+	action_button.visible = (nearest>=0 or world_tools.can_bed() or (level==3 and save_data.shovel)) and playing
+	if new_bed_action_ready():action_button.text=tx("new_bed_action")
+	elif nearest>=0:action_button.text=action_text(objects[nearest])
 	if level==3 and save_data.shovel and (nearest<0 or (objects[nearest].id not in ["exit","back","buried","gate_key_3"] and objects[nearest].kind!="accessory")): action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
 	switch_button.visible = false
 	attack_button.visible = level==4 and not combat_done and playing
@@ -1646,6 +1673,19 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
 
 func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> void:
+	if hedge_tree_textures.has(name):
+		if not outlines.has(name):
+			var source:Image=hedge_tree_textures[name].get_image().get_region(Rect2i(0,0,64,80))
+			var border:=Image.create(68,84,false,Image.FORMAT_RGBA8)
+			for y in range(80):
+				for x in range(64):
+					if source.get_pixel(x,y).a<.2:continue
+					for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:border.set_pixel(x+2+d.x,y+2+d.y,Color("fff3a6"))
+			for y in range(80):
+				for x in range(64):
+					if source.get_pixel(x,y).a>.2:border.set_pixel(x+2,y+2,Color.TRANSPARENT)
+			outlines[name]=ImageTexture.create_from_image(border)
+		draw_texture_rect(outlines[name],Rect2(pos-Vector2(34,98),Vector2(68,84)),false);return
 	if not outlines.has(name):
 		var id := int(sprites.get(name,0))
 		var source := atlas.get_image().get_region(Rect2i(id%16*32,id/16*48+(16 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 0),32,32 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 48))
@@ -1830,6 +1870,8 @@ func _draw_world() -> void:
 				renderables.append({"kind":"stone","pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	for obj in objects:
+		if obj.kind in ["axe","shears","drill","tool_table"] and not save_data.finished:continue
+		if obj.kind in ["hedge_target","tool_table"]:continue
 		if drawing_neighbor and corridor_row(floori(obj.pos.y/TILE)):continue
 		if obj.kind=="accessory" and not available(obj):continue
 		if obj.get("integrated_hedge",false):
@@ -1843,7 +1885,7 @@ func _draw_world() -> void:
 		if obj.kind=="skull_relic" and (not save_data.get("house_open",false) or save_data.get("skull_taken",false) or save_data.get("skull_inserted",false)):continue
 		if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>54:continue
 		if obj.id=="courage" and not combat_done: continue
-		if obj.id=="garden" and (watered.size()!=6 or not blooms_ready()): continue
+		if obj.id=="garden" and (not required_flowers_ready() or not blooms_ready()): continue
 		if obj.kind=="note" and obj.id in save_data.letters:
 			var opened := obj.duplicate();opened.kind="note_open";renderables.append(opened);continue
 		if obj.id=="can" and garden_can: continue
@@ -1855,6 +1897,8 @@ func _draw_world() -> void:
 	for enemy in enemies: renderables.append({"kind":"enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
 	draw_paths()
+	world_tools.draw_ground()
+	if level==6 and save_data.finished:draw_tool_table()
 	draw_footprints()
 	for part in particles:
 		if part.get("ground",false) and shadow_floor_cell(Vector2i(part.pos/TILE)):
@@ -1928,10 +1972,10 @@ func _draw_world() -> void:
 		else:
 			if not drawing_neighbor and task_time<=0 and not item.has("wall") and item.pos.distance_squared_to(player)<9025 and available(item) and interaction_reachable(item) and kind not in ["doorway","arch","well","stone"]:
 				var highlight := "house_door" if kind=="house_door" else "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else "flashlight" if kind=="stand_flashlight" else kind
-				if kind=="sprout":draw_pickup_outline("bed_border"+str(item.id),p,.9+float(item.id)*.035)
+				if kind=="sprout":draw_pickup_outline("bed_border"+str(world_tools.variant(item.id)),p,.9+float(world_tools.variant(item.id))*.035)
 				elif item.get("ground_tool",false):
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
-				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p+Vector2(0,10),.75)
+				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p,1.0)
 				else:draw_pickup_outline(highlight,screen(item_display_position(item))+Vector2(0,-40) if kind=="stand_flashlight" else screen(item_display_position(item)),3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
 			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false):
 				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
@@ -1946,12 +1990,12 @@ func _draw_world() -> void:
 					texture="bed_empty"
 					if item.id in fertilized:texture="bed_fertilized"
 					if remaining>0 and stage==0:texture="bed_wet"
-					if stage==1:texture="seedling"+str(item.id)
-					if stage>=2:texture="bloom"+str(item.id)
-				var bed_scale:=.9+float(item.id)*.035
+					if stage==1:texture="seedling"+str(world_tools.variant(item.id))
+					if stage>=2:texture="bloom"+str(world_tools.variant(item.id))
+				var bed_scale:=.9+float(world_tools.variant(item.id))*.035
 				# Soil and stones are foreground layers above the shared path pad.
 				draw_sprite("bed_wet" if stage>0 or remaining>0 else "bed_fertilized" if item.id in fertilized else "bed_empty",p,Color.WHITE,bed_scale)
-				draw_sprite("bed_border"+str(item.id),p,Color.WHITE,bed_scale)
+				draw_sprite("bed_border"+str(world_tools.variant(item.id)),p,Color.WHITE,bed_scale)
 				if sprites.has(texture+"_plant"):draw_sprite(texture+"_plant",p,Color.WHITE,bed_scale)
 
 			elif kind=="swing":
@@ -2026,6 +2070,7 @@ func _draw_world() -> void:
 	if not drawing_neighbor:
 		draw_extra_effects()
 		draw_reply_deposit()
+		world_tools.draw_falling()
 	for number in damage_numbers:draw_string(body_font,screen(number.pos),tx("damage_amount").format({"amount":number.value}),HORIZONTAL_ALIGNMENT_LEFT,-1,17,Color(1,.55,.61,minf(1,number.life*3)))
 	if level==6 and not drawing_neighbor:
 		for n in range(puzzle.size()):
@@ -2079,7 +2124,8 @@ func travel(destination: int) -> void:
 	var old_player:=player;var old_camera:=camera;var old_invincible:=invincible;var old_health:=health
 	var north:float=(15.5 if level==0 else 13.5)*TILE
 	var old_center:float=north if destination>level else 13.5*TILE
-	return_held_tool();persist()
+	if held_item not in ["axe","shears","drill"]:return_held_tool()
+	persist()
 	var carried_prints:Array=footprints.filter(func(item):return item.pos.distance_to(old_player)<650).duplicate(true)
 	var carried_particles:Array=particles.filter(func(item):return item.pos.distance_to(old_player)<650).duplicate(true)
 	footprints.assign(footprints.filter(func(item):return item.pos.distance_to(old_player)>=650));particles.assign(particles.filter(func(item):return item.pos.distance_to(old_player)>=650))
@@ -2114,13 +2160,14 @@ func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	walk_facing=toward.normalized()
 	if absf(toward.x)>absf(toward.y):direction=1 if toward.x<0 else 3
 	else:direction=0 if toward.y<0 else 2
-	sfx("rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "step_grass" if kind.begins_with("dig:") else "paper" if kind.begins_with("fertilize:") else "water")
+	sfx("axe" if kind.begins_with("axe:") else "shears" if kind.begins_with("snip") else "rake" if kind in ["new_bed"] or kind.begins_with("uproot:") else "rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "step_grass" if kind.begins_with("dig:") else "paper" if kind.begins_with("fertilize:") else "water")
 
 func update_tasks(delta: float) -> void:
 	if task_time<=0: return
 	task_time -= delta
 	if task_time>0: return
-	if task_kind=="fill":
+	if world_tools.complete(task_kind,task_target):pass
+	elif task_kind=="fill":
 		water = 6
 		save_data.water = water
 		notify(tx("water_filled"))
@@ -2128,20 +2175,10 @@ func update_tasks(delta: float) -> void:
 		var id := task_kind.trim_prefix("water:")
 		water -= 1
 		save_data.water = water
-		plants[id].remaining = [8.0,12.0][clampi(int(plants[id].stage),0,1)]*(.75+float(id)*.15)
+		plants[id].remaining = [8.0,12.0][clampi(int(plants[id].stage),0,1)]*(.75+world_tools.variant(id)*.15)
 		burst(task_target,12,Color("9fdce1"))
 	elif task_kind.begins_with("dig:"):
-		objects.append({"kind":"dug","id":"","solid":false,"pos":task_target})
-		var id := task_kind.trim_prefix("dig:")
-		if id not in save_data.dug: save_data.dug.append(id)
-		burst(task_target,16,Color("aa8263"))
-		var hidden: Vector2 = Vector2(save_data.dig_target[0],save_data.dig_target[1]) if save_data.dig_target.size()==2 else Vector2.ZERO
-		if not save_data.buried_exposed and task_target.distance_to(hidden)<90 and "buried" not in save_data.letters:
-			save_data.buried_exposed=true
-			save_data.dig_target=[task_target.x,task_target.y]
-			objects.append({"kind":"note","id":"buried","solid":false,"pos":task_target,"rise_start":time})
-			notify(tx("buried_note_exposed"))
-		else: notify(tx("buried_note_near") if task_target.distance_to(hidden)<260 else tx("digging_empty"))
+		world_tools.excavate(task_target)
 	elif task_kind.begins_with("rake:"):
 		save_data.cleaned.append(task_kind.trim_prefix("rake:"));burst(task_target,8,Color("8ca465"))
 	elif task_kind.begins_with("fertilize:"):
@@ -2269,14 +2306,14 @@ func draw_extra_effects() -> void:
 		if reload_time>0:
 			var bar := screen(player)+Vector2(-28,-102)
 			draw_rect(Rect2(bar,Vector2(56,6)),INK);draw_rect(Rect2(bar,Vector2(56*(1-reload_time/1.8),6)),CREAM)
-	if held_item in ["can","rake","fertilizer","shovel","flashlight"]:
+	if held_item in ["can","rake","fertilizer","shovel","flashlight","axe","shears","drill"]:
 		var pose:=held_tool_pose()
-		var texture:String="fertilizer_open" if task_time>0 and task_kind.begins_with("fertilize:") else held_item
+		var texture:String="fertilizer_open" if task_time>0 and task_kind.begins_with("fertilize:") else "shears_closed" if held_item=="shears" and task_time>0 and task_time<task_duration*.55 else "drill_spin"+str(int(time*22)%2) if held_item=="drill" and world_tools.drilling else held_item
 		draw_set_transform(screen(pose.hand),pose.angle,pose.flip)
 		var id:int=sprites[texture]
 		draw_texture_rect_region(atlas,Rect2(-pose.anchor*pose.scale,Vector2(32,48)*pose.scale),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)))
 		draw_set_transform(Vector2.ZERO)
-	if task_time>0:
+	if task_time>0 and (task_kind=="fill" or task_kind.begins_with("water:") or task_kind.begins_with("rake:") or task_kind.begins_with("fertilize:")):
 		var pose:=held_tool_pose()
 		var origin:=screen(pose.tip)
 		var target:=screen(task_target)+Vector2(0,-10)
@@ -2407,14 +2444,11 @@ func cycle_weapon() -> void:
 	persist();sfx("ui")
 
 func dig_here() -> void:
-	if task_time>0: return
-	var pos := (player+Vector2(0,-35)).snapped(Vector2(24,24))
-	var cell := Vector2i(pos/TILE)
-	if cell.x<2 or cell.x>=grid[0].length()-2 or cell.y<7 or cell.y>=grid.size()-7:
-		notify(tx("digging_bounds"));return
-	var key := str(int(pos.x))+":"+str(int(pos.y))
-	if key in save_data.dug or objects.any(func(o):return o.kind=="dug" and o.pos.distance_to(pos)<55): notify(tx("digging_already_done"));return
-	begin_task("dig:"+key,pos,.25)
+	if task_time>0:return
+	var pos:Vector2=world_tools.ground_point()
+	if not world_tools.soil(pos):notify(tx("digging_bounds"));return
+	if world_tools.has_sample(pos):return
+	begin_task("dig:%d:%d"%[pos.x,pos.y],pos,.25)
 
 func draw_corridor_extensions() -> Array[Dictionary]:
 	var walls:Array[Dictionary]=[]
@@ -2445,6 +2479,7 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 		grid[grid.size()-6]="#".repeat(grid[0].length())
 	if level==6:
 		put_object("skull_stand",Vector2i(4,14),"skull_stand",true)
+		put_object("secret_book",Vector2i(4,10),"secret_book",true)
 		for y in range(5):grid[y]=" ".repeat(grid[0].length())
 		grid[5]="#".repeat(grid[0].length())
 	if level==2:
@@ -3049,16 +3084,18 @@ func held_tool_pose() -> Dictionary:
 	var hand:=player+Vector2(toward.x*16 if absf(toward.x)>.2 else 12,-21+toward.y*3)
 	if moving and not using:hand.y+=sin(time*12)*1.2
 	if using:toward=(task_target+Vector2(0,-55 if task_kind=="fill" else -10)-hand).normalized()
-	var anchors:Dictionary={"can":Vector2(14,24),"rake":Vector2(16,31),"fertilizer":Vector2(16,32),"shovel":Vector2(16,29),"flashlight":Vector2(16,32)}
-	var tips:Dictionary={"can":Vector2(30,28),"rake":Vector2(19,14),"fertilizer":Vector2(16,23),"shovel":Vector2(16,45),"flashlight":Vector2(16,21)}
+	var anchors:Dictionary={"can":Vector2(14,24),"rake":Vector2(16,31),"fertilizer":Vector2(16,32),"shovel":Vector2(16,29),"flashlight":Vector2(16,32),"axe":Vector2(15,34),"shears":Vector2(16,35),"drill":Vector2(16,28)}
+	var tips:Dictionary={"can":Vector2(30,28),"rake":Vector2(19,14),"fertilizer":Vector2(16,23),"shovel":Vector2(16,45),"flashlight":Vector2(16,21),"axe":Vector2(24,19),"shears":Vector2(18,19),"drill":Vector2(16,45)}
 	var anchor:Vector2=anchors.get(held_item,Vector2(16,32));var tip:Vector2=tips.get(held_item,Vector2(25,23))
 	var scale_factor:=1.3 if held_item!="flashlight" else 1.0
 	var local_tip:Vector2=(tip-anchor)*scale_factor
 	var flip:=Vector2(-1,1) if toward.x<0 else Vector2.ONE
 	var angle:=toward.angle()-(local_tip*flip).angle()
 	if using and task_kind.begins_with("fertilize:"):angle+=sin(time*16)*.07
-	if using and task_kind.begins_with("rake:"):hand+=toward*sin(time*13)*9
+	if using and (task_kind.begins_with("rake:") or task_kind=="new_bed" or task_kind.begins_with("uproot:")):hand+=toward*sin(time*13)*9
 	if using and task_kind.begins_with("dig:"):angle+=sin((task_duration-task_time)/task_duration*PI)*.6
+	if using and (task_kind.begins_with("axe:") or task_kind.begins_with("snip")):angle+=sin((task_duration-task_time)/task_duration*PI)*1.1
+	if held_item=="drill" and world_tools.drilling:hand+=Vector2(sin(time*70),cos(time*60))*1.2
 	return {"hand":hand,"angle":angle,"flip":flip,"anchor":anchor,"scale":scale_factor,"tip":hand+(local_tip*flip).rotated(angle)}
 
 func place_accessory(rng: RandomNumberGenerator) -> void:
@@ -3194,7 +3231,7 @@ func draw_leaf_crown(index: int) -> void:
 	var texture_name:="crown_berry_" if berry else "crown_leaf_"
 	texture_name+=str(node.variant)
 	var id:int=sprites[texture_name]
-	if berry and node.base.distance_to(player)<79:
+	if (berry and node.base.distance_to(player)<79) or (not drawing_neighbor and held_item=="shears" and nearest>=0 and objects[nearest].kind=="hedge_target" and Vector2i(node.base/TILE)==objects[nearest].cell):
 		if not outlines.has(texture_name):
 			var source:=atlas.get_image().get_region(Rect2i(id%16*32+8,id/16*48+24,17,17))
 			var border:=Image.create(19,19,false,Image.FORMAT_RGBA8)
@@ -3245,3 +3282,16 @@ func draw_hedge_body(bounds: Rect2) -> void:
 
 func draw_body_region(texture: Texture2D, region: Rect2) -> void:
 	draw_texture_rect_region(texture,Rect2(region.position-Vector2(0,HEDGE_LIFT),region.size),Rect2(region.position/2,region.size/2))
+
+func show_secret_book() -> void:
+	clear_modal();paused=true
+	modal=Control.new();modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);root.add_child(modal)
+	var view:=Control.new();view.set_script(preload("res://scripts/letter_view.gd"));view.game=self
+	view.letter={"title":tx("secret_book_title"),"text":tx("secret_book_text")};view.start=screen(objects[nearest].pos) if nearest>=0 else get_viewport_rect().size/2
+	modal.add_child(view)
+
+func draw_tool_table() -> void:
+	draw_texture_rect(tool_table_texture,Rect2(screen(Vector2(24*48-48,7.5*48)),Vector2(96,380)),false)
+
+func new_bed_action_ready() -> bool:
+	return world_tools.can_bed() and (nearest<0 or objects[nearest].kind in ["bench","swing","tree","tree_apples"])
