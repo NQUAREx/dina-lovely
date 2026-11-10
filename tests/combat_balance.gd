@@ -8,7 +8,7 @@ func run():
   if wave<=5:assert(guns.is_empty())
   if wave in [6,7,8,9]:assert(guns.size()<=3)
   if wave==10:
-   assert(g.enemies.size()==7 and g.enemies.filter(func(e):return e.type==7).size()==2 and g.enemies.filter(func(e):return e.type==6).size()==2 and g.enemies.filter(func(e):return e.type==3).size()==2 and g.enemies.filter(func(e):return e.boss).size()==1)
+   assert(g.enemies.size()==13 and g.enemies.filter(func(e):return e.type==7).size()==2 and g.enemies.filter(func(e):return e.type==6).size()==2 and g.enemies.filter(func(e):return e.type==3).size()==2 and g.enemies.filter(func(e):return e.boss).size()==1)
  g.objects.assign(g.objects.filter(func(o):return not o.solid));g.enemies.clear();g.player=Vector2(850,700)
  for kind in [5,6,7]:
   g.enemies.clear();g.battle.enemy(kind,Vector2(600,700),40);var e=g.enemies[0];e.state="patrol";e.cooldown=0;e.sense=0;g.player=Vector2(800,700);g.shots.clear()

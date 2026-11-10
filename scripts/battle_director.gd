@@ -1,8 +1,8 @@
 extends RefCounted
-const BALANCE_VERSION := 2
+const BALANCE_VERSION := 3
 const BULLET_RANGE := 280.0
 const ROCKET_RANGE := 400.0
-const WAVES := [[0,0,1],[0,1,1,2],[0,0,1,2,2],[0,1,1,2,4],[0,0,1,2,2,4],[0,1,2,4,5],[0,1,2,4,5,5],[0,1,2,3,5,6],[0,1,2,3,5,6,6],[-1,7,7,6,6,3,3]]
+const WAVES := [[0,0,0,1,1],[0,0,1,1,2,2],[0,0,1,1,2,2,4],[0,0,1,1,2,2,4,4],[0,0,1,1,2,2,3,4,4],[0,0,1,1,2,2,4,4,5],[0,0,1,1,2,2,3,4,5,5],[0,0,1,1,2,2,3,4,5,6],[0,0,1,1,2,2,3,4,5,6,6],[-1,7,7,6,6,3,3,0,0,1,1,2,4]]
 const GUNS := {
  5:{"clip":3,"interval":Vector2(1.05,1.4),"reload":Vector2(2.5,3.1),"range":240.0,"travel":250.0,"speed":275.0,"damage":1.0,"keep":185.0,"move":30.0,"aggro":285.0,"minimum":85.0},
  6:{"clip":4,"interval":Vector2(.36,.5),"reload":Vector2(3.1,3.8),"range":270.0,"travel":280.0,"speed":330.0,"damage":1.5,"keep":215.0,"move":28.0,"aggro":315.0,"minimum":100.0},
@@ -161,10 +161,7 @@ func draw_gun(e:Dictionary,p:Vector2)->void:
  if e.type==7:g.draw_texture_rect(g.rpg_textures["loaded" if e.get("reload_left",0)<=0 else "empty"],Rect2(Vector2(-30,-12),Vector2(64,32)),false)
  else:g.draw_sprite("enemy_pistol" if e.type==5 else "weapon_rifle",Vector2(0,18),Color.WHITE,.45 if e.type==5 else .65)
  g.draw_set_transform(Vector2.ZERO)
- if e.get("reload_left",0)>0:
-  var duration:float=maxf(.01,float(e.get("reload_duration",1)))
-  g.draw_rect(Rect2(p+Vector2(-18,-69),Vector2(36,4)),Color("292735"))
-  g.draw_rect(Rect2(p+Vector2(-18,-69),Vector2(36*(1-float(e.reload_left)/duration),4)),Color("a2c5d0"))
+
  if recoil>0:g.draw_texture_rect(g.glow,Rect2(origin+direction*28-Vector2(14,14),Vector2(28,28)),false,Color(1,.8,.4,recoil))
 
 func spawn_medkit()->void:
