@@ -14,6 +14,8 @@ var last_player:=Vector2.INF
 var autosave:=0.0
 var repath_wait:=0.0
 var target_ref:Dictionary={}
+var rest_goal:=Vector2.INF
+var rest_retry:=0.0
 func _init(game:Node2D):g=game
 func place(rng:RandomNumberGenerator)->void:
  if g.level!=0:return
@@ -38,7 +40,7 @@ func place(rng:RandomNumberGenerator)->void:
    if g.grid[y][x]=="." and p.distance_to((Vector2(cell)+Vector2(.5,.5))*48)>180 and not g.objects.any(func(o):return o.pos.distance_to(p)<65):fish.append(Vector2i(x,y))
  if not fish.is_empty():g.put_object("cat_fish",fish[rng.randi_range(0,fish.size()-1)],"cat_fish")
 func install()->void:
- g.objects.assign(g.objects.filter(func(o):return o.kind!="pet_cat"));target_ref={}
+ g.objects.assign(g.objects.filter(func(o):return o.kind!="pet_cat"));target_ref={};rest_goal=Vector2.INF
  if seed_value!=int(g.save_data.seed):
   seed_value=int(g.save_data.seed);trail.clear();prints.clear();clock=0;autosave=0;last_player=Vector2.INF
   if g.save_data.cat_tamed and int(g.save_data.cat_room)==g.level and g.save_data.cat_position.size()==2:position=Vector2(g.save_data.cat_position[0],g.save_data.cat_position[1])
@@ -80,6 +82,7 @@ func refresh_target()->void:
 func handoff(offset:Vector2)->void:
  if not g.save_data.cat_tamed:return
  position+=offset
+ if rest_goal!=Vector2.INF:rest_goal+=offset
  for point in trail:point.pos+=offset
  for mark in prints:mark.pos+=offset
  if last_player!=Vector2.INF:last_player+=offset
@@ -88,7 +91,7 @@ func save()->void:
  g.save_data.cat_room=g.level;g.save_data.cat_position=[position.x,position.y]
 func update(delta:float)->void:
  if not g.playing or g.paused or g.transition:moving=false;return
- clock+=delta;autosave+=delta;repath_wait=maxf(0,repath_wait-delta)
+ clock+=delta;autosave+=delta;repath_wait=maxf(0,repath_wait-delta);rest_retry=maxf(0,rest_retry-delta)
  if autosave>8:autosave=0;save();g.persist()
  for n in range(prints.size()-1,-1,-1):
   prints[n].life-=delta
@@ -121,6 +124,18 @@ func update(delta:float)->void:
    break
   position=next;budget-=amount
   if position.distance_to(point)<1:position=point;trail.pop_front()
+ if g.moving:rest_goal=Vector2.INF
+ elif position.distance_to(g.player)<38 and rest_goal==Vector2.INF and rest_retry<=0:
+  rest_retry=.5
+  var side:Vector2=g.walk_facing.orthogonal().normalized()
+  for offset in [side*64,-side*64,g.walk_facing*70,-g.walk_facing*70,side*40,-side*40,side*28,-side*28]:
+   var candidate:Vector2=g.player+offset
+   if not g.blocked(candidate) and clear_segment(position,candidate) and clear_segment(g.player,candidate):rest_goal=candidate;break
+ if rest_goal!=Vector2.INF:
+  var rest_step:=position.move_toward(rest_goal,g.SPEED*delta)
+  if clear_segment(position,rest_step):position=rest_step
+  else:rest_goal=Vector2.INF
+  if position.distance_to(rest_goal)<1:rest_goal=Vector2.INF
  moving=position.distance_to(before)>.05
  if moving:
   var v:=position-before;direction=(1 if v.x<0 else 3) if absf(v.x)>absf(v.y) else (0 if v.y<0 else 2)

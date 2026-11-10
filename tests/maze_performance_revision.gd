@@ -23,6 +23,9 @@ func run():
  for n in range(13,-1,-1):g.companion.trail.append({"pos":g.player+Vector2(0,n*10),"time":g.companion.clock-1})
  for n in range(60):g.companion.update(.016)
  assert(g.companion.position.distance_to(g.player)>78 and g.companion.position.distance_to(g.player)<82)
+ g.companion.position=g.player;g.companion.trail.clear();g.companion.trail.append({"pos":g.player,"time":g.companion.clock-1});g.moving=false
+ for n in range(80):g.companion.update(.016)
+ assert(g.companion.position.distance_to(g.player)>45)
  g.activate_cached_room(1);var pedestal=g.objects.filter(func(o):return o.kind=="flashlight_pedestal")[0];var anchor:Vector2=pedestal.pos
  g.held_item="flashlight";g.sync_hands();g.player=Vector2(13.5*48,g.grid.size()*48+1);g.camera=g.player;g.travel(0)
  assert(g.held_item=="" and int(g.save_data.flashlight_location.room)==0)
