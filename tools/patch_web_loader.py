@@ -33,4 +33,7 @@ def patch_loader(path: Path):
  s=s.replace('WebAssembly.instantiateStreaming(Promise.resolve(r), imports).then(done);','WebAssembly.instantiateStreaming(Promise.resolve(r), imports).then(done).catch('+failure+');')
  s=s.replace('WebAssembly.instantiate(buffer, imports).then(done);','return WebAssembly.instantiate(buffer, imports).then(done);')
  s=s.replace('\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t\tr = null;','\t\t\t\t\t}).catch('+failure+');\n\t\t\t\t}\n\t\t\t\tr = null;')
+ # Timings distinguish download from compilation, IndexedDB and main scene setup.
+ s=s.replace("return module['initFS'](me.config.persistentPaths)","window.gardenBootStage?.('storage');return module['initFS'](me.config.persistentPaths)")
+ s=s.replace("return me.start.apply(me);", "window.gardenBootStage?.('scene');return me.start.apply(me);")
  path.write_text(s)

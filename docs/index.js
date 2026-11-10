@@ -714,7 +714,7 @@ const Engine = (function () {
 						const cloned = new Response(response.body, { headers: [['content-type', 'application/wasm']] });
 						return Godot(me.config.getModuleConfig(loadPath, cloned));
 					}).then(function (module) {
-						return module['initFS'](me.config.persistentPaths).then(function (err) {
+						window.gardenBootStage?.('storage');return module['initFS'](me.config.persistentPaths).then(function (err) {
 							if (err) { throw err; }
 							me.rtenv = module;
 							if (me.config.unloadAfterInit) { Engine.unload(); }
@@ -821,7 +821,7 @@ const Engine = (function () {
 					this.init(exe),
 					this.preloadFile(pack, pack),
 				]).then(function () {
-					return me.start.apply(me);
+					window.gardenBootStage?.('scene');return me.start.apply(me);
 				});
 			},
 

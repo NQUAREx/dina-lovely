@@ -3,6 +3,7 @@
  const compressedWasm='__WASM_GZIP__';
  window.gardenFetchAsset=async file=>{
   const compressed=String(file).endsWith('.wasm')&&typeof DecompressionStream==='function';
+  window.gardenAssetState?.(file,false);
   const controller=new AbortController();let timer;
   const arm=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(new Error('Asset download stalled')),25000);};
   arm();let response;
@@ -19,7 +20,7 @@
   function watch(body){
    const reader=body.getReader();
    return new ReadableStream({async pull(stream){
-    try{const item=await reader.read();if(item.done){clearTimeout(timer);stream.close();}else{arm();stream.enqueue(item.value);}}
+    try{const item=await reader.read();if(item.done){clearTimeout(timer);window.gardenAssetState?.(file,true);stream.close();}else{arm();stream.enqueue(item.value);}}
     catch(error){clearTimeout(timer);stream.error(error);}
    },cancel(reason){clearTimeout(timer);controller.abort();return reader.cancel(reason);}});
   }
