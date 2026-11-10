@@ -8,8 +8,8 @@ func run():
  var tail:=0.0
  for i in range(1080):
   f.update(1.0/60,Vector2(-1000,-1000))
-  if i>180 and i<240:tail=maxf(tail,absf(leaf.sway))
- assert(tail>.1 and leaf.sway==0)
+  if i>60 and i<120:tail=maxf(tail,absf(leaf.sway))
+ assert(tail>.2 and leaf.sway==0)
  f.wind_clock=.001;f.update(.016,base);assert(f.wind_clock>=4 and not f.active.is_empty())
  var clock:float=f.wind_clock;f.update(.016,base);assert(f.wind_clock<clock)
  var g=load("res://main.tscn").instantiate();root.add_child(g);await process_frame

@@ -13,6 +13,7 @@ var anim:=0.0
 var last_player:=Vector2.INF
 var autosave:=0.0
 var repath_wait:=0.0
+var target_ref:Dictionary={}
 func _init(game:Node2D):g=game
 func place(rng:RandomNumberGenerator)->void:
  if g.level!=0:return
@@ -37,6 +38,7 @@ func place(rng:RandomNumberGenerator)->void:
    if g.grid[y][x]=="." and p.distance_to((Vector2(cell)+Vector2(.5,.5))*48)>180 and not g.objects.any(func(o):return o.pos.distance_to(p)<65):fish.append(Vector2i(x,y))
  if not fish.is_empty():g.put_object("cat_fish",fish[rng.randi_range(0,fish.size()-1)],"cat_fish")
 func install()->void:
+ g.objects.assign(g.objects.filter(func(o):return o.kind!="pet_cat"));target_ref={}
  if seed_value!=int(g.save_data.seed):
   seed_value=int(g.save_data.seed);trail.clear();prints.clear();clock=0;autosave=0;last_player=Vector2.INF
   if g.save_data.cat_tamed and int(g.save_data.cat_room)==g.level and g.save_data.cat_position.size()==2:position=Vector2(g.save_data.cat_position[0],g.save_data.cat_position[1])
@@ -64,11 +66,17 @@ func interact(obj:Dictionary)->bool:
   g.save_data.cat_fish=false;g.save_data.cat_tamed=true;position=obj.pos+Vector2(0,48);trail=[{"pos":g.player,"time":clock}];last_player=g.player
   g.save_data.cat_room=g.level;g.save_data.cat_position=[position.x,position.y];g.food_heart_burst();g.persist();g.sfx("chime");g.notify(g.tx("cat_tamed"));return true
  if obj.kind=="pet_cat":
+  if g.inside_main_room():return true
   g.stats.add(g,"pets");g.burst(position,5,Color("eba3b9"));g.sfx("ui");g.persist();return true
  return false
 func refresh_target()->void:
- g.objects.assign(g.objects.filter(func(o):return o.kind!="pet_cat"))
- if g.save_data.cat_tamed:g.objects.append({"kind":"pet_cat","id":"pet_cat","pos":position,"solid":false})
+ if not g.save_data.cat_tamed or g.inside_main_room():
+  if not target_ref.is_empty():g.objects.erase(target_ref);target_ref={}
+  return
+ if target_ref.is_empty():
+  target_ref={"kind":"pet_cat","id":"pet_cat","pos":position,"solid":false};g.objects.append(target_ref)
+ else:target_ref.pos=position
+
 func handoff(offset:Vector2)->void:
  if not g.save_data.cat_tamed:return
  position+=offset
@@ -96,7 +104,12 @@ func update(delta:float)->void:
   var point:Vector2=trail[0].pos;var distance:=position.distance_to(point)
   if distance<.1:trail.pop_front();continue
   var amount:=minf(budget,distance)
-  if trail.size()==1:amount=minf(amount,maxf(0,distance-80))
+  var route_left:=distance
+  if route_left<96:
+   for i in range(1,trail.size()):
+    route_left+=Vector2(trail[i-1].pos).distance_to(trail[i].pos)
+    if route_left>=96:break
+  amount=minf(amount,maxf(0,route_left-80))
   if amount<=.001:break
   var next:=position.move_toward(point,amount)
   if not clear_segment(position,next):
@@ -121,14 +134,7 @@ func draw_cat()->void:
  var shadow:=PackedVector2Array()
  for n in range(16):shadow.append(p+Vector2(cos(n*TAU/16)*10,sin(n*TAU/16)*3))
  g.draw_floor_shadow(shadow,Color(.06,.09,.15,.25));g.draw_sprite(name,p,Color.WHITE,.8)
- if g.hedge_field!=null:
-  var crowns:Array[int]=g.hedge_field.near_ids(position,46)
-  crowns.sort_custom(func(a,b):return g.hedge_field.crowns[a].rank<g.hedge_field.crowns[b].rank)
-  g.draw_set_transform((g.get_viewport_rect().size/2-g.camera+g.shake_offset).round())
-  for index in crowns:
-   var leaf:Dictionary=g.hedge_field.crowns[index]
-   if not leaf.get("hidden",false) and leaf.base.y>position.y+4:g.draw_leaf_crown(index)
-  g.draw_set_transform(Vector2.ZERO)
+
 func draw_prints()->void:
  for mark in prints:
   if not g.shadow_floor_cell(Vector2i(mark.pos/48)):continue

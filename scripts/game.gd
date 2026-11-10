@@ -18,7 +18,9 @@ const ROOM_FIELDS := ["poison_zones","grid","objects","enemies","shots","particl
 var room_cache:Dictionary={}
 var room_cache_seed := -1
 var room_build_count := 0
+var interaction_clock:=0.0
 const stats:=preload("res://scripts/journey_stats.gd")
+var torch:=preload("res://scripts/flashlight_state.gd").new(self)
 var companion:=preload("res://scripts/cat_companion.gd").new(self)
 var world_tools := preload("res://scripts/world_tools.gd").new(self)
 const SPEED := 150.0
@@ -195,7 +197,7 @@ func _ready() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -505,7 +507,7 @@ func activate_cached_room(index: int) -> void:
 	chest_open=save_data.finished
 	weapon=held_item if held_item in ["sword","rifle","rpg"] else "";sync_hands()
 	objects.assign(objects.filter(func(obj):return not obj.get("dropped_accessory",false)))
-	restore_accessory_drops();restore_gate_key();normalize_dig_site();world_tools.install();restore_weapon_drops();companion.install()
+	restore_accessory_drops();restore_gate_key();normalize_dig_site();world_tools.install();restore_weapon_drops();torch.install();companion.install()
 	for door in objects:
 		if door.kind=="doorway":door.gate_amount=1.0 if door_is_open(str(door.id)) else 0.0
 	task_time=0;rpg_windup=-1;resting="";nearest=-1
@@ -857,7 +859,7 @@ func build_level(index: int) -> void:
 	prepare_grass_details()
 	restore_accessory_drops()
 	restore_gate_key()
-	world_tools.install();restore_weapon_drops();companion.install()
+	world_tools.install();restore_weapon_drops();torch.install();companion.install()
 	camera = camera_target()
 	nearest = -1
 	update_hud()
@@ -1025,8 +1027,9 @@ func _process(delta: float) -> void:
 		if attack_held and task_time<=0: attack()
 		if level == 4 and not combat_done and inside_main_room(): update_combat(minf(delta,0.04))
 		for id in bloom_times: bloom_times[id] = minf(1.0,bloom_times[id]+delta/2.8)
-		find_nearest()
-		update_hud()
+		interaction_clock-=delta
+		if interaction_clock<=0:
+			interaction_clock=.07;find_nearest();update_hud()
 	for i in range(particles.size()-1,-1,-1):
 		particles[i].life -= delta
 		particles[i].pos += particles[i].vel*delta
@@ -1111,9 +1114,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.kind=="flashlight_pedestal":return false
 	if obj.kind=="cat_fish":return not save_data.cat_fish and not save_data.cat_tamed
 	if obj.kind=="cat_hut":return not save_data.cat_tamed
-	if obj.kind=="pet_cat":return save_data.cat_tamed and held_item.is_empty() and (nearest<0 or nearest>=objects.size() or objects[nearest].kind=="pet_cat")
+	if obj.kind=="pet_cat":return not inside_main_room() and save_data.cat_tamed and held_item.is_empty() and (nearest<0 or nearest>=objects.size() or objects[nearest].kind=="pet_cat")
 	if obj.kind=="stats_stone":return true
 	if obj.get("integrated_tree",false):return world_tools.tree_target(obj) or obj.kind=="hedge_tree_apples"
 	if obj.kind=="skull_relic":return save_data.get("house_open",false) and not save_data.get("skull_taken",false) and not save_data.get("skull_inserted",false)
@@ -1162,7 +1166,10 @@ func interaction_reachable(obj: Dictionary) -> bool:
 	for step in range(1,ceili(length/2)):
 		var point:=player.lerp(target,float(step)*2/maxf(length,1))
 		var cell:=Vector2i(point/TILE)
-		if cell.y<0 or cell.x<0 or cell.y>=grid.size() or cell.x>=grid[0].length():return false
+		if cell.y<0 or cell.y>=grid.size():
+			if corridor_floor_point(point):continue
+			return false
+		if cell.x<0 or cell.x>=grid[0].length():return false
 		if hedge_field!=null:
 			if hedge_field.blocks(point):
 				# Reach into the near face for fruit/hidden letters, never through the wall.
@@ -1184,7 +1191,7 @@ func find_nearest() -> void:
 
 	if nearest<0 and held_item.is_empty():
 		for i in range(objects.size()):
-			if objects[i].kind=="pet_cat" and player.distance_to(objects[i].pos)<60 and interaction_reachable(objects[i]):nearest=i;break
+			if objects[i].kind=="pet_cat" and available(objects[i]) and player.distance_to(objects[i].pos)<60 and interaction_reachable(objects[i]):nearest=i;break
 
 func item_name(obj: Dictionary) -> String:
 	if obj.kind in ["cat_fish","cat_hut","pet_cat","stats_stone"]:return tx("item_"+obj.kind)
@@ -1228,7 +1235,7 @@ func item_visual_bounds(obj: Dictionary) -> Rect2:
 		var bounds:=Rect2()
 		for index in hedge_field.near_ids(position,52):
 			if hedge_field.crowns[index].berry!=obj.id:continue
-			var pose:Vector3=hedge_field.crown_pose(index,player)
+			var pose:Vector3=hedge_field.draw_poses.get(index,Vector3.ZERO)
 			var part:=Rect2(Vector2(pose.x,pose.y)-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2)
 			bounds=bounds.merge(part) if bounds.has_area() else part
 		if bounds.has_area():return bounds
@@ -1420,6 +1427,7 @@ func sync_hands() -> void:
 	if held_item not in ["sword","rifle","rpg"]:weapon=""
 
 func return_held_tool() -> void:
+	if held_item=="flashlight":torch.drop(player);return
 	world_tools.drop_held()
 	if held_item in ["sword","rifle","rpg"]:
 		var dropped := {"kind":"weapon_"+held_item,"id":"drop_"+held_item+"_"+str(Time.get_ticks_usec()),"weapon":held_item,"room":level,"pos":Vector2(player.x,clampf(player.y+25,7.5*TILE,(grid.size()-7.5)*TILE)),"solid":false}
@@ -1806,6 +1814,8 @@ func _draw() -> void:
 	# Only draw the visible edge of one cached neighbour. Its simulation stays frozen.
 	var night_band:=Rect2()
 	var corridor_pedestal:=Vector2.INF
+	var corridor_torch:=Vector2.INF
+	var corridor_torch_ground:=false
 	var destination:=-1
 	if level<6 and camera.y<get_viewport_rect().size.y/2+100:destination=level+1
 	elif level>0 and camera.y>grid.size()*TILE-get_viewport_rect().size.y/2-100:destination=level-1
@@ -1825,14 +1835,18 @@ func _draw() -> void:
 		if level==1:
 			night_band=Rect2(screen(Vector2(0,5*TILE)),Vector2(grid[0].length()*TILE,(grid.size()-10)*TILE))
 			for obj in objects:
-				if obj.kind=="stand_flashlight":corridor_pedestal=screen(obj.pos)
+				if obj.kind=="flashlight_pedestal":corridor_pedestal=screen(obj.pos)
+				if obj.kind=="stand_flashlight" and held_item!="flashlight" and int(save_data.flashlight_location.get("room",1))==1:corridor_torch=screen(obj.pos);corridor_torch_ground=obj.get("ground_tool",false)
 		drawing_neighbor=false;level=old_level;camera=old_camera
 		for field in ROOM_FIELDS:set(field,old_state[field])
 	if destination>level:_draw_world()
 	# Corridor props must survive the foreground room floor pass.
 	if corridor_pedestal!=Vector2.INF:
 		draw_sprite("pedestal",corridor_pedestal)
-		if not save_data.flashlight:draw_sprite("flashlight_rest",corridor_pedestal)
+	if corridor_torch!=Vector2.INF:
+		if corridor_torch_ground:
+			draw_set_transform(corridor_torch,PI/2);draw_sprite("flashlight",Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
+		else:draw_sprite("flashlight_rest",corridor_torch)
 	var view:=get_viewport_rect().size
 	for i in range(8):
 		var c:=Color(.06,.07,.13,.025*(8-i))
@@ -1944,6 +1958,7 @@ func _draw_world() -> void:
 		if obj.kind in ["axe","shears","drill","tool_table"] and not save_data.finished:continue
 		if obj.kind in ["hedge_target","tool_table","pet_cat"]:continue
 		if obj.kind=="cat_fish" and (save_data.cat_fish or save_data.cat_tamed):continue
+		if obj.kind=="stand_flashlight" and (held_item=="flashlight" or int(save_data.flashlight_location.get("room",1))!=level):continue
 		if drawing_neighbor and corridor_row(floori(obj.pos.y/TILE)):continue
 		if obj.kind=="accessory" and not available(obj):continue
 		if obj.get("integrated_hedge",false):
@@ -1991,6 +2006,7 @@ func _draw_world() -> void:
 	var visible_crowns:=PackedInt32Array()
 	if hedge_field!=null:
 		visible_crowns=hedge_field.visible_ids(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
+		hedge_field.prepare_draw(visible_crowns,player)
 		for item in renderables:
 			if item.get("integrated_tree",false):draw_cast_shadow(item.kind,screen(item.pos),1)
 		for index in visible_crowns:
@@ -2092,9 +2108,8 @@ func _draw_world() -> void:
 			elif kind=="doorway":
 				draw_sprite("doorpost",p+Vector2(-90,0));draw_sprite("doorpost",p+Vector2(90,0))
 				if item.id=="exit":draw_gate(p,float(item.get("gate_amount",0.0)))
-			elif kind=="stand_flashlight":
-				draw_sprite("pedestal",p)
-				if not save_data.flashlight: draw_sprite("flashlight_rest",p)
+			elif kind=="flashlight_pedestal":draw_sprite("pedestal",p)
+			elif kind=="stand_flashlight":draw_sprite("flashlight_rest",p)
 			elif kind.begins_with("rack_") and item.id in save_data.weapons_taken: draw_sprite("rack_empty",p)
 			elif kind=="mound": draw_sprite("dug" if item.id in save_data.dug else "mound",p)
 			elif kind=="chest": draw_sprite("chest_open" if ((item.id=="final" and chest_open) or item.id in save_data.letters) else "chest",p,Color.WHITE,3.0 if item.id=="final" else 1.0)
@@ -2203,6 +2218,8 @@ func travel(destination: int) -> void:
 	transition=true
 	var previous:=level;var old_height:float=grid.size()*TILE
 	var old_player:=player;var old_camera:=camera;var old_invincible:=invincible;var old_health:=health
+	var return_torch:=held_item=="flashlight" and previous==1 and destination==0
+	var carry_torch_in:=held_item=="flashlight" and previous==0 and destination==1
 	var carried_weapon:Dictionary={}
 	var carried_shots:Array=[]
 	if save_data.finished and held_item in ["sword","rifle","rpg"]:
@@ -2211,7 +2228,7 @@ func travel(destination: int) -> void:
 		shots.assign(shots.filter(func(shot):return shot.pos.distance_to(old_player)>=650))
 	var north:float=(15.5 if level==0 else 13.5)*TILE
 	var old_center:float=north if destination>level else 13.5*TILE
-	if held_item not in ["axe","shears","drill"] and not (save_data.finished and held_item in ["sword","rifle","rpg"]):return_held_tool()
+	if not return_torch and not carry_torch_in and held_item not in ["axe","shears","drill"] and not (save_data.finished and held_item in ["sword","rifle","rpg"]):return_held_tool()
 	persist()
 	var carried_prints:Array=footprints.filter(func(item):return item.pos.distance_to(old_player)<650).duplicate(true)
 	var carried_particles:Array=particles.filter(func(item):return item.pos.distance_to(old_player)<650).duplicate(true)
@@ -2222,6 +2239,7 @@ func travel(destination: int) -> void:
 	var delta:=Vector2(new_center-old_center,grid.size()*TILE+HALL_SEAM*2 if destination>previous else -old_height-HALL_SEAM*2)
 	player=old_player+delta;camera=old_camera+delta;invincible=old_invincible;health=old_health
 	companion.handoff(delta)
+	if return_torch:torch.drop(player+Vector2(0,-18))
 	for field in carried_weapon:set(field,carried_weapon[field])
 	for shot in carried_shots:shot.pos+=delta;shots.append(shot)
 	for item in carried_prints:item.pos+=delta;footprints.append(item)
@@ -2463,6 +2481,7 @@ func update_fog() -> void:
 	var facing: Vector2 = walk_facing.normalized()
 	if joy_vector.length()>.2: facing=joy_vector.normalized()
 	material.set_shader_parameter("light_pos",screen(held_tool_pose().tip) if held_item=="flashlight" else screen(player)+Vector2(14,-33))
+	material.set_shader_parameter("hero_pos",screen(player)+Vector2(0,-35))
 	material.set_shader_parameter("view_size",get_viewport_rect().size)
 	material.set_shader_parameter("light_dir",facing)
 	material.set_shader_parameter("enabled",save_data.flashlight)
@@ -3310,14 +3329,14 @@ func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 	# A single fixed Y-order is split around the heroine. Each crown is drawn whole,
 	# once. The margin includes maximum bend and radius, keeping front crowns below waist.
 	for index in indices:
-		var behind:bool=hedge_field.crown_behind_hero(index,player)
+		var behind:bool=not hedge_field.front_crowns.has(index)
 		if (side<0 and not behind) or (side>0 and behind):continue
 		draw_leaf_crown(index)
 	draw_set_transform(Vector2.ZERO)
 
 func draw_leaf_crown(index: int) -> void:
 	var node:Dictionary=hedge_field.crowns[index]
-	var pose:Vector3=hedge_field.crown_pose(index,player)
+	var pose:Vector3=hedge_field.draw_poses.get(index,Vector3.ZERO)
 	var radius:float=pose.z
 	var centre:=Vector2(pose.x,pose.y)
 	var berry:bool=not str(node.berry).is_empty() and node.berry not in save_data.eaten
@@ -3345,7 +3364,9 @@ func draw_hedge_body(bounds: Rect2) -> void:
 	# Most of the wall never deforms. Draw it as texture regions, not hundreds of meshes.
 	var patch:=Rect2()
 	for index in hedge_field.active:
+		if hedge_field.crowns[index].offset.length_squared()<.002:continue
 		var point:Vector2=hedge_field.crowns[index].base
+		if point.distance_squared_to(player)>148*148:continue
 		if patch.has_area():patch=patch.expand(point)
 		else:patch=Rect2(point-Vector2.ONE,Vector2.ONE*2)
 	if patch.has_area():
@@ -3368,7 +3389,7 @@ func draw_hedge_body(bounds: Rect2) -> void:
 				var extent:=Vector2(texture.get_size())*2
 				var point:Vector2=(Vector2(corner)*32).clamp(Vector2.ZERO,extent)
 				if not offsets.has(corner):offsets[corner]=hedge_field.body_offset(point)
-				polygon.append((point+offsets[corner]).clamp(Vector2.ZERO,extent)-Vector2(0,HEDGE_LIFT))
+				polygon.append((point+offsets[corner]).round().clamp(Vector2.ZERO,extent)-Vector2(0,HEDGE_LIFT))
 				uv.append(point/(Vector2(texture.get_size())*2))
 			draw_polygon(polygon,PackedColorArray([Color.WHITE]),uv,texture)
 	draw_set_transform(Vector2.ZERO)

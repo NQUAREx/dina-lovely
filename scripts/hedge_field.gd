@@ -17,6 +17,8 @@ var body_tiles: Dictionary = {}
 var last_player := Vector2.INF
 var wind_clock:=4.0
 var wind_rng:=RandomNumberGenerator.new()
+var front_crowns:Dictionary={}
+var draw_poses:Dictionary={}
 var contact_strength:=0.0
 var motion_strength:=0.0
 var visible_first:=Vector2i(-9999,-9999)
@@ -159,11 +161,13 @@ func update(delta: float, player: Vector2) -> void:
 		if not candidates.is_empty():
 			var chosen:int=candidates[wind_rng.randi_range(0,candidates.size()-1)]
 			var gust:=wind_rng.randf_range(7,12)*(1 if wind_rng.randf()>.5 else -1)
-			for index in near_ids(crowns[chosen].base,55):
+			var gust_count:=0
+			for index in near_ids(crowns[chosen].base,42):
 				if crowns[index].get("hidden",false):continue
-				crowns[index].sway_velocity+=gust;active[index]=true
-	for index in near_ids(player,60):
-		if not crowns[index].get("hidden",false) and crowns[index].base.distance_to(player)<52:active[index]=true
+				crowns[index].sway_velocity+=gust*1.5;active[index]=true;gust_count+=1
+				if gust_count>=8:break
+	for index in near_ids(player,38):
+		if not crowns[index].get("hidden",false) and crowns[index].base.distance_squared_to(player)<36*36:active[index]=true
 	var done:Array[int]=[]
 	for index in active:
 		var node:Dictionary=crowns[index]
@@ -175,15 +179,18 @@ func update(delta: float, player: Vector2) -> void:
 		var required_drop:=maxf(0,ceilf(player.y-28+roundf(node.radius*1.48))-((node.base+node.offset).round().y-16))
 		node.released=pressure>0 and required_drop>22
 		if pressure>.005 and node.last_pressure<=.005:
-			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(14+pressure*6)
+			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(24+pressure*8)
 		node.last_pressure=pressure
-		node.sway_velocity+=(-node.sway*45-node.sway_velocity*.75)*delta
-		node.sway=clampf(node.sway+node.sway_velocity*delta,-2.1,2.1)
+		node.sway_velocity+=(-node.sway*45-node.sway_velocity*3.0)*delta
+		node.sway=clampf(node.sway+node.sway_velocity*delta,-3.0,3.0)
 		if absf(node.sway)<.025 and absf(node.sway_velocity)<.1:node.sway=0.0;node.sway_velocity=0.0
 		contact_strength=maxf(contact_strength,pressure)
+		if pressure==0 and node.press==0 and node.offset==Vector2.ZERO and node.velocity==Vector2.ZERO and node.depression==0:
+			if node.sway==0 and node.sway_velocity==0:done.append(index)
+			continue
 		node.press=move_toward(float(node.press),pressure,delta*5)
 		var target:=away.normalized()*5.5*pressure
-		node.velocity+=(target-node.offset)*145*delta-node.velocity*3.75*delta
+		node.velocity+=(target-node.offset)*145*delta-node.velocity*8.0*delta
 		var desired:Vector2=node.offset+node.velocity*delta
 		desired=desired.limit_length(6)
 		# Sweep each crown against its neighbours: it can bend but cannot overlap them.
@@ -212,7 +219,7 @@ func update(delta: float, player: Vector2) -> void:
 			node.depression=minf(22,maxf(0,ceilf(player.y-28+leaf_radius)-((node.base+node.offset).round().y-16)))
 			node.depression_velocity=0.0
 		else:
-			node.depression_velocity+=(-node.depression*130-node.depression_velocity*3.5)*delta
+			node.depression_velocity+=(-node.depression*130-node.depression_velocity*8.0)*delta
 			node.depression=clampf(node.depression+node.depression_velocity*delta,-1.5,22)
 			if absf(node.depression)<.03 and absf(node.depression_velocity)<.1:node.depression=0.0;node.depression_velocity=0.0
 
@@ -332,7 +339,8 @@ func build_body(material: Image) -> void:
 func body_offset(point: Vector2) -> Vector2:
 	if active.is_empty() or point.distance_squared_to(last_player)>100*100:return Vector2.ZERO
 	var offset:=Vector2.ZERO;var weight:=0.0
-	for index in active:
+	for index in near_ids(point,48):
+		if not active.has(index):continue
 		var node:Dictionary=crowns[index]
 		var w:=maxf(0,1-node.base.distance_to(point)/48)
 		offset+=node.offset*w;weight+=w
@@ -351,3 +359,23 @@ func remove_cell(cell:Vector2i)->void:
 			if y>=(cell.y+1)*24 and wall(cell+Vector2i.DOWN):continue
 			for x in range(cell.x*24,mini(image.get_width(),(cell.x+1)*24)):image.set_pixel(x,y,Color.TRANSPARENT)
 		body_texture.update(image)
+
+func prepare_draw(indices:PackedInt32Array,player:Vector2)->void:
+	front_crowns.clear();draw_poses.clear()
+	# Preserve painter order across the hero split: a later overlapping crown follows
+	# an earlier foreground crown into the same pass. No leaf can jump above its neighbour.
+	var foreground_bins:Dictionary={}
+	for index in indices:
+		var pose:=crown_pose(index,player);draw_poses[index]=pose
+		var centre:=Vector2(pose.x,pose.y);var bin:=Vector2i((centre/48).floor())
+		var front:=not crown_behind_hero(index,player)
+		if not front:
+			for y in range(bin.y-1,bin.y+2):
+				for x in range(bin.x-1,bin.x+2):
+					for other in foreground_bins.get(Vector2i(x,y),[]):
+						var earlier:Vector3=draw_poses[other]
+						if centre.distance_squared_to(Vector2(earlier.x,earlier.y))<pow(pose.z+earlier.z,2):front=true;break
+		if front:
+			front_crowns[index]=true
+			if not foreground_bins.has(bin):foreground_bins[bin]=[]
+			foreground_bins[bin].append(index)
