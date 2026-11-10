@@ -27,7 +27,9 @@ if marker not in s:
 import json, shutil
 root=p.parent.parent
 content=json.loads((root/'content/letters.json').read_text())
-shutil.copyfile(root/'tools/mobile_shell.js',p.parent/'mobile.js')
+import hashlib
+frame_hash=hashlib.sha256(b''.join((root/'assets'/f'frame_{part}_{room}.png').read_bytes() for room in range(7) for part in ['field','top','bottom'])).hexdigest()[:12]
+(p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__FRAME_ART_HASH__',frame_hash))
 shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
 shutil.copyfile(root/'assets/title.ttf',p.parent/'letter-title.ttf')
 from PIL import Image, ImageDraw

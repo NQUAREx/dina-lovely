@@ -19,6 +19,8 @@ var room_cache:Dictionary={}
 var room_cache_seed := -1
 var room_build_count := 0
 var interaction_clock:=0.0
+var arena_save:=preload("res://scripts/arena_checkpoint.gd").new(self)
+var web_save_callback:JavaScriptObject
 const stats:=preload("res://scripts/journey_stats.gd")
 var torch:=preload("res://scripts/flashlight_state.gd").new(self)
 var companion:=preload("res://scripts/cat_companion.gd").new(self)
@@ -194,10 +196,14 @@ func _ready() -> void:
 	show_menu()
 	get_viewport().size_changed.connect(layout_ui)
 	layout_ui()
-	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
+	if OS.has_feature("web"):
+		web_save_callback=JavaScriptBridge.create_callback(func(_args):
+			if playing:persist())
+		JavaScriptBridge.get_interface("window").gardenSaveNow=web_save_callback
+		JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -225,11 +231,13 @@ func load_save() -> void:
 			save_data.water = clampi(int(parsed.get("water", 0)), 0, 6)
 			if not parsed.has("weapons_taken") and not str(save_data.weapon).is_empty(): save_data.weapons_taken.append(save_data.weapon)
 	stats.repair(self)
+	arena_save.sanitize_dead_save()
 	repair_accessory_save(legacy_accessories)
 	sound_on = save_data.sound
 
 func persist() -> void:
 	companion.save()
+	arena_save.capture()
 	save_data.erase("music")
 	save_data.plants = plants
 	save_data.fertilized = fertilized
@@ -451,7 +459,7 @@ func show_menu() -> void:
 	box.add_child(label(content.game_title, 35, CREAM, true))
 	box.add_child(label(tx("menu_goal"), 15, Color("c1bdce")))
 	if playing: box.add_child(button(tx("return_to_garden") if health>0 else tx("retry_room"), func():
-		if health<=0: build_level(4)
+		if health<=0: arena_save.restart()
 		clear_modal()))
 	elif save_data.started: box.add_child(button(tx("continue_game"), resume_game))
 	box.add_child(button(tx("new_game"), confirm_new if save_data.started else new_game))
@@ -483,7 +491,7 @@ func resume_game() -> void:
 	var target:=int(save_data.level)
 	if OS.has_feature("web") and (room_cache_seed!=int(save_data.seed) or room_cache.size()!=7):await prepare_rooms_web(target)
 	else:prepare_room_cache(target)
-	companion.restore();playing=true;sync_room_theme();clear_modal();hud.show()
+	arena_save.restore_hands();companion.restore();playing=true;sync_room_theme();clear_modal();hud.show()
 
 func sync_room_theme() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenSetRoom?.("+str(level)+")")
@@ -863,6 +871,7 @@ func build_level(index: int) -> void:
 	restore_accessory_drops()
 	restore_gate_key()
 	world_tools.install();restore_weapon_drops();torch.install();companion.install()
+	if index==4:arena_save.restore_room()
 	camera = camera_target()
 	nearest = -1
 	update_hud()
@@ -970,6 +979,7 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	world_tools.update(delta)
 	companion.update(delta)
+	arena_save.update(delta)
 	update_foliage_audio(delta)
 	if playing and not paused:
 		var previous := rpg_reload;rpg_reload=maxf(0,rpg_reload-delta)
@@ -977,9 +987,9 @@ func _process(delta: float) -> void:
 	if is_instance_valid(rocket_voice):
 		var distance := INF
 		for shot in shots:
-			if shot.kind=="rpg":distance=minf(distance,player.distance_to(shot.pos))
+			if shot.kind in ["rpg","enemy_rocket"]:distance=minf(distance,player.distance_to(shot.pos))
 		if sound_on and playing and not paused and distance<1400:
-			rocket_voice.volume_db=-8-20*log(1+distance/420)/log(10.0)
+			rocket_voice.volume_db=-2-20*log(1+distance/420)/log(10.0)
 			if not rocket_voice.playing:rocket_voice.play()
 		else:rocket_voice.stop()
 	for door in objects:
@@ -1627,6 +1637,7 @@ func spawn_wave() -> void:
 	poison_zones.clear()
 	wave_timer = 3.0
 	battle.spawn()
+	persist()
 
 func update_combat(delta: float) -> void:
 	battle.update_poison(delta)
@@ -1712,7 +1723,7 @@ func attack(launch_ready: bool = false) -> void:
 		if weapon=="rpg":
 			stats.add(self,"rockets")
 			rpg_reload=RPG_RELOAD
-			if sound_on:rocket_voice.volume_db=-8;rocket_voice.play()
+			if sound_on:rocket_voice.volume_db=-2;rocket_voice.play()
 			for step in range(12):
 				var recoil := player-aim*6
 				if blocked(recoil):break
@@ -1735,11 +1746,14 @@ func hurt() -> void:
 	burst(player,12,PINK)
 	if health<=0:
 		stats.add(self,"retries")
+		arena_save.mark_dead()
 		var box := modal_box(590,330)
 		box.add_child(label(tx("death_title"), 30, CREAM, true))
 		box.add_child(label(tx("death_help"),18))
-		box.add_child(button(tx("retry_action"), func(): build_level(4); clear_modal()))
+		box.add_child(button(tx("retry_action"), func(): arena_save.restart()))
 		box.add_child(button(tx("menu_action"), show_menu))
+
+	persist()
 
 func screen(pos: Vector2) -> Vector2:
 	return pos+(get_viewport_rect().size/2-camera+shake_offset).round()
@@ -2318,11 +2332,11 @@ func update_plants(delta: float) -> void:
 				sfx("chime")
 			persist()
 
-func damage_enemy(index: int, damage: int, push: Vector2) -> void:
+func damage_enemy(index: int, damage: float, push: Vector2) -> void:
 	if index<0 or index>=enemies.size(): return
 	var enemy := enemies[index]
 	if enemy.state=="spawn": return
-	damage_numbers.append({"pos":enemy.pos+Vector2(randf_range(-10,10),-65),"value":mini(damage,int(enemy.hp)),"life":.85})
+	damage_numbers.append({"pos":enemy.pos+Vector2(randf_range(-10,10),-65),"value":snappedf(minf(damage,float(enemy.hp)),.1),"life":.85})
 	enemy.hit_until=time+.18
 	if not room_remains.has(level):room_remains[level]=[]
 	var pool := Vector2(roundf(enemy.pos.x/28)*28,roundf(enemy.pos.y/28)*28)
@@ -2347,7 +2361,9 @@ func update_shots(delta: float) -> void:
 		shot.age += delta
 		if shot.kind=="rpg":shot.vel=shot.vel.normalized()*(75.0+425.0*(1.0-exp(-shot.age*2.7)))
 		var start: Vector2 = shot.pos
-		var end: Vector2 = start+shot.vel*delta
+		var motion:Vector2=shot.vel*delta
+		if shot.kind in ["enemy_bullet","enemy_rocket"] and shot.has("range_left"):motion=motion.limit_length(maxf(0,float(shot.range_left)))
+		var end: Vector2 = start+motion
 		var segment := end-start
 		var distance := segment.length()
 		var wall_t := 1.1
@@ -2358,9 +2374,11 @@ func update_shots(delta: float) -> void:
 			var t:=clampf((player+Vector2(0,-26)-start).dot(segment)/maxf(.001,segment.length_squared()),0,1)
 			var contact:=start.lerp(end,t).distance_to(player+Vector2(0,-26))<18 and t<=wall_t
 			shot.pos=end;shot.life-=delta
+			if shot.has("range_left"):shot.range_left=maxf(0,float(shot.range_left)-segment.length())
+			var expired:bool=shot.life<=0 or float(shot.get("range_left",1))<=0
 			if contact:hurt()
-			if shot.kind=="enemy_rocket" and (contact or wall_t<=1 or shot.life<=0):burst(end,18,Color("ee9d59"));sfx_at("rpg_explosion",end)
-			if contact or wall_t<=1 or shot.life<=0:shots.remove_at(i)
+			if shot.kind=="enemy_rocket" and (contact or wall_t<=1 or expired):burst(end,18,Color("ee9d59"));sfx_at("rpg_explosion",end)
+			if contact or wall_t<=1 or expired:shots.remove_at(i)
 			continue
 		var hit_index := -1
 		var hit_t := wall_t
@@ -2388,7 +2406,7 @@ func update_shots(delta: float) -> void:
 		if not hit:continue
 		if shot.kind=="rpg":
 			shake=maxf(shake,10.0*clampf(1-player.distance_to(shot.pos)/750,0,1));sfx_at("rpg_explosion",shot.pos);burst(shot.pos,42,Color("ffd69c"))
-		if hit_index>=0:damage_enemy(hit_index,99 if shot.kind=="rpg" else 1,shot.vel.normalized()*9)
+		if hit_index>=0:damage_enemy(hit_index,99.0 if shot.kind=="rpg" else 2.5,shot.vel.normalized()*9)
 		shots.remove_at(i)
 
 func draw_extra_effects() -> void:

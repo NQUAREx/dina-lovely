@@ -34,13 +34,14 @@ for bottom in (False,True):
 # courage, seed garden and the final celebration. No maze-green background.
 from PIL import ImageColor
 palettes = [
- ('#302a43','#564666','#987694','#df9db3'),
- ('#131d35','#293755','#7588a4','#b5cbd4'),
- ('#342d38','#5c4652','#af8879','#e0b68b'),
- ('#403139','#705247','#b18c6b','#ecd0a1'),
- ('#352735','#654253','#b97c89','#e9b69d'),
- ('#3b2e46','#68536b','#bca49c','#f4c7cc'),
- ('#493744','#8b6975','#d3ae8a','#fff0cf')]
+ ('#291447','#59356f','#bd87d6','#ffe0ec'),
+ ('#061426','#12395b','#4a91bc','#c7f1ff'),
+ ('#513013','#965b26','#df9e42','#fff0bd'),
+ ('#66513a','#9d805a','#d2b992','#fff2d7'),
+ ('#450b22','#912d49','#e06179','#ffe2d8'),
+ ('#123e49','#287c80','#83c4ac','#ffe7b1'),
+ ('#dbc3a2','#b98a68','#a44b6c','#fff9e5')]
+
 def heart(draw,x,y,c):
  draw.polygon([(x-4,y-2),(x-1,y-2),(x,y),(x+1,y-2),(x+4,y-2),(x+5,y),(x+4,y+3),(x,y+7),(x-4,y+3),(x-5,y)],fill=c)
 def motif(draw,room,x,y,p):
@@ -75,6 +76,29 @@ for room,palette in enumerate(palettes):
  for n in range(190):
   x=rng.randrange(96);y=rng.randrange(96)
   fd.line((x,y,x+1,y),fill=shadow)
+ # Large structural patterns make transitions obvious even in narrow page margins.
+ if room==0:
+  for offset in range(-96,192,32):fd.line((offset,0,offset+96,96),fill=shadow,width=2)
+ elif room==1:
+  for n in range(24):
+   x=rng.randrange(96);y=rng.randrange(96);fd.point((x,y),fill=light)
+ elif room==2:
+  for offset in range(-96,192,24):
+   fd.line((offset,0,offset+96,96),fill=shadow,width=5);fd.line((offset+6,0,offset+102,96),fill=accent)
+  for x in [3,92]:
+   for y in range(8,96,24):fd.rectangle((x-1,y-1,x+1,y+1),fill=light)
+ elif room==3:
+  for n in range(10):
+   x=rng.randrange(96);y=rng.randrange(96);fd.polygon([(x-6,y-2),(x-2,y-5),(x+6,y-2),(x+5,y+3),(x-4,y+4)],outline=shadow)
+ elif room==4:
+  for offset in range(-96,192,32):
+   fd.line((offset,0,offset+96,96),fill=shadow);fd.line((offset,96,offset+96,0),fill=shadow)
+ elif room==5:
+  for x in [8,56]:
+   fd.arc((x-16,-25,x+16,65),270,90,fill=accent,width=2);fd.arc((x-16,40,x+16,130),90,270,fill=shadow,width=2)
+ elif room==6:
+  for x in range(0,97,24):
+   for y in range(0,97,24):fd.ellipse((x-10,y-10,x+10,y+10),outline=shadow)
  for x,y in [(24,23),(72,71)]:motif(fd,room,x,y,palette)
  for x,y in [(70,18),(18,70)]:
   fd.line((x-3,y,x+3,y),fill=accent);fd.line((x,y-3,x,y+3),fill=accent);fd.point((x,y),fill=light)

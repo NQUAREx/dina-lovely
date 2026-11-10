@@ -29,6 +29,6 @@ func run():
  g.weapon="rpg";g.held_item="rpg";g.rpg_reload=0;g.attack_cd=0;g.reload_time=0;g.walk_facing=Vector2.RIGHT;g.shots.clear();g.attack();assert(is_equal_approx(g.rpg_windup,.20));g.attack(true);assert(g.shots.size()==1 and g.shots[0].kind=="rpg")
  assert(g.rpg_textures.loaded.get_width()==64 and g.rpg_textures.empty.get_width()==64)
  g.build_level(3);g.held_item="shovel";g.save_data.dig_target=[750,600];g.save_data.buried_exposed=false;g.world_tools.excavate(Vector2(540,600));assert(g.toast.text==g.tx("buried_note_near"))
- var bank=load("res://scripts/audio_bank.gd").STREAMS;assert(bank.gate_open.get_length()>.8 and g.rocket_voice.stream.get_length()>1)
+ var bank=load("res://scripts/audio_bank.gd").STREAMS;assert(bank.gate_open.get_length()>.8 and g.rocket_voice.stream.get_length()>.25)
  print("PASS one intro, corridor torch, ten-wave gunners, swept enemy damage, stronger AK/camera, post-game carry/fire/drop, RPG textures/audio and dig hint")
  quit()

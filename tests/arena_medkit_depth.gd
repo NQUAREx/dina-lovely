@@ -7,12 +7,11 @@ func run():
   var pistols=g.enemies.filter(func(e):return e.type==5);var rifles=g.enemies.filter(func(e):return e.type==6)
   assert(pistols.size()>=2 and rifles.size()>=1)
   var kits=g.objects.filter(func(o):return o.kind=="medkit")
-  if wave<5:assert(kits.is_empty())
-  if wave==5:
+  if wave not in [3,6,9]:assert(kits.is_empty())
+  if wave in [3,6,9]:
    assert(kits.size()==1 and not g.blocked(kits[0].pos))
    var kit=kits[0];g.player=kit.pos+Vector2(0,25);g.nearest=g.objects.find(kit);g.health=8;g.interact();assert(g.objects.has(kit))
    g.health=2;g.nearest=g.objects.find(kit);g.interact();assert(g.health==8 and not g.objects.has(kit));g.health=3
-  if wave>5:assert(kits.is_empty())
   if wave==10:assert(pistols.size()==4 and rifles.size()==4 and g.enemies.filter(func(e):return e.type==7).size()==1)
  for kind in [5,6,7]:
   var e=g.enemies.filter(func(e):return e.type==kind)[0];e.state="chase";g.player=e.pos+Vector2(80,80);var values={}
@@ -24,5 +23,5 @@ func run():
  g.build_level(3);g.world_tools.excavate(Vector2(600,600));g.world_tools.excavate(Vector2(624,600))
  var image:Image=g.world_tools.images["3"];var upper:Color=image.get_pixel(300,294);var bottom:Color=image.get_pixel(300,306)
  assert(bottom.a>0 and upper.v>.18 and bottom.v<.09 and bottom.v<upper.v*.35)
- print("PASS ten waves without regeneration, fifth-wave reusable/full-heal medkit, more shooters, random cadence, 3.24s RPG reload and dark merged-pit bottom")
+ print("PASS ten waves without regeneration, third/sixth/ninth-wave reusable/full-heal medkit, more shooters, random cadence, 3.24s RPG reload and dark merged-pit bottom")
  quit()

@@ -218,5 +218,11 @@
     "source_file": "Existing recorded rifle sample, pitch raised and normalized",
     "license": "CC0",
     "sha256": "dee1e71faf718150c200e71a0e0a86f9682ddef7aa497b8c9ea9d4ff7b7d3b05"
+  },
+  "rpg_flight.wav": {
+    "source": "Tinysized SFX tin-whistle-whoosh-02.wav + Kenney thrusterFire_004.ogg",
+    "license": "CC0",
+    "processing": "Recorded whistle dominant, band filtering, 80ms cyclic equal-power crossfade, peak 30000",
+    "sha256": "e355f92b5c90d4fb92c0c4149396b3ee4c0a7daaa3c1ee1af53f7ebf07ac227c"
   }
 }

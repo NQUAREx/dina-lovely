@@ -16,7 +16,7 @@ func spawn()->void:
   var angle:float=TAU*i/(pistols+rifles+(1 if g.wave==10 else 0))+.3
   var pos:=Vector2(13.5,14.5)*48+Vector2(cos(angle)*350,sin(angle)*250)
   enemy(kind,g.accessory_drop_position(pos),12+g.wave*3)
- if g.wave==5:spawn_medkit()
+ if g.wave in [3,6,9]:spawn_medkit()
  else:g.notify(g.tx("boss_announcement") if g.wave==10 else g.tx("wave_announcement")%g.wave)
 func gunner(e:Dictionary,delta:float)->void:
  if e.state=="spawn":
@@ -25,13 +25,16 @@ func gunner(e:Dictionary,delta:float)->void:
  # All shooters fire directly; no targeting beam or stationary aim phase.
  e.state="chase"
  var toward:Vector2=g.player-e.pos
- if toward.length()<650 and e.cooldown<=0:
-  var direction:=toward.normalized().rotated(randf_range(-.095,.095) if e.type==5 else randf_range(-.045,.045))
+ var firing_range:=620.0 if e.type==7 else 435.0
+ if toward.length()<firing_range and e.cooldown<=0:
   var rocket:bool=e.type==7
-  g.shots.append({"pos":e.pos+Vector2(0,-24)+direction*28,"vel":direction*(270 if rocket else 410 if e.type==6 else 340),"life":3.0,"kind":"enemy_rocket" if rocket else "enemy_bullet","age":0.0})
+  var direction:=toward.normalized()
+  if not rocket:direction=direction.rotated(randf_range(-.095,.095) if e.type==5 else randf_range(-.045,.045))
+  g.shots.append({"pos":e.pos+Vector2(0,-24)+direction*28,"vel":direction*(270 if rocket else 410 if e.type==6 else 340),"life":3.0,"kind":"enemy_rocket" if rocket else "enemy_bullet","age":0.0,"range_left":600.0 if rocket else 420.0})
   e.fired_at=g.time;e.cooldown=randf_range(4.5,6.7) if rocket else randf_range(.18,.48) if e.type==6 else randf_range(.5,1.15);e.target=g.player
   g.sfx_at("rpg_launch" if rocket else "rifle" if e.type==6 else "pistol",e.pos)
- var motion:=toward.normalized()*(65 if toward.length()>460 else -55 if toward.length()<180 else 0)*delta
+ var preferred:=470.0 if e.type==7 else 320.0
+ var motion:=toward.normalized()*(65 if toward.length()>preferred else -55 if toward.length()<180 else 0)*delta
  if not g.blocked(e.pos+motion):e.pos+=motion
 func boss(e:Dictionary,delta:float)->void:
  e.slime_cd=float(e.get("slime_cd",3.0))-delta
@@ -73,7 +76,8 @@ func draw_gun(e:Dictionary,p:Vector2)->void:
  if recoil>0:g.draw_texture_rect(g.glow,Rect2(origin+direction*28-Vector2(14,14),Vector2(28,28)),false,Color(1,.8,.4,recoil))
 
 func spawn_medkit()->void:
- if g.objects.any(func(o):return o.id=="wave5_medkit"):return
+ var id:="wave"+str(g.wave)+"_medkit"
+ if g.objects.any(func(o):return o.id==id):return
  var origin:=Vector2(13.5,21.0)*48
  var point:Vector2=g.accessory_drop_position(origin)
  for offset in [Vector2.ZERO,Vector2(-144,0),Vector2(144,0),Vector2(-288,0),Vector2(288,0),Vector2(0,-96),Vector2(-144,-96),Vector2(144,-96)]:
@@ -81,8 +85,8 @@ func spawn_medkit()->void:
   if not g.valid_ground(candidate) or g.blocked(candidate):continue
   if g.objects.any(func(o):return o.kind not in ["doorway","arch","pet_cat"] and g.item_visual_bounds(o).grow(12).intersects(bounds)):continue
   point=candidate;break
- g.objects.append({"kind":"medkit","id":"wave5_medkit","pos":point,"solid":false})
- g.notify(g.tx("medkit_spawned"))
+ g.objects.append({"kind":"medkit","id":id,"pos":point,"solid":false})
+ g.notify(g.tx("medkit_spawned").format({"wave":g.wave}))
 func draw_bullet(shot:Dictionary,p:Vector2)->void:
  var tail:Vector2=p-Vector2(shot.vel).normalized()*24
  g.draw_line(p,tail,Color("1b1727"),8)
