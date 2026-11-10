@@ -29,6 +29,7 @@ root=p.parent.parent
 content=json.loads((root/'content/letters.json').read_text())
 shutil.copyfile(root/'tools/mobile_shell.js',p.parent/'mobile.js')
 shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
+shutil.copyfile(root/'assets/title.ttf',p.parent/'letter-title.ttf')
 from PIL import Image, ImageDraw
 paper_image=Image.new("RGBA",(464,660))
 paper_draw=ImageDraw.Draw(paper_image)
