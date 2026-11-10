@@ -11,7 +11,7 @@
   const arm=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(new Error('Asset download stalled')),25000);};arm();
   try{
    const target=new URL(url,location.href);if(range)target.searchParams.set('range',range.slice(6));
-   const response=await fetch(target.href,{cache:'no-store',signal:controller.signal,headers:range?{Range:range}:{}});
+   const response=await fetch(target.href,{cache:'force-cache',signal:controller.signal,headers:range?{Range:range}:{}});
    return {response,arm,finish:()=>clearTimeout(timer),abort:()=>{clearTimeout(timer);controller.abort();}};
   }catch(error){clearTimeout(timer);throw error;}
  }
@@ -68,6 +68,17 @@
   }catch(error){cancelled=true;controllers.forEach(job=>job.abort());stream.error(error);}},cancel(){cancelled=true;controllers.forEach(job=>job.abort());}}));
  }
  window.gardenFetchAsset=async file=>{
+  // Reuse the original engine URL from releases before gzip was introduced.
+  // only-if-cached is essential: never start another 39 MB download on a miss.
+  if(String(file).endsWith('.wasm')){
+   try{
+    const old=await fetch(file,{cache:'only-if-cached',mode:'same-origin'});
+    if(old.status===200&&Number(old.headers.get('Content-Length'))===sizes[file]){
+     window.gardenAssetState?.(file,false);report(file,sizes[file],sizes[file]);
+     window.gardenAssetState?.(file,true);return old;
+    }
+   }catch{}
+  }
   const compressed=String(file).endsWith('.wasm')&&typeof DecompressionStream==='function';
   window.gardenAssetState?.(file,false);
   let url=compressed?compressedWasm:file,total=sizes[url]||sizes[file];report(file,0,total);
