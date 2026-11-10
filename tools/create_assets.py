@@ -227,6 +227,63 @@ def fallen_gunner(d):
  for x in [11,19]:d.line((x-2,32,x+2,36),fill='#465160');d.line((x+2,32,x-2,36),fill='#465160')
  d.rectangle((21,39,30,41),fill='#4f5863');d.rectangle((23,41,25,44),fill='#8b6e55')
 sprite('corpse6',fallen_gunner)
+def cat_art(d,face,frame=0,idle=False,sit=False):
+ outline='#574754';fur='#c9996e';light='#e7bf91';cream='#f4dcc0';stripe='#98684f'
+ b=frame%2 if frame<2 else 0
+ if sit:face=2
+ if face in [0,2]:
+  hx=16;hy=27 if face==0 else 35;by=36 if face==0 else 30
+  d.line((21,by+3,25,by+3,27,by-1-b,25,by-4),fill=outline,width=3);d.line((21,by+3,25,by+2,26,by-b),fill=fur,width=2)
+  d.ellipse((9,by-5-b,23,by+7),fill=outline);d.ellipse((10,by-5-b,22,by+5),fill=fur);d.ellipse((13,by-1,20,by+5),fill=cream)
+  for x,off in [(11,frame%2),(20,(frame+1)%2)]:
+   yy=42 if sit else 41+off;d.rectangle((x,yy-3,x+3,yy),fill=outline);d.rectangle((x,yy-2,x+2,yy),fill=cream)
+ else:
+  hx=9 if face==1 else 23;hy=33;bx=19 if face==1 else 13
+  tx=27 if face==1 else 5
+  d.line((tx,35,tx+(2 if face==1 else -2),31-b,tx,27-b),fill=outline,width=3);d.line((tx,34,tx,29-b),fill=fur,width=2)
+  d.ellipse((bx-7,29-b,bx+7,40),fill=outline);d.ellipse((bx-6,29-b,bx+6,38),fill=fur)
+  for x,off in [(bx-4,frame%2),(bx+3,(frame+1)%2)]:d.rectangle((x,38+off,x+2,42+off),fill=cream)
+  d.line((bx-1,30-b,bx,33-b),fill=stripe,width=2);d.line((bx+3,31-b,bx+3,33-b),fill=stripe)
+ # Head and triangular ears have a separate silhouette for every direction.
+ d.polygon([(hx-6,hy-3),(hx-6,hy-10),(hx-2,hy-7),(hx+3,hy-7),(hx+6,hy-10),(hx+6,hy-2)],fill=outline)
+ d.ellipse((hx-6,hy-7,hx+6,hy+5),fill=outline);d.ellipse((hx-5,hy-7,hx+5,hy+3),fill=light)
+ d.polygon([(hx-5,hy-7),(hx-5,hy-9),(hx-2,hy-6)],fill='#da9f9f');d.polygon([(hx+3,hy-7),(hx+5,hy-9),(hx+5,hy-6)],fill='#da9f9f')
+ d.line((hx-1,hy-6,hx,hy-3),fill=stripe);d.point((hx-3,hy-5),fill=stripe);d.point((hx+3,hy-5),fill=stripe)
+ if face!=0:
+  d.ellipse((hx-3,hy,hx+3,hy+3),fill=cream)
+  for x in [hx-3,hx+3]:
+   if idle and frame==2:d.line((x-1,hy-1,x,hy-1),fill=outline)
+   else:d.rectangle((x,hy-2,x+1,hy),fill='#37473e');d.point((x,hy-2),fill='#fff1d2')
+  d.point((hx,hy+1),fill='#c57c8e');d.line((hx-7,hy,hx-4,hy+1),fill='#e9ccb0');d.line((hx+4,hy+1,hx+7,hy),fill='#e9ccb0')
+for face in range(4):
+ for frame in range(4):sprite('cat_walk'+str(face)+'_'+str(frame),lambda d,f=face,n=frame:cat_art(d,f,n))
+ for frame in range(3):sprite('cat_idle'+str(face)+'_'+str(frame),lambda d,f=face,n=frame:cat_art(d,f,n,True))
+for frame in range(2):sprite('cat_sit'+str(frame),lambda d,n=frame:cat_art(d,2,2 if n else 0,True,True))
+def cat_hut(d):
+ d.ellipse((1,40,31,46),fill='#35413f');d.rectangle((4,22,28,43),fill='#8f715c');d.rectangle((6,23,26,41),fill='#bc9a71')
+ for x in [9,14,19,24]:d.line((x,25,x,40),fill='#967450')
+ d.polygon([(11,43),(11,32),(13,28),(19,28),(22,32),(22,43)],fill='#343243');d.line((10,42,10,32,13,27,19,27,23,32,23,42),fill='#e2bd8a',width=2)
+ d.polygon([(0,25),(16,9),(31,25),(29,28),(16,16),(3,28)],fill='#654d60');d.line((2,24,16,11,29,24),fill='#bd8a97',width=2)
+ d.polygon([(12,19),(14,17),(16,19),(18,17),(20,19),(16,23)],fill='#e1abac');d.ellipse((24,38,31,42),fill='#6a9ba5');d.line((25,38,30,38),fill='#b5d8d2')
+sprite('cat_hut',cat_hut)
+def fish(d):
+ d.polygon([(5,31),(10,34),(10,30),(14,27),(23,27),(28,32),(23,37),(14,37),(10,34),(5,38)],fill='#44596c')
+ d.polygon([(6,32),(10,34),(6,36)],fill='#b5c4cf');d.ellipse((10,28,27,36),fill='#92b8c2');d.line((13,29,21,29,25,31),fill='#d7e9df',width=2)
+ d.line((13,35,23,35),fill='#d4d7be');d.polygon([(15,28),(18,24),(21,28)],fill='#8096b1');d.point((24,31),fill='#354453');d.point((23,30),fill='#f1ebcf');d.line((15,31,17,33,15,35),fill='#759ba9')
+sprite('cat_fish',fish)
+def paw(d):
+ d.ellipse((14,39,18,43),fill='#ffffff')
+ for x,y in [(12,37),(15,35),(18,35),(20,37)]:d.rectangle((x,y,x+1,y+2),fill='#ffffff')
+sprite('cat_paw',paw)
+def stats_stone(d):
+ d.ellipse((3,40,30,46),fill='#41404d');d.rectangle((5,38,28,44),fill='#6d6b80')
+ d.polygon([(6,40),(6,15),(9,10),(13,8),(22,8),(27,13),(27,40)],fill='#55566b')
+ d.polygon([(7,38),(7,15),(10,11),(14,9),(22,9),(25,13),(25,38)],fill='#9293a2');d.line((8,16,8,36),fill='#c4bec2');d.line((10,11,14,10,21,10,24,13),fill='#d4c7c3')
+ d.rectangle((10,19,23,33),fill='#707387');d.polygon([(13,17),(15,15),(17,17),(19,15),(21,17),(17,21)],fill='#d8a7af')
+ for y,w in [(24,8),(28,10),(32,6)]:d.line((12,y,12+w,y),fill='#c8b8af');d.point((11,y),fill='#55566b')
+ d.line((9,39,24,39),fill='#c0afb0')
+sprite('stats_stone',stats_stone)
+
 def weeds(d):
  d.ellipse((2,33,30,46),fill='#4f5037')
  for i in range(100):
@@ -642,17 +699,17 @@ d.line((263,254,277,254),fill='#51495f',width=9)
 im.save(A/'keepsake.png')
 print('Created original pixel artwork. Sound assets are licensed recordings; see assets/SFX-CREDITS.md')
 # One continuous long workbench, not a stack of repeated furniture tiles.
-bench=Image.new('RGBA',(48,190));bd=ImageDraw.Draw(bench)
-bd.rectangle((5,177,43,188),fill='#302b3b')
+bench=Image.new('RGBA',(48,160));bd=ImageDraw.Draw(bench)
+bd.rectangle((5,147,43,158),fill='#302b3b')
 for x in [7,35]:
- bd.rectangle((x,164,x+6,188),fill='#5f4549');bd.line((x+1,166,x+1,185),fill='#98715a')
-bd.polygon([(4,1),(43,1),(47,5),(47,177),(3,177),(0,172),(0,5)],fill='#75513f')
-for x,c in [(3,'#b58b60'),(14,'#c29a6c'),(25,'#b28a5f'),(36,'#be9366')]:bd.rectangle((x,4,min(45,x+10),171),fill=c)
-for x in [13,24,35]:bd.line((x,5,x,170),fill='#886245')
-bd.line((4,2,43,2,45,4),fill='#e0bc87',width=2);bd.line((3,173,45,173),fill='#e1b780',width=2)
+ bd.rectangle((x,134,x+6,158),fill='#5f4549');bd.line((x+1,136,x+1,155),fill='#98715a')
+bd.polygon([(4,1),(43,1),(47,5),(47,147),(3,147),(0,142),(0,5)],fill='#75513f')
+for x,c in [(3,'#b58b60'),(14,'#c29a6c'),(25,'#b28a5f'),(36,'#be9366')]:bd.rectangle((x,4,min(45,x+10),141),fill=c)
+for x in [13,24,35]:bd.line((x,5,x,140),fill='#886245')
+bd.line((4,2,43,2,45,4),fill='#e0bc87',width=2);bd.line((3,143,45,143),fill='#e1b780',width=2)
 for i in range(90):
- x=random.randrange(4,45);y=random.randrange(6,168);bd.line((x,y,x,y+random.randrange(2,7)),fill=random.choice(['#ad8056','#cba575','#9c724c']))
-for x,y in [(9,21),(28,62),(17,111),(38,147)]:bd.ellipse((x-2,y-4,x+2,y+4),outline='#9a6c47');bd.line((x,y-1,x,y+1),fill='#71503c')
+ x=random.randrange(4,45);y=random.randrange(6,138);bd.line((x,y,x,y+random.randrange(2,7)),fill=random.choice(['#ad8056','#cba575','#9c724c']))
+for x,y in [(9,21),(28,52),(17,91),(38,127)]:bd.ellipse((x-2,y-4,x+2,y+4),outline='#9a6c47');bd.line((x,y-1,x,y+1),fill='#71503c')
 bench.save(A/'tool_table.png')
 
 # Long RPG-7-style silhouette: separate loaded/empty shoulder launcher artwork.

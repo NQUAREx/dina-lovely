@@ -35,14 +35,17 @@ func install()->void:
   for cut in data.hedges:apply_hedge(Vector2i(int(cut[0]),int(cut[1])))
  if g.level==5:
   for bed in data.beds:
-   if not g.objects.any(func(obj):return obj.kind=="sprout" and obj.id==bed.id):g.objects.append({"kind":"sprout","id":bed.id,"pos":Vector2(bed.pos[0],bed.pos[1]),"solid":false,"extra_bed":true})
+   var existing=g.objects.filter(func(obj):return obj.kind=="sprout" and obj.id==bed.id)
+   if existing.is_empty():g.objects.append({"kind":"sprout","id":bed.id,"pos":Vector2(bed.pos[0],bed.pos[1]),"solid":false,"extra_bed":true})
+   else:existing[0].pos=Vector2(bed.pos[0],bed.pos[1])
+  repair_beds()
  restore_tools()
  if not data.excavations.is_empty():ensure_dirt()
 func restore_tools()->void:
  g.objects.assign(g.objects.filter(func(obj):return obj.kind not in TOOLS))
  for tool in TOOLS:
   if g.held_item==tool:continue
-  var info:Dictionary=g.save_data.world_tool_locations.get(tool,{"room":6,"pos":[24*48.0,(10+TOOLS.find(tool)*2)*48.0],"rack":true})
+  var info:Dictionary=g.save_data.world_tool_locations.get(tool,{"room":6,"pos":[22.5*48.0,(12.5+TOOLS.find(tool)*2)*48.0],"rack":true})
   if int(info.room)==g.level:g.objects.append({"kind":tool,"id":tool,"pos":Vector2(info.pos[0],info.pos[1]),"solid":false,"ground_tool":not info.get("rack",false)})
 func drop_held()->void:
  var tool:String=g.held_item
@@ -82,12 +85,13 @@ func soil(pos:Vector2)->bool:
  return not g.blocked(pos) and not g.objects.any(func(obj):return (obj.solid or obj.kind=="doorway") and obj.pos.distance_to(pos)<38)
 func can_bed()->bool:
  var pos:=ground_point()
- return g.level==5 and g.held_item=="rake" and soil(pos) and not g.objects.any(func(obj):return obj.pos.distance_to(pos)<60)
+ return g.level==5 and g.held_item=="rake" and soil(pos) and g.garden_bed_clear(pos)
 func make_bed()->void:
  if can_bed():g.begin_task("new_bed",ground_point(),.65)
 func complete(kind:String,pos:Vector2)->bool:
  var data:=state()
  if kind=="new_bed":
+  g.stats.add(g,"beds")
   var id:=str(100+int(g.save_data.bed_serial));g.save_data.bed_serial+=1
   data.beds.append({"id":id,"pos":[pos.x,pos.y]});g.objects.append({"kind":"sprout","id":id,"pos":pos,"solid":false,"extra_bed":true})
   g.save_data.cleaned.append(id);g.burst(pos,10,Color("987858"));return true
@@ -147,6 +151,7 @@ func has_sample(pos:Vector2)->bool:
 func excavate(pos:Vector2)->void:
  pos=pos.snapped(Vector2(12,12))
  if not soil(pos) or has_sample(pos):return
+ g.stats.add(g,"digs")
  ensure_dirt();state().excavations.append([pos.x,pos.y]);sample_indices[str(g.level)]["%d:%d"%[pos.x,pos.y]]=true;stamp(pos);textures[str(g.level)].update(images[str(g.level)])
  if g.level==3:
   var id:="%d:%d"%[pos.x,pos.y]
@@ -179,3 +184,16 @@ func draw_falling()->void:
   var progress:float=item.age
   g.draw_set_transform(g.screen(item.pos)+Vector2(progress*12,0),progress*1.5)
   g.draw_sprite(item.texture,Vector2.ZERO,Color(1,1,1,1-smoothstep(.55,1,progress)));g.draw_set_transform(Vector2.ZERO)
+
+func repair_beds()->void:
+ for bed in g.objects:
+  if bed.kind!="sprout" or not bed.get("extra_bed",false) or g.garden_bed_clear(bed.pos,true,bed.id):continue
+  var best:=Vector2.INF;var distance:=INF
+  for y in range(8,g.grid.size()-7):
+   for x in range(2,g.grid[0].length()-2):
+    var point:Vector2=Vector2(x+.5,y+.5)*48
+    if point.distance_squared_to(bed.pos)<distance and g.garden_bed_clear(point,true,bed.id):best=point;distance=point.distance_squared_to(bed.pos)
+  if best!=Vector2.INF:
+   bed.pos=best
+   for saved in state().beds:
+    if saved.id==bed.id:saved.pos=[best.x,best.y]
