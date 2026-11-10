@@ -2373,7 +2373,7 @@ func draw_extra_effects() -> void:
 			draw_set_transform(Vector2.ZERO)
 			draw_texture_rect(glow,Rect2(p-Vector2(25,25),Vector2(50,50)),false,Color(1,.7,.35,.6))
 		elif shot.kind=="enemy_rocket":
-			draw_set_transform(p,shot.vel.angle()+PI/2);draw_sprite("rocket_item",Vector2.ZERO,Color.WHITE,.8);draw_set_transform(Vector2.ZERO)
+			draw_set_transform(p,shot.vel.angle());draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55);draw_set_transform(Vector2.ZERO)
 			draw_circle(p-shot.vel.normalized()*13,randf_range(4,7),Color("ffc56b"))
 		else: draw_line(p,p-shot.vel.normalized()*(7 if shot.kind=="enemy_bullet" else 10),Color("efaaa1") if shot.kind=="enemy_bullet" else Color("ffe3a7"),2 if shot.kind=="enemy_bullet" else 3)
 	if (level==4 or save_data.finished) and not weapon.is_empty():
