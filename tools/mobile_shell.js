@@ -19,7 +19,8 @@
  };
  syncChrome(0,false);addEventListener('DOMContentLoaded',()=>paintChrome(chromeColor));
  const boot={stage:'download',since:performance.now(),events:[],loaded:0,total:0,resize:0};
- window.gardenBoot=boot;boot.assets={};
+ window.gardenBoot=boot;boot.assets={};boot.transfers={};
+ window.gardenAssetBytes=(name,loaded,total)=>{boot.transfers[name]={loaded,total};boot.loaded=Object.values(boot.transfers).reduce((sum,t)=>sum+t.loaded,0);boot.total=Object.values(boot.transfers).reduce((sum,t)=>sum+t.total,0);const bar=document.getElementById('garden-progress');if(bar)bar.value=boot.total>0?boot.loaded/boot.total:0;};
  window.gardenAssetState=(name,done)=>{boot.assets[name]=done;window.gardenBootStage(Object.values(boot.assets).every(Boolean)?'compile':'download');};
  window.gardenBootStage=stage=>{if(boot.stage!==stage){boot.stage=stage;boot.since=performance.now();boot.events.push({stage,at:Math.round(performance.now())});}};
  addEventListener('resize',()=>boot.resize++);
@@ -124,7 +125,7 @@
   };
 
   let loadingTimer=null;
-  let loadProgress=0;window.gardenLoadProgress=(current,total)=>{boot.loaded=current;boot.total=total;const bar=document.getElementById('garden-progress');if(!bar)return;if(total>0)loadProgress=Math.max(loadProgress,Math.min(.99,current/total));bar.value=loadProgress;};
+  let loadProgress=0;window.gardenLoadProgress=(current,total)=>{if(Object.keys(boot.transfers).length)return;boot.loaded=current;boot.total=total;const bar=document.getElementById('garden-progress');if(!bar)return;if(total>0)loadProgress=Math.max(loadProgress,Math.min(.99,current/total));bar.value=loadProgress;};
   window.gardenRoomProgress=value=>{window.gardenBootStage('rooms');const bar=document.getElementById('garden-progress');if(bar)bar.value=value;};
   window.gardenHideLoading=()=>{clearInterval(loadingTimer);document.getElementById('garden-loading')?.remove();paintChrome(chromeColor);};
   window.gardenShowLoading=()=>{

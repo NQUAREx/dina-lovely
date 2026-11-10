@@ -117,7 +117,8 @@ wasm_name='engine.'+hashlib.sha256(compressed).hexdigest()[:12]+'.wasm.gz'
 for old in p.parent.glob('engine.*.wasm.gz'):
  if old.name!=wasm_name:old.unlink()
 (p.parent/wasm_name).write_bytes(compressed)
-loader=(root/'tools/asset_loader.js').read_text().replace('__WASM_GZIP__',wasm_name)
+asset_sizes={wasm_name:len(compressed),'index.wasm':wasm.stat().st_size,name:pack.stat().st_size}
+loader=(root/'tools/asset_loader.js').read_text().replace('__WASM_GZIP__',wasm_name).replace('__ASSET_SIZES__',json.dumps(asset_sizes))
 (p.parent/'asset-loader.js').write_text(loader)
 patch_loader(p.parent/'index.js')
 s=p.read_text()
