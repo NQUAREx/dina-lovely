@@ -69,7 +69,7 @@ credits=(root/'assets/SFX-CREDITS.md').read_text()
 # Fit the canvas itself, leaving the page-colored area outside Godot.
 s=p.read_text().replace('"canvasResizePolicy":2','"canvasResizePolicy":0')
 s=s.replace('<canvas id="canvas"','<canvas width="540" height="960" id="canvas"')
-s=s.replace('</head>','<style>html,body{background:#242538!important}#status-splash{display:none!important}#canvas{position:fixed!important;left:50%!important;top:calc(50% + env(safe-area-inset-top,0px)/2 - env(safe-area-inset-bottom,0px)/2)!important;transform:translate(-50%,-50%);width:min(100vw,calc((100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))*0.5625))!important;height:min(calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)),177.777778vw)!important;margin:0!important;display:block}</style></head>')
+s=s.replace('</head>','<style>html,body{background:#242538!important}#status-splash{display:none!important}#canvas{position:fixed!important;left:50%!important;top:calc(50% + env(safe-area-inset-top,0px)/2 + env(safe-area-inset-bottom,0px)/2)!important;transform:translate(-50%,-50%);width:min(100vw,calc((100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))*0.5625))!important;height:min(calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)),177.777778vw)!important;margin:0!important;display:block}</style></head>')
 p.write_text(s)
 
 # Do not flash a baked title while live content is loading.
