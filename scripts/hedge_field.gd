@@ -179,20 +179,20 @@ func update(delta: float, player: Vector2) -> void:
 		var required_drop:=maxf(0,ceilf(player.y-28+roundf(node.radius*1.48))-((node.base+node.offset).round().y-16))
 		node.released=pressure>0 and required_drop>22
 		if pressure>.005 and node.last_pressure<=.005:
-			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(24+pressure*8)
+			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(48+pressure*16)
 		node.last_pressure=pressure
-		node.sway_velocity+=(-node.sway*45-node.sway_velocity*3.0)*delta
-		node.sway=clampf(node.sway+node.sway_velocity*delta,-3.0,3.0)
+		node.sway_velocity+=(-node.sway*45-node.sway_velocity*3.6)*delta
+		node.sway=clampf(node.sway+node.sway_velocity*delta,-6.0,6.0)
 		if absf(node.sway)<.025 and absf(node.sway_velocity)<.1:node.sway=0.0;node.sway_velocity=0.0
 		contact_strength=maxf(contact_strength,pressure)
 		if pressure==0 and node.press==0 and node.offset==Vector2.ZERO and node.velocity==Vector2.ZERO and node.depression==0:
 			if node.sway==0 and node.sway_velocity==0:done.append(index)
 			continue
 		node.press=move_toward(float(node.press),pressure,delta*5)
-		var target:=away.normalized()*5.5*pressure
+		var target:=away.normalized()*11.0*pressure
 		node.velocity+=(target-node.offset)*145*delta-node.velocity*8.0*delta
 		var desired:Vector2=node.offset+node.velocity*delta
-		desired=desired.limit_length(6)
+		desired=desired.limit_length(9)
 		# Sweep each crown against its neighbours: it can bend but cannot overlap them.
 		var next:Vector2=node.base+desired
 		var own_radius:float=node.radius*(1-node.press*.07)

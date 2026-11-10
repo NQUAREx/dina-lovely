@@ -330,17 +330,17 @@ func setup_ui() -> void:
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(hud)
 	var top := Panel.new()
-	top.position = Vector2(16, 16)
+	top.position = Vector2(16, 36)
 	top.size = Vector2(508, 100)
 	top.add_theme_stylebox_override("panel", panel_style(Color(0.12,0.14,0.22,0.92)))
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(top)
 	objective = label("", 18)
-	objective.position = Vector2(32, 25)
+	objective.position = Vector2(32, 45)
 	objective.size = Vector2(374, 42)
 	hud.add_child(objective)
 	status = label("", 14, Color("c1bdce"))
-	status.position = Vector2(32, 72)
+	status.position = Vector2(32, 92)
 	status.size = Vector2(374, 30)
 	hud.add_child(status)
 	var menu_button := button("", show_menu, 68)
@@ -393,14 +393,14 @@ func setup_ui() -> void:
 func layout_ui() -> void:
 	var size := get_viewport_rect().size
 	if not is_instance_valid(hud): return
-	hud.get_node("MenuButton").position = Vector2(440, 32)
+	hud.get_node("MenuButton").position = Vector2(440, 52)
 	action_button.position = Vector2(337, 824)
 	action_button.custom_minimum_size = Vector2(180,76)
 	attack_button.position = Vector2(365, 720)
 	attack_button.custom_minimum_size = Vector2(150,82)
 	hint.position = Vector2(36, 914)
 	hint.size = Vector2(468, 32)
-	toast.position = Vector2(32, 126)
+	toast.position = Vector2(32, 146)
 	toast.size = Vector2(476, 76)
 	rotate_overlay.visible = false
 	var orientation_text: Label = rotate_overlay.get_node("OrientationMessage")
@@ -475,7 +475,7 @@ func new_game() -> void:
 	playing=false;paused=true
 	if OS.has_feature("web"):await prepare_rooms_web(0)
 	else:prepare_room_cache(0)
-	playing=true;persist();show_intro()
+	playing=true;sync_room_theme();persist();show_intro()
 
 func resume_game() -> void:
 	if playing and level==int(save_data.level):clear_modal();hud.show();return
@@ -483,7 +483,10 @@ func resume_game() -> void:
 	var target:=int(save_data.level)
 	if OS.has_feature("web") and (room_cache_seed!=int(save_data.seed) or room_cache.size()!=7):await prepare_rooms_web(target)
 	else:prepare_room_cache(target)
-	companion.restore();playing=true;clear_modal();hud.show()
+	companion.restore();playing=true;sync_room_theme();clear_modal();hud.show()
+
+func sync_room_theme() -> void:
+	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenSetRoom?.("+str(level)+")")
 
 func cache_current_room() -> void:
 	var state:Dictionary={"saved_at":time}
@@ -1117,7 +1120,7 @@ func available(obj: Dictionary) -> bool:
 	if obj.kind=="flashlight_pedestal":return false
 	if obj.kind=="cat_fish":return not save_data.cat_fish and not save_data.cat_tamed
 	if obj.kind=="cat_hut":return not save_data.cat_tamed
-	if obj.kind=="pet_cat":return not inside_main_room() and save_data.cat_tamed and held_item.is_empty() and (nearest<0 or nearest>=objects.size() or objects[nearest].kind=="pet_cat")
+	if obj.kind=="pet_cat":return corridor_row(floori(player.y/TILE)) and corridor_row(floori(obj.pos.y/TILE)) and save_data.cat_tamed and held_item.is_empty() and (nearest<0 or nearest>=objects.size() or objects[nearest].kind=="pet_cat")
 	if obj.kind=="stats_stone":return true
 	if obj.get("integrated_tree",false):return world_tools.tree_target(obj) or obj.kind=="hedge_tree_apples"
 	if obj.kind=="skull_relic":return save_data.get("house_open",false) and not save_data.get("skull_taken",false) and not save_data.get("skull_inserted",false)
@@ -2133,7 +2136,7 @@ func _draw_world() -> void:
 			var p := screen(item.pos)-Vector2(0,42)
 			var size := 150.0+sin(time*3+item.pos.x)*5
 			draw_texture_rect(glow,Rect2(p-Vector2.ONE*size/2,Vector2.ONE*size),false)
-	if not drawing_neighbor and nearest>=0 and playing and not paused and objects[nearest].kind!="sprout":
+	if not drawing_neighbor and nearest>=0 and playing and not paused and objects[nearest].kind!="sprout" and available(objects[nearest]):
 		var p := screen(objects[nearest].pos)+Vector2(0,-88+sin(time*4)*3)
 		draw_colored_polygon(PackedVector2Array([p+Vector2(-6,-5),p+Vector2(6,-5),p+Vector2(0,2)]),Color("ffe4a8"))
 	draw_garden_needs()
@@ -2246,7 +2249,7 @@ func travel(destination: int) -> void:
 	for item in carried_particles:item.pos+=delta;particles.append(item)
 	save_data.level=destination;transition=false
 	if is_instance_valid(fog):fog.visible=level==1
-	update_fog();find_nearest();update_hud();persist()
+	update_fog();find_nearest();update_hud();sync_room_theme();persist()
 
 func corridor_position(pos: Vector2) -> void:
 	var travel_direction := (pos-player).normalized()

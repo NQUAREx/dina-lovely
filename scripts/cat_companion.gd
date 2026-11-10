@@ -16,6 +16,8 @@ var repath_wait:=0.0
 var target_ref:Dictionary={}
 var rest_goal:=Vector2.INF
 var rest_retry:=0.0
+var leaf_masks:Dictionary={}
+var cat_bounds:Dictionary={}
 func _init(game:Node2D):g=game
 func place(rng:RandomNumberGenerator)->void:
  if g.level!=0:return
@@ -68,11 +70,11 @@ func interact(obj:Dictionary)->bool:
   g.save_data.cat_fish=false;g.save_data.cat_tamed=true;position=obj.pos+Vector2(0,48);trail=[{"pos":g.player,"time":clock}];last_player=g.player
   g.save_data.cat_room=g.level;g.save_data.cat_position=[position.x,position.y];g.food_heart_burst();g.persist();g.sfx("chime");g.notify(g.tx("cat_tamed"));return true
  if obj.kind=="pet_cat":
-  if g.inside_main_room():return true
+  if not g.corridor_row(floori(g.player.y/48)) or not g.corridor_row(floori(position.y/48)):return true
   g.stats.add(g,"pets");g.burst(position,5,Color("eba3b9"));g.sfx("ui");g.persist();return true
  return false
 func refresh_target()->void:
- if not g.save_data.cat_tamed or g.inside_main_room():
+ if not g.save_data.cat_tamed or not g.corridor_row(floori(g.player.y/48)) or not g.corridor_row(floori(position.y/48)):
   if not target_ref.is_empty():g.objects.erase(target_ref);target_ref={}
   return
  if target_ref.is_empty():
@@ -148,7 +150,9 @@ func draw_cat()->void:
  var p:Vector2=g.screen(position)
  var shadow:=PackedVector2Array()
  for n in range(16):shadow.append(p+Vector2(cos(n*TAU/16)*10,sin(n*TAU/16)*3))
- g.draw_floor_shadow(shadow,Color(.06,.09,.15,.25));g.draw_sprite(name,p,Color.WHITE,.8)
+ g.draw_floor_shadow(shadow,Color(.06,.09,.15,.25))
+ if g.hedge_field==null:g.draw_sprite(name,p,Color.WHITE,.8)
+ else:draw_ground_cat(name,p)
 
 func draw_prints()->void:
  for mark in prints:
@@ -201,3 +205,53 @@ func bridge(start:Vector2,goal:Vector2)->Array[Vector2]:
   if parents[finish]==finish:break
   finish=parents[finish]
  return result
+
+func polygon_bounds(points:PackedVector2Array)->Rect2:
+ var bounds:=Rect2(points[0],Vector2.ZERO)
+ for point in points:bounds=bounds.expand(point)
+ return bounds
+func ground_regions(name:String,p:Vector2)->Array[PackedVector2Array]:
+ var id:int=g.sprites[name]
+ if not cat_bounds.has(name):cat_bounds[name]=Rect2(g.label_atlas_pixels.get_region(Rect2i(id%16*32,id/16*48,32,48)).get_used_rect())
+ var source:Rect2=cat_bounds[name]
+ var box:=Rect2(p-Vector2(32,86)*.8+source.position*1.6,source.size*1.6)
+ var regions:Array[PackedVector2Array]=[PackedVector2Array([box.position,box.position+Vector2(box.size.x,0),box.end,box.position+Vector2(0,box.size.y)])]
+ var shift:Vector2=g.screen(Vector2.ZERO)
+ for index in g.hedge_field.near_ids(position,65):
+  var node:Dictionary=g.hedge_field.crowns[index]
+  if node.get("hidden",false):continue
+  var pose:Vector3=g.hedge_field.draw_poses[index] if g.hedge_field.draw_poses.has(index) else g.hedge_field.crown_pose(index,g.player)
+  var centre:=Vector2(pose.x,pose.y)+shift
+  if not box.intersects(Rect2(centre-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2)):continue
+  var variant:int=node.variant
+  if not leaf_masks.has(variant):
+   var tile:int=g.sprites["crown_leaf_"+str(variant)]
+   var bitmap:=BitMap.new();bitmap.create_from_image_alpha(g.label_atlas_pixels.get_region(Rect2i(tile%16*32+8,tile/16*48+24,17,17)))
+   leaf_masks[variant]=bitmap.opaque_to_polygons(Rect2i(0,0,17,17),.1)
+  for source_mask in leaf_masks[variant]:
+   var mask:=PackedVector2Array()
+   for point in source_mask:mask.append(centre-Vector2.ONE*pose.z+point*(pose.z*2/17))
+   var bounds:=polygon_bounds(mask);var next:Array[PackedVector2Array]=[]
+   for region in regions:
+    var rect:=polygon_bounds(region)
+    if not rect.intersects(bounds):next.append(region);continue
+    var pieces:Array[PackedVector2Array]=[region]
+    if rect.encloses(bounds):
+     # Split through an enclosed mask so polygon subtraction never creates a filled hole.
+     pieces.clear();var middle:=bounds.get_center().y
+     for half in [Rect2(rect.position-Vector2(1,1),Vector2(rect.size.x+2,middle-rect.position.y+1)),Rect2(Vector2(rect.position.x-1,middle),Vector2(rect.size.x+2,rect.end.y-middle+1))]:
+      var quad:=PackedVector2Array([half.position,half.position+Vector2(half.size.x,0),half.end,half.position+Vector2(0,half.size.y)])
+      for piece in Geometry2D.intersect_polygons(region,quad):pieces.append(piece)
+    for piece in pieces:
+     for clipped in Geometry2D.clip_polygons(piece,mask):
+      if clipped.size()>=3:next.append(clipped)
+   regions=next
+   if regions.is_empty():return regions
+ return regions
+func draw_ground_cat(name:String,p:Vector2)->void:
+ var id:int=g.sprites[name];var origin:=p-Vector2(32,86)*.8
+ var atlas_size:Vector2=g.atlas.get_size();var tile:=Vector2(id%16*32,id/16*48)
+ for polygon in ground_regions(name,p):
+  var uv:=PackedVector2Array()
+  for point in polygon:uv.append((tile+(point-origin)/1.6)/atlas_size)
+  g.draw_polygon(polygon,PackedColorArray([Color.WHITE]),uv,g.atlas)
