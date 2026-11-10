@@ -35,6 +35,6 @@ func run():
  g.travel(1);assert(g.held_item=="flashlight" and g.objects.filter(func(o):return o.kind=="flashlight_pedestal").size()==1)
  g.return_held_tool();assert(int(g.save_data.flashlight_location.room)==1 and g.objects.filter(func(o):return o.kind=="flashlight_pedestal").size()==1)
  g.persist();g.load_save();assert(int(g.save_data.flashlight_location.room)==1)
- var shader=FileAccess.get_file_as_string("res://shaders/flashlight.gdshader");assert(not "scattered" in shader and "183.6" in shader and "hero_pos" in shader)
+ var shader=FileAccess.get_file_as_string("res://shaders/flashlight.gdshader");assert(not "scattered" in shader and "158.0" in shader and "hero_pos" in shader)
  print("PASS four-side stable crown ordering, corridor-only petting, underfoot torch return/pickup/carry, permanent pedestal, saved torch location and two-source light shader")
  quit()

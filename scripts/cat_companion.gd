@@ -161,15 +161,12 @@ func draw_prints()->void:
   g.draw_set_transform(g.screen(mark.pos),mark.angle);g.draw_sprite("cat_paw",Vector2.ZERO,color,.42);g.draw_set_transform(Vector2.ZERO)
 
 func can_feed(obj:Dictionary)->bool:
+ # Reach the doorway from the accessible side, regardless of facing/held tool.
  var relative:Vector2=g.player-obj.pos
- if relative.y<30 or absf(relative.x)>28:return false
- var front:Vector2=obj.pos+Vector2(0,36)
- for n in range(ceili(g.player.distance_to(front)/3)+1):
-  var point:Vector2=g.player.lerp(front,float(n)/maxf(1,ceili(g.player.distance_to(front)/3)))
-  for offset in [Vector2(-9,-6),Vector2(9,-6),Vector2(-9,6),Vector2(9,6)]:
-   var cell:=Vector2i((point+offset)/48)
-   if cell.x<0 or cell.y<0 or cell.y>=g.grid.size() or cell.x>=g.grid[0].length() or g.grid[cell.y][cell.x]!=".":return false
- return true
+ if relative.y<28 or relative.length_squared()>=95*95 or g.blocked(g.player):return false
+ var front:Vector2=obj.pos+Vector2(clampf(relative.x,-18,18),36)
+ return clear_segment(g.player,front)
+
 func clear_segment(a:Vector2,b:Vector2)->bool:
  var count:=maxi(1,ceili(a.distance_to(b)/3))
  for i in range(1,count+1):

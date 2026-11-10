@@ -1184,11 +1184,12 @@ func find_nearest() -> void:
 	world_tools.refresh_targets()
 	companion.refresh_target()
 	nearest = -1
-	var distance_squared:=79.0*79.0
+	var distance_squared:=95.0*95.0
 	for i in range(objects.size()):
 		if objects[i].kind=="pet_cat":continue
 		var d:=player.distance_squared_to(objects[i].pos)
-		if d<distance_squared and available(objects[i]) and interaction_reachable(objects[i]):
+		var reach:=95.0 if objects[i].kind=="cat_hut" else 79.0
+		if d<distance_squared and d<reach*reach and available(objects[i]) and interaction_reachable(objects[i]):
 			distance_squared=d
 			nearest=i
 

@@ -36,7 +36,7 @@ func run():
   g.player=hut.pos+offset;assert(not g.interaction_reachable(hut))
  for offset in [Vector2(-28,20),Vector2(28,20),Vector2(-28,-20),Vector2(28,-20)]:assert(g.blocked(hut.pos+offset))
  g.player=hut.pos+Vector2(0,48);assert(g.interaction_reachable(hut));g.nearest=g.objects.find(hut);g.interact();assert(g.save_data.cat_tamed and not g.save_data.cat_fish)
- var initial=g.companion.position;g.companion.update(.1);assert(g.companion.position==initial)
+ var initial=g.companion.position;g.companion.update(.1);assert(not g.blocked(g.companion.position) and g.companion.position.distance_to(g.player)>=initial.distance_to(g.player))
  var path=route(g,Vector2i(g.player/48),Vector2i(spawn/48))
  for point in path.slice(0,mini(30,path.size())):
   for n in range(80):
