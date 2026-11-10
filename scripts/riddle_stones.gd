@@ -63,7 +63,7 @@ func texture(obj:Dictionary)->String:
  if obj.id=="puzzle_reset":return "rune_reset"
  var id:String=obj.id
  if flights.any(func(f):return f.id==id and g.time-float(f.start)<.75):return "socket_"+id+"_empty"
- return "socket_"+id+"_pressed" if id in g.puzzle else "socket_"+id+"_full" if id in g.save_data.riddle_inserted else "socket_"+id+"_empty"
+ return "socket_"+id+"_pressed" if activated(id) else "socket_"+id+"_full" if id in g.save_data.riddle_inserted else "socket_"+id+"_empty"
 func name_for(obj:Dictionary)->String:
  return g.tx("rune_stone_name").format({"symbol":g.tx("symbol_"+str(obj.id))}) if obj.kind=="riddle_stone" else g.tx("rune_socket_name").format({"symbol":g.tx("symbol_"+str(obj.id))})
 func collect(obj:Dictionary)->void:
@@ -81,6 +81,8 @@ func use_socket(id:String,pos:Vector2)->void:
   g.notify(g.tx("rune_all_inserted") if ready() else g.tx("rune_inserted").format({"count":g.save_data.riddle_inserted.size()}));return
  if not ready():g.notify(g.tx("rune_need_all"));return
  g.press_riddle_symbol(id,pos)
+func activated(id:String)->bool:
+ return id in g.save_data.riddle_inserted and id in g.puzzle
 func ready()->bool:
  return g.content.puzzle.symbols.all(func(id):return id in g.save_data.riddle_inserted)
 func update()->void:

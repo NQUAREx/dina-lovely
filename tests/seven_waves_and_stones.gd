@@ -40,9 +40,13 @@ func run():
  g.activate_cached_room(6);var order:Array=g.save_data.riddle_order.duplicate();g.puzzle.clear()
  g.press_riddle_symbol(order[0],Vector2.ZERO);assert(g.puzzle.is_empty())
  for id in g.content.puzzle.symbols:
-  g.time+=.8;g.rune_stones.use_socket(id,Vector2.ZERO)
+  g.time+=.8;g.rune_stones.use_socket(id,Vector2.ZERO);assert(not g.rune_stones.activated(id))
  assert(g.rune_stones.ready() and g.puzzle.is_empty())
+ assert(g.content.puzzle.symbols.all(func(id):return not g.rune_stones.activated(id)))
  g.time+=.8
+ for id in order:g.rune_stones.use_socket(id,Vector2.ZERO)
+ assert(g.content.puzzle.symbols.all(func(id):return g.rune_stones.activated(id)))
+ g.press_riddle_symbol("puzzle_reset",Vector2.ZERO);assert(g.content.puzzle.symbols.all(func(id):return not g.rune_stones.activated(id)))
  for id in order:g.rune_stones.use_socket(id,Vector2.ZERO)
  assert(g.puzzle==order);g.save_data.letters=g.save_data.riddle_letters.duplicate();g.check_riddle_chest();assert(g.save_data.finished)
  g.persist();g.load_save();g.rune_stones.ensure();assert(g.rune_stones.ready() and g.save_data.riddle_stone_positions.size()==7)
