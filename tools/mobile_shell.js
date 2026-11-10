@@ -26,7 +26,7 @@
  addEventListener('resize',()=>boot.resize++);
  const frameAsset=(part,room)=>'frame_'+part+'_'+room+'.png?v='+frameArtVersion;
  // The document background also paints Safari's area outside fixed-position layers.
- const pageField=room=>{document.documentElement.style.setProperty('background-image','url('+frameAsset('field',room)+')','important');document.documentElement.style.backgroundSize='192px 192px';document.documentElement.style.imageRendering='pixelated';document.documentElement.style.minHeight='0';document.documentElement.style.height='100dvh';document.documentElement.style.overflow='hidden';};
+ const pageField=room=>{document.documentElement.style.setProperty('background-image','url('+frameAsset('field',room)+')','important');document.documentElement.style.backgroundSize='192px 192px';document.documentElement.style.imageRendering='pixelated';document.documentElement.style.minHeight='0';document.documentElement.style.overflow='hidden';};
  pageField(0);
  const safeTint=document.createElement('div');safeTint.setAttribute('aria-hidden','true');safeTint.style.cssText='position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);z-index:41;background:rgba(16,18,30,.18);pointer-events:none';document.documentElement.append(safeTint);
  const frameSlots=[0,1].map(index=>{
@@ -34,7 +34,16 @@
   const borders=['top','bottom'].map(edge=>{const image=document.createElement('img');image.src=frameAsset(edge,0);image.alt='';image.setAttribute('aria-hidden','true');image.style.cssText='position:fixed;z-index:40;pointer-events:none;image-rendering:pixelated;object-fit:fill;transition:opacity 1.1s ease;opacity:'+Number(index===0);document.documentElement.append(image);return image;});
   return {field,borders};
  });
- const layoutFrames=()=>{const canvas=document.getElementById('canvas');if(!canvas)return;canvas.style.zIndex='1';const viewport=window.visualViewport;canvas.style.setProperty('top',((viewport?.offsetTop||0)+(viewport?.height||innerHeight)/2)+'px','important');const r=canvas.getBoundingClientRect(),height=r.width*40/270;frameSlots.forEach(slot=>slot.borders.forEach((image,i)=>Object.assign(image.style,{left:r.left+'px',width:r.width+'px',height:height+'px',top:(i?r.bottom-height*.50:r.top-height*.60)+'px'})));};
+ const layoutFrames=()=>{const canvas=document.getElementById('canvas');if(!canvas)return;canvas.style.zIndex='1';const viewport=window.visualViewport;
+  const installedIOS=(/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))&&(navigator.standalone||matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches);
+  // iOS standalone can report a visual viewport shorter than the actual screen.
+  // Use one screen-sized coordinate system for the page, decorative fields and canvas center.
+  const pageHeight=installedIOS?screen.height:innerHeight;
+  const pageWidth=installedIOS?screen.width:innerWidth;
+  document.documentElement.style.height=pageHeight+'px';
+  if(document.body)document.body.style.height=pageHeight+'px';
+  frameSlots.forEach(slot=>Object.assign(slot.field.style,{top:'0px',left:'0px',right:'auto',bottom:'auto',width:pageWidth+'px',height:pageHeight+'px'}));
+  canvas.style.setProperty('top',(installedIOS?pageHeight/2:(viewport?.offsetTop||0)+(viewport?.height||innerHeight)/2)+'px','important');const r=canvas.getBoundingClientRect(),height=r.width*40/270;frameSlots.forEach(slot=>slot.borders.forEach((image,i)=>Object.assign(image.style,{left:r.left+'px',width:r.width+'px',height:height+'px',top:(i?r.bottom-height*.50:r.top-height*.60)+'px'})));};
  const loadedFrames=new Map();let activeFrame=0,wantedRoom=0,frameRequest=0,frameBusyUntil=0;window.gardenFrameRoom=0;
  const preloadFrame=room=>{if(!loadedFrames.has(room))loadedFrames.set(room,Promise.all(['field','top','bottom'].map(part=>new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(true);image.onerror=()=>resolve(false);image.src=frameAsset(part,room);}))));return loadedFrames.get(room);};
  window.gardenSetRoom=async room=>{room=Math.max(0,Math.min(6,Math.trunc(Number(room)||0)));if(room===wantedRoom)return;wantedRoom=room;const request=++frameRequest;const loaded=await preloadFrame(room);if(request!==frameRequest||!loaded.every(Boolean))return;if(performance.now()<frameBusyUntil)await new Promise(resolve=>setTimeout(resolve,frameBusyUntil-performance.now()+20));if(request!==frameRequest)return;const next=1-activeFrame,slot=frameSlots[next];slot.field.style.backgroundImage='url('+frameAsset('field',room)+')';slot.borders.forEach((image,i)=>image.src=frameAsset(i?'bottom':'top',room));layoutFrames();requestAnimationFrame(()=>{if(request!==frameRequest)return;[slot.field,...slot.borders].forEach(e=>e.style.opacity='1');const old=frameSlots[activeFrame];[old.field,...old.borders].forEach(e=>e.style.opacity='0');activeFrame=next;pageField(room);syncChrome(room);frameBusyUntil=performance.now()+1100;window.gardenFrameRoom=room;});};
