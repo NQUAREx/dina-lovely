@@ -54,7 +54,36 @@
  window.gardenHaptic=ms=>{if(!ios&&typeof navigator.vibrate==='function')navigator.vibrate(ms);};
  const suspend=()=>window.gardenSuspended=document.hidden||matchMedia("(orientation: landscape)").matches;
  addEventListener("resize",suspend);document.addEventListener("visibilitychange",()=>{if(document.hidden)window.gardenSaveNow?.();suspend();});addEventListener("pagehide",()=>window.gardenSaveNow?.());suspend();
- const liveContent=fetch('https://raw.githubusercontent.com/NQUAREx/dina-lovely/main/content/letters.json?fresh='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(8000)}).then(r=>{if(!r.ok)throw Error(r.status);return r.json()}).then(d=>{if(d.schema_version!==2||!Array.isArray(d.letters)||d.puzzle?.symbols?.length!==7||d.puzzle?.room_letters?.length!==7||!d.ui?.read_letter||typeof d.ui.read_letter.text!=='string')throw Error('Invalid content schema');window.gardenContent=d;return d;}).catch(()=>null);
+ const liveContent=(async()=>{
+  const value=new URLSearchParams(location.search).get('key');
+  let selected=false;
+  if(value){
+   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));
+   selected=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')==='80a4109778cf5389682009f04031d6624b8298f150397196e4ffd4c1cab4c58d';
+  }
+  const file=selected?'letters.backup.json':'letters.json';
+  const response=await fetch('https://raw.githubusercontent.com/NQUAREx/dina-lovely/main/content/'+file+'?fresh='+Date.now(),{cache:'no-store',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(8000)});
+  if(!response.ok)throw Error(response.status);
+  const data=await response.json();
+  if(data.schema_version!==2||!Array.isArray(data.letters)||data.puzzle?.symbols?.length!==7||data.puzzle?.room_letters?.length!==7||!data.ui?.read_letter||typeof data.ui.read_letter.text!=='string')throw Error('Invalid content schema');
+  if(selected){
+   const link=document.querySelector('link[rel="manifest"]');
+   if(link){
+    try{
+     const manifest=await fetch('manifest.webmanifest',{cache:'no-store',signal:AbortSignal.timeout(3000)}).then(r=>r.json());
+     const base=new URL('./',location.href);
+     manifest.name=data.game_title;manifest.short_name=data.app_short_name;
+     manifest.id=new URL('?v='+file,base).href;
+     manifest.start_url=location.href.split('#')[0];
+     manifest.scope=base.href;
+     manifest.icons=manifest.icons.map(icon=>({...icon,src:new URL(icon.src,base).href}));
+     link.href=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'}));
+    }catch{link.remove();}
+   }
+  }
+  window.gardenContent=data;
+  return data;
+ })().catch(()=>null);
  let launch;window.gardenLaunch=new Promise(r=>launch=r);
  const style=document.createElement('style');style.textContent=`@font-face{font-family:GardenLetter;src:url('letter-body.ttf?v=__FONT_HASH__') format('truetype');font-display:swap}@font-face{font-family:GardenLetterTitle;src:url('letter-title.ttf?v=__FONT_HASH__') format('truetype');font-display:swap}html,body{margin:0;background:#242538;overscroll-behavior:none;height:100%;touch-action:none}#mobile-gate,#portrait-gate{position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:2000;background:radial-gradient(ellipse at top,#55435d,#242538 75%);color:#f5e3cf;display:grid;place-content:center;padding:max(28px,env(safe-area-inset-top)) 28px max(28px,env(safe-area-inset-bottom));text-align:center;font:17px/1.6 GardenLetter,sans-serif}#mobile-gate h1{font-size:32px;line-height:1.2;color:#edbdce}#mobile-gate button{padding:18px 28px;border:1px solid #df9eb9;border-radius:18px;color:#fff0dc;background:#76556f;font:30px GardenLetter,sans-serif;margin-top:24px}#mobile-gate ol{text-align:left;max-width:340px}#portrait-gate{display:none;font-size:24px;z-index:3000}@media(orientation:landscape){#portrait-gate{display:grid}}canvas{touch-action:none}`;document.head.append(style);
  addEventListener('DOMContentLoaded',async()=>{
