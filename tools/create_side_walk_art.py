@@ -5,13 +5,9 @@ from PIL import Image,ImageDraw
 R=Path(__file__).resolve().parents[1]
 art=runpy.run_path(str(R/'tools/create_diagonal_art.py'));save=art['save'];ns=art['ns']
 def profile(face,bob):
- # Rounded side opening stays two pixels inside the hood's outer silhouette.
- points=[]
- for i in range(24):
-  angle=i*math.tau/24
-  x=round(18+5.5*math.cos(angle));y=round(21+6.5*math.sin(angle))+bob
-  points.append((x if face==3 else 32-x,y))
- return points
+ # Open, featureless side profile: scarf frames only the back and top of the head.
+ points=[(18,15),(22,15),(24,17),(25,20),(25,23),(24,25),(22,27),(19,28),(17,26),(16,23),(16,19)]
+ return [(x if face==3 else 32-x,y+bob) for x,y in points]
 
 def pose(face,frame):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);s=1 if face==3 else -1
@@ -31,7 +27,11 @@ def pose(face,frame):
  back=9 if s>0 else 23
  d.polygon([(8,16+bob),(24,16+bob),(24-s*2,30+bob),(back-s*2+trail,35+bob),(back-s*3,26+bob)],fill='#8e7c90')
  d.line((11+s,12+bob,16+s*2,9+bob,22+s,13+bob),fill='#c7b0be',width=2)
- d.polygon(profile(face,bob),fill='#d6a383',outline='#8e7c90')
+ # Remove the forward hood rim rather than painting a face inside its front hole.
+ d.rectangle((24 if s>0 else 0,15+bob,31 if s>0 else 8,29+bob),fill=(0,0,0,0))
+ d.polygon(profile(face,bob),fill='#d6a383')
+ rear=[(17,16),(16,19),(16,23),(17,26),(19,28)]
+ d.line([(x if s>0 else 32-x,y+bob) for x,y in rear],fill='#8e7c90')
 
  d.line((back,17+bob,back-s,27+bob,back-s*2+trail,31+bob),fill='#65576d')
  near=16+stride*s
