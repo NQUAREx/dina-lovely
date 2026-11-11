@@ -756,3 +756,5 @@ runpy.run_path(str(R/"tools/create_frame_art.py"))
 runpy.run_path(str(R/"tools/create_rune_art.py"))
 # Physical archive for the collected letter pile.
 runpy.run_path(str(R/"tools/create_archive_art.py"))
+# Keep the longer, narrower RPG head in held, reloading and flying artwork.
+runpy.run_path(str(R/"tools/redraw_rpg_head.py"))

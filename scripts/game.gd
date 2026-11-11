@@ -160,6 +160,8 @@ var step_clock := 0.0
 var foliage_voice: AudioStreamPlayer
 var foliage_gain:=0.0
 var foliage_motion:=0.0
+var vegetation_fx_cooldown := 0.0
+var vegetation_was_touched := false
 var hedge_contact := false
 var gate_creak_delay := -1.0
 var poison_zones:Array[Dictionary]=[]
@@ -720,6 +722,10 @@ func ensure_riddle() -> void:
 	rune_stones.ensure()
 	var symbols: Array = content.get("puzzle",{}).get("symbols",[])
 	if symbols.size()!=7:return
+	var unique_input: Array = []
+	for symbol in save_data.riddle_input:
+		if symbol in symbols and symbol not in unique_input:unique_input.append(symbol)
+	save_data.riddle_input=unique_input
 	if save_data.riddle_order.size()==7 and save_data.riddle_clues.size()==7 and save_data.riddle_letters.size()==7:return
 	var rng := RandomNumberGenerator.new();rng.seed=int(save_data.seed)^0x4c4f5645
 	var order: Array = symbols.duplicate()
@@ -753,6 +759,7 @@ func press_riddle_symbol(id: String, pos: Vector2) -> void:
 		puzzle.clear();persist();sfx("ui");notify(tx("puzzle_reset_notice"));return
 	if id not in content.puzzle.symbols:return
 	if not rune_stones.ready():notify(tx("rune_need_all"));return
+	if id in puzzle:return
 	if puzzle.size()>=7:notify(tx("puzzle_full_input"));return
 	puzzle.append(id);persist();sfx("ui");burst(pos,8,Color("ffe1a6"))
 	notify(tx("puzzle_full_input") if puzzle.size()==7 else tx("puzzle_symbol_added").format({"symbol":tx("symbol_"+id)}))
@@ -1163,6 +1170,7 @@ func _process(delta: float) -> void:
 	for i in range(particles.size()-1,-1,-1):
 		particles[i].life -= delta
 		particles[i].pos += particles[i].vel*delta
+		if particles[i].get("foliage",false):particles[i].vel.y+=delta*28
 		particles[i].vel *= 0.98
 		if particles[i].life<=0: particles.remove_at(i)
 	update_fog()
@@ -1252,6 +1260,7 @@ func available(obj: Dictionary) -> bool:
 	if obj.kind=="cat_hut":return not save_data.cat_tamed
 	if obj.kind=="pet_cat":return corridor_row(floori(player.y/TILE)) and corridor_row(floori(obj.pos.y/TILE)) and save_data.cat_tamed and held_item.is_empty() and (nearest<0 or nearest>=objects.size() or objects[nearest].kind=="pet_cat")
 	if obj.kind=="stats_stone":return true
+	if level==6 and obj.kind=="stone" and obj.id in puzzle:return false
 	if obj.get("integrated_tree",false):return world_tools.tree_target(obj) or obj.kind=="hedge_tree_apples"
 	if obj.kind=="skull_relic":return save_data.get("house_open",false) and not save_data.get("skull_taken",false) and not save_data.get("skull_inserted",false)
 	if obj.kind=="skull_stand":return true
@@ -2076,7 +2085,7 @@ func _draw_world() -> void:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
 			if grid[y][x]=="#" and (level in [1,2,4] or corridor_row(y)):
-				renderables.append({"kind":"stone","pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
+				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	for obj in objects:
 		if obj.kind in ["axe","shears","drill","tool_table"] and not save_data.finished:continue
@@ -2241,7 +2250,7 @@ func _draw_world() -> void:
 			elif kind=="mound": draw_sprite("dug" if item.id in save_data.dug else "mound",p)
 			elif kind=="chest": draw_sprite("chest_open" if ((item.id=="final" and chest_open) or item.id in save_data.letters) else "chest",p,Color.WHITE,3.0 if item.id=="final" else 1.0)
 			elif kind=="riddle_stone":draw_sprite(rune_stones.texture(item),screen(item_display_position(item)))
-			elif level==6 and kind=="stone":draw_sprite(rune_stones.texture(item),p)
+			elif level==6 and kind=="stone" and not item.get("wall",false):draw_sprite(rune_stones.texture(item),p)
 			elif kind=="note" and item.id=="buried":draw_buried_paper(p,item.id in save_data.letters)
 			elif kind=="note_open" and item.id=="buried":draw_buried_paper(p,true)
 			elif kind in ["flowers","blueflowers"]:
@@ -2295,6 +2304,11 @@ func _draw_world() -> void:
 		var c: Color = part.color
 		c.a = minf(1,part.life)
 		if part.heart: draw_heart(screen(part.pos),1.2,c)
+		elif part.get("foliage",false):
+			draw_set_transform(screen(part.pos).round(),float(part.spin)+sin(time*7+float(part.spin))*.5)
+			draw_rect(Rect2(Vector2(-1,-2),Vector2(2,4)),c)
+			draw_rect(Rect2(Vector2(-2,-1),Vector2(4,2)),c.darkened(.12))
+			draw_set_transform(Vector2.ZERO)
 		else: draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
 	if level!=2:draw_new_rooms()
 	if not drawing_neighbor:
@@ -2640,7 +2654,7 @@ func update_fog() -> void:
 	material.set_shader_parameter("hero_pos",screen(player)+Vector2(0,-35))
 	material.set_shader_parameter("view_size",get_viewport_rect().size)
 	var stride := 1.0 if moving and not paused else 0.0
-	var sway := sin(time*10.0)*.045*stride + sin(time*1.3)*.012
+	var sway := sin(time*10.0)*.075*stride + sin(time*1.3)*.018
 	material.set_shader_parameter("light_dir",facing.rotated(sway))
 	material.set_shader_parameter("light_time",time)
 	material.set_shader_parameter("walking",stride)
@@ -2732,8 +2746,13 @@ func draw_corridor_extensions() -> Array[Dictionary]:
 			for x in range(center-2,center+3):
 				var pos:=screen(Vector2(x,y)*TILE)
 				draw_texture_rect_region(ground,Rect2(pos,Vector2(48,48)),Rect2(Vector2(24,0),Vector2(24,24)))
-				if x==center-2 or x==center+2:walls.append({"kind":"stone","id":"","pos":Vector2(x+.5,y+.5)*TILE,"wall":true})
+				if x==center-2 or x==center+2:walls.append({"kind":corridor_wall_kind(y),"id":"","pos":Vector2(x+.5,y+.5)*TILE,"wall":true})
 	return walls
+
+func corridor_wall_kind(row: int) -> String:
+	# The shared garden/final passage has one material in both coordinate spaces.
+	if (level==5 and row<5) or (level==6 and row>=grid.size()-5):return "tree"
+	return "stone"
 
 func valid_ground(pos: Vector2) -> bool:
 	if pos.x<0 or pos.y<0 or pos.x>=grid[0].length()*TILE or pos.y>=grid.size()*TILE: return false
@@ -2965,18 +2984,41 @@ func draw_paths() -> void:
 		draw_texture_rect(path_texture,Rect2(screen(Vector2.ZERO),Vector2(grid[0].length(),grid.size())*TILE),false)
 
 func update_vegetation(delta: float) -> void:
+	vegetation_fx_cooldown=maxf(0,vegetation_fx_cooldown-delta)
+	var flower_source := Vector2.INF
 	if hedge_field!=null:hedge_field.update(delta,player)
 	var contact := false
 	for obj in objects:
 		if obj.kind not in ["flowers","blueflowers"]:continue
 		var away: Vector2 = obj.pos-player
 		var target := clampf((25-away.length())/15,0,1)
-		if away.length()<25:contact=true
+		if away.length()<25:contact=true;flower_source=obj.pos
 		if target>.01 or obj.has("press"):obj.press=lerpf(float(obj.get("press",0)),target,1-exp(-delta*11))
 	foliage_contact=contact
 	var intent:=joy_vector.length() if joy_active else 0.0
 	foliage_motion=maxf(hedge_field.contact_strength if hedge_field!=null else 0.0,1.0 if contact else 0.0)*minf(1,intent*2)
 	if hedge_field!=null:foliage_motion=maxf(foliage_motion,clampf((hedge_field.motion_strength-3)/90,0,1)*.3)
+
+	var hedge_touch: bool = level==0 and hedge_field!=null and hedge_field.contact_strength>.02
+	var touched: bool = contact or hedge_touch
+	if touched and vegetation_fx_cooldown<=0 and (moving or intent>.1 or not vegetation_was_touched):
+		vegetation_fx_cooldown=.17
+		if hedge_touch:
+			var best := INF
+			var source := Vector2.INF
+			for index in hedge_field.near_ids(player,42):
+				var crown: Dictionary = hedge_field.crowns[index]
+				var distance: float = crown.base.distance_squared_to(player)
+				if not crown.get("hidden",false) and distance<best:best=distance;source=crown.base+crown.offset
+			if source!=Vector2.INF:emit_vegetation_bits(source-Vector2(0,13),false)
+		if flower_source!=Vector2.INF:emit_vegetation_bits(flower_source-Vector2(0,16),true)
+	vegetation_was_touched=touched
+
+func emit_vegetation_bits(origin: Vector2, petals: bool) -> void:
+	if particles.size()>360:return
+	for i in range(2):
+		var shade := Color("c89bc4") if petals and i==0 else Color("85a06b") if i==0 else Color("b5bc81")
+		particles.append({"pos":origin+Vector2(randf_range(-9,9),randf_range(-4,4)),"vel":Vector2(randf_range(-20,20),randf_range(-35,-15)),"life":randf_range(.55,.85),"color":shade,"heart":false,"foliage":true,"spin":randf_range(-PI,PI)})
 
 func update_foliage_audio(delta: float) -> void:
 	if not is_instance_valid(foliage_voice):return

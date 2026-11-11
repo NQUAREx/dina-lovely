@@ -31,6 +31,16 @@ func _ready() -> void:
     text_scroll.position = Vector2(30, 140)
     text_scroll.size = Vector2(404, 440)
     paper.add_child(text_scroll)
+    var ruling := Control.new()
+    ruling.set_script(preload("res://scripts/letter_ruling.gd"))
+    ruling.scroll = text_scroll
+    ruling.position = text_scroll.position
+    ruling.size = text_scroll.size
+    ruling.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    ruling.clip_contents = true
+    paper.add_child(ruling)
+    paper.move_child(ruling, paper.get_children().find(text_scroll))
+    text_scroll.get_v_scroll_bar().value_changed.connect(func(_value):ruling.queue_redraw())
     var column := VBoxContainer.new()
     column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     text_scroll.add_child(column)
@@ -46,6 +56,10 @@ func _ready() -> void:
     if letter.has("clue_room"):
         body.add_text("\n\n"+game.tx("riddle_note_heading")+"\n")
         var clue: String = game.riddle_clue(int(letter.clue_room), true)
+        # Quotes describe names; inline stone artwork needs no quote marks.
+        var quotes := RegEx.new()
+        quotes.compile("[«\"“‘'](\\{rune:[a-z_]+\\})[»\"”’']")
+        clue = quotes.sub(clue, "$1", true)
         var markers := RegEx.new()
         markers.compile("\\{rune:([a-z_]+)\\}")
         var offset := 0
