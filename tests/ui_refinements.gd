@@ -21,9 +21,11 @@ func run():
  var body:RichTextLabel=sheet.text_scroll.get_child(0).get_child(0)
  assert(not body.get_parsed_text().contains("«") and not body.get_parsed_text().contains("»"))
  g.clear_modal();g.build_level(0);g.particles.clear();g.hedge_field=null;g.objects.clear();g.player=Vector2(500,500);g.moving=true;g.joy_active=true;g.joy_vector=Vector2.RIGHT;g.vegetation_fx_cooldown=0;g.vegetation_was_touched=false
- g.objects.append({"kind":"flowers","id":"","pos":g.player,"solid":false});g.update_vegetation(.04)
- assert(g.particles.size()==3 and g.particles.all(func(p):return p.get("foliage",false)))
- g.update_vegetation(.01);assert(g.particles.size()==3)
+ g.objects.append({"kind":"flowers","id":"","pos":g.player,"solid":false});g.emit_vegetation_bits(g.player,true)
+ assert(g.particles.size()==1 and g.particles[0].foliage)
+ g.vegetation_was_touched=true;g.vegetation_fx_anchor=g.player
+ for tick in range(60):g.update_vegetation(.04)
+ assert(g.particles.size()==1)
  print("PASS throttled flower foliage particles")
  print("PASS unique presses/reset/old-input migration, shared tree corridor material, scroll-bound ruling and unquoted icons")
  g.clear_modal();g.queue_free();await process_frame

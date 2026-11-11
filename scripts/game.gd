@@ -163,6 +163,9 @@ var foliage_motion:=0.0
 var leaf_bits := preload("res://assets/leaf_bits.png")
 var flashlight_noise := FastNoiseLite.new()
 var flashlight_motion := 0.0
+var leaf_debris := preload("res://scripts/leaf_debris.gd")
+var vegetation_fx_anchor := Vector2.INF
+var vegetation_fx_spacing := 38.0
 var vegetation_fx_cooldown := 0.0
 var vegetation_was_touched := false
 var hedge_contact := false
@@ -1174,10 +1177,12 @@ func _process(delta: float) -> void:
 			interaction_clock=.07;find_nearest();update_hud()
 	for i in range(particles.size()-1,-1,-1):
 		particles[i].life -= delta
-		particles[i].pos += particles[i].vel*delta
-		if particles[i].get("foliage",false):particles[i].vel.y+=delta*28
-		particles[i].vel *= 0.98
-		if particles[i].life<=0: particles.remove_at(i)
+		if particles[i].life<=0:particles.remove_at(i);continue
+		if particles[i].get("foliage",false):
+			leaf_debris.step(particles[i],delta)
+		else:
+			particles[i].pos += particles[i].vel*delta
+			particles[i].vel *= 0.98
 	update_fog()
 	queue_redraw()
 
@@ -2158,6 +2163,7 @@ func _draw_world() -> void:
 		draw_hedge_canopy(visible_crowns,-1)
 
 	if level==2:draw_new_rooms()
+	draw_leaf_debris()
 	renderables.sort_custom(func(a,b):
 		if a.pos.y==b.pos.y:
 			if a.kind=="dug" and b.kind!="dug":return true
@@ -2305,18 +2311,11 @@ func _draw_world() -> void:
 			draw_rect(Rect2(Vector2(-2,-1),Vector2(4,2)),Color(.95,.65,.78,.35))
 			draw_set_transform(Vector2.ZERO)
 	for part in particles:
-		if part.get("ground",false):continue
+		if part.get("ground",false) or part.get("foliage",false):continue
 		var c: Color = part.color
 		c.a = minf(1,part.life)
-		if part.heart: draw_heart(screen(part.pos),1.2,c)
-		elif part.get("foliage",false):
-			if not Rect2(Vector2.ZERO,Vector2(grid[0].length(),grid.size())*TILE).has_point(part.pos):continue
-			c.a=minf(1,float(part.life)/.28)
-			var scale_factor: float = part.get("size",1.0)
-			draw_set_transform(screen(part.pos).round(),float(part.spin)+sin(time*7+float(part.spin))*.65)
-			draw_texture_rect_region(leaf_bits,Rect2(Vector2(-4,-4)*scale_factor,Vector2(8,8)*scale_factor),Rect2(int(part.get("variant",0))*8,0,8,8),c)
-			draw_set_transform(Vector2.ZERO)
-		else: draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
+		if part.heart:draw_heart(screen(part.pos),1.2,c)
+		else:draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
 	if level!=2:draw_new_rooms()
 	if not drawing_neighbor:
 		draw_extra_effects()
@@ -3019,8 +3018,12 @@ func update_vegetation(delta: float) -> void:
 
 	var hedge_touch: bool = level==0 and hedge_field!=null and hedge_field.contact_strength>.02
 	var touched: bool = contact or hedge_touch
-	if touched and vegetation_fx_cooldown<=0 and (moving or intent>.1 or not vegetation_was_touched):
-		vegetation_fx_cooldown=.19
+	var moved_since_emission := vegetation_fx_anchor==Vector2.INF or player.distance_to(vegetation_fx_anchor)>=vegetation_fx_spacing
+	if touched and vegetation_fx_cooldown<=0 and (not vegetation_was_touched or moved_since_emission):
+		vegetation_fx_cooldown=randf_range(.85,1.65)
+		vegetation_fx_spacing=randf_range(30,56)
+		vegetation_fx_anchor=player
+		if randf()>.65:vegetation_was_touched=touched;return
 		if hedge_touch:
 			var best := INF
 			var source := Vector2.INF
@@ -3028,15 +3031,34 @@ func update_vegetation(delta: float) -> void:
 				var crown: Dictionary = hedge_field.crowns[index]
 				var distance: float = crown.base.distance_squared_to(player)
 				if not crown.get("hidden",false) and distance<best:best=distance;source=crown.base+crown.offset
-			if source!=Vector2.INF:emit_vegetation_bits(source.lerp(player,.55)-Vector2(0,19),false)
-		if flower_source!=Vector2.INF:emit_vegetation_bits(flower_source-Vector2(0,16),true)
+			if source!=Vector2.INF:emit_vegetation_bits(source.lerp(player,.65),false)
+		elif flower_source!=Vector2.INF:emit_vegetation_bits(flower_source,true)
 	vegetation_was_touched=touched
 
 func emit_vegetation_bits(origin: Vector2, petals: bool) -> void:
 	if particles.size()>360:return
-	for i in range(3 if petals else 4):
-		var shade: Color = Color("e1b8df") if petals and i==0 else Color.WHITE
-		particles.append({"pos":origin+Vector2(randf_range(-7,7),randf_range(-4,4)),"vel":Vector2(randf_range(75,135)*(-1 if i%2==0 else 1),randf_range(-80,-25)),"life":randf_range(.85,1.2),"color":shade,"heart":false,"foliage":true,"spin":randf_range(-PI,PI),"variant":randi_range(4,5) if petals and i==0 else randi_range(0,3),"size":randf_range(.85,1.2)})
+	if particles.filter(func(p):return p.get("foliage",false)).size()>=16:return
+	var amount := 1 if petals or randf()<.7 else 2
+	for i in range(amount):particles.append(leaf_debris.spawn(origin,petals and i==0))
+
+func draw_leaf_debris() -> void:
+	for part in particles:
+		if not part.get("foliage",false):continue
+		if not Rect2(Vector2.ZERO,Vector2(grid[0].length(),grid.size())*TILE).has_point(part.pos):continue
+		var height: float = part.get("leaf_height",0.0)
+		var flutter := sin(float(part.get("age",0))*float(part.get("flutter",4))+float(part.get("phase",0)))
+		var floating: bool = not part.get("landed",false)
+		var color: Color = part.color
+		color.a=minf(1,float(part.life)/.7)
+		if height>2 and shadow_floor_cell(part.pos):
+			draw_set_transform(screen(part.pos).round(),0,Vector2(1,.4))
+			draw_circle(Vector2.ZERO,2,Color(0,0,0,.12*color.a))
+			draw_set_transform(Vector2.ZERO)
+		var scale_factor: float = part.get("size",1.0)
+		var position: Vector2 = part.pos-Vector2(0,height+flutter*minf(1,height/10)*1.3)
+		draw_set_transform(screen(position).round(),float(part.spin),Vector2(.65+.35*absf(flutter) if floating else 1,1))
+		draw_texture_rect_region(leaf_bits,Rect2(Vector2(-4,-4)*scale_factor,Vector2(8,8)*scale_factor),Rect2(int(part.get("variant",0))*8,0,8,8),color)
+		draw_set_transform(Vector2.ZERO)
 
 func update_foliage_audio(delta: float) -> void:
 	if not is_instance_valid(foliage_voice):return
