@@ -29,5 +29,16 @@ func run():
  assert(field.front_crowns.has(index))
  for n in range(10):field.prepare_draw(ids,base-Vector2(0,50),1.0/60)
  assert(absf(field.draw_poses[index].x-base.round().x)<1)
+ var crowded=load("res://scripts/hedge_field.gd").new();crowded.build(map,71,{},{});crowded.wind_clock=100
+ var centre:Vector2=crowded.crowns[crowded.crowns.size()/2].base
+ var all_ids:=PackedInt32Array();for i in range(crowded.crowns.size()):all_ids.append(i)
+ var above:=centre-Vector2(0,50);crowded.prepare_draw(all_ids,centre+Vector2(0,50),1.0/60);crowded.prepare_draw(all_ids,above,1.0/60)
+ var local_motion:=0.0;var remote_motion:=0.0
+ for i in all_ids:
+  var pose:Vector3=crowded.draw_poses[i];var rest:Vector3=crowded.crown_pose(i,above)
+  var amount:=Vector2(pose.x-rest.x,pose.y-rest.y).length()
+  if crowded.crowns[i].base.distance_to(above)<64:local_motion=maxf(local_motion,amount)
+  else:remote_motion=maxf(remote_motion,amount)
+ assert(local_motion>1 and remote_motion<.1)
  print("PASS original touch impulse, wide sustained sways and controlled settling")
  quit()
