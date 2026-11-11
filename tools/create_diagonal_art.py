@@ -17,12 +17,6 @@ def save(name,im):
  if bottom>atlas.height:
   grown=Image.new('RGBA',(512,bottom));grown.paste(atlas,(0,0));atlas=grown
  box=(index%16*32,index//16*48);atlas.paste(im,box)
-def face_shape(face,b):
- sign=1 if face in [5,7] else -1
- # Three-quarter oval stays behind the front rim of the scarf.
- points=[(16,16),(20,16),(22,18),(23,21),(22,25),(20,27),(16,27),(14,25),(13,21),(14,18)]
- return [(x if sign>0 else 32-x,y+b) for x,y in points]
-
 def hero(face,frame):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im)
  right=face in [5,7];front=face in [6,7];sign=1 if right else -1
@@ -41,7 +35,9 @@ def hero(face,frame):
  d.line((8+sign,13+b,15+sign,9+b,22+sign,12+b),fill='#c7b0be',width=2)
  d.line((9-sign,19+b,8-sign,26+b,7,29+b),fill='#65576d')
  if front:
-  d.polygon(face_shape(face,b),fill='#d6a383',outline='#8e7c90')
+  left=11+sign*2;right_edge=22+sign*2
+  d.rounded_rectangle((left,15+b,right_edge,28+b),3,fill='#d6a383')
+  d.line((left,18+b,left,25+b),fill='#bc8e78')
  else:
   # Small cheek on the far edge and a hood seam distinguish NW/NE from north.
   x=24 if sign>0 else 7
@@ -66,9 +62,9 @@ def wear(item,face,frame,base):
  elif item in ['veil','white_veil']:
   color='#d3cedb' if item=='white_veil' else '#4e4057'
   if front:
-   d.polygon(face_shape(face,b),fill=color)
-   left,right=(15,21) if sign>0 else (11,17)
-   for x in [left,right-2]:d.rectangle((x,19+b,x+2,20+b),fill=(0,0,0,0))
+   left=11+sign*2;right=22+sign*2
+   d.rounded_rectangle((left,15+b,right,28+b),3,fill=color)
+   for x in [left+1,right-4]:d.rectangle((x,18+b,x+3,19+b),fill=(0,0,0,0))
   else:
    x=24 if sign>0 else 6;d.rectangle((x,19+b,x+1,26+b),fill=color)
  elif item in ns['HEAD_ITEMS']:

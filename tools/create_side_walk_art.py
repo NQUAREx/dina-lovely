@@ -5,9 +5,13 @@ from PIL import Image,ImageDraw
 R=Path(__file__).resolve().parents[1]
 art=runpy.run_path(str(R/'tools/create_diagonal_art.py'));save=art['save'];ns=art['ns']
 def profile(face,bob):
- # A closed oval inset into the hood; no projecting nose/chin rectangle.
- points=[(18,16),(20,16),(21,17),(22,19),(22,24),(21,26),(20,27),(18,27),(17,26),(16,24),(16,19),(17,17)]
- return [(x if face==3 else 32-x,y+bob) for x,y in points]
+ # Rounded side opening stays two pixels inside the hood's outer silhouette.
+ points=[]
+ for i in range(24):
+  angle=i*math.tau/24
+  x=round(18.5+3.5*math.cos(angle));y=round(21.5+5.5*math.sin(angle))+bob
+  points.append((x if face==3 else 32-x,y))
+ return points
 
 def pose(face,frame):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);s=1 if face==3 else -1
