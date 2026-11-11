@@ -320,7 +320,7 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(minf(width, 420), 60)
-	b.add_theme_font_override("font", body_font)
+	b.add_theme_font_override("font", title_font)
 	b.add_theme_font_size_override("font_size", 26)
 	b.clip_text = true
 	b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -359,14 +359,14 @@ func setup_ui() -> void:
 	top.add_theme_stylebox_override("panel", panel_style(Color(0.12,0.14,0.22,0.92)))
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(top)
-	objective = label("", 19)
+	objective = label("", 22)
 	objective.autowrap_mode = TextServer.AUTOWRAP_OFF
 	objective.clip_text = true
 	objective.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	objective.position = Vector2(32, 45)
 	objective.size = Vector2(374, 42)
 	hud.add_child(objective)
-	status = label("", 15, Color("c1bdce"))
+	status = label("", 18, Color("c1bdce"))
 	status.autowrap_mode = TextServer.AUTOWRAP_OFF
 	status.clip_text = true
 	status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -485,7 +485,7 @@ func show_menu() -> void:
 		clear_modal()))
 	elif save_data.started: box.add_child(button(tx("continue_game"), resume_game))
 	box.add_child(button(tx("new_game"), confirm_new if save_data.started else new_game))
-	box.add_child(button(tx("collected_letters_prefix") + str(save_data.letters.size()) + "/12", show_journal))
+	box.add_child(button(tx("collected_letters_prefix") + str(save_data.letters.size()) + "/" + str(content.letters.size()), show_journal))
 	box.add_child(button(tx("sound_settings"), show_settings))
 	if save_data.finished: box.add_child(button(tx("replay_card"), show_card))
 	box.add_child(label(tx("sound_hint"), 12, Color("b5adc4")))
@@ -597,20 +597,43 @@ func show_journal() -> void:
 	if save_data.letters.is_empty(): list.add_child(label(tx("journal_empty"), 18))
 	box.add_child(button(tx("back"), show_menu))
 
-func show_letter(id: String, journal: bool = false) -> void:
+func show_letter(id: String, journal: bool = false, source_stack: Control = null) -> void:
 	var letter: Dictionary = {}
 	for item in content.letters:
 		if item.id == id: letter = item
 	if letter.is_empty(): return
-	clear_modal()
+	if is_instance_valid(source_stack):
+		if id not in save_data.letters: return
+		source_stack.active = false
+		source_stack.set_process(false)
+	else:
+		clear_modal()
 	paused=true;hud.hide()
 	var view := Control.new()
 	view.set_script(preload("res://scripts/letter_view.gd"))
 	view.game=self;view.letter=letter_with_clue(letter);view.journal=journal
+	view.stack_view = source_stack
+	if is_instance_valid(source_stack):
+		var index: int = source_stack.letters.find(letter)
+		view.stack_rect = source_stack.card_rect(index)
+		view.stack_rotation = source_stack.card_rotation(index)
 	view.start=screen(player)
 	for obj in objects:
 		if obj.id==id:view.start=screen(obj.pos)
 	root.add_child(view);modal=view
+
+func show_letter_stack(obj: Dictionary) -> void:
+	clear_modal()
+	paused = true
+	hud.hide()
+	var view := Control.new()
+	view.set_script(preload("res://scripts/letter_stack.gd"))
+	view.game = self
+	view.box_object = obj
+	view.start = screen(obj.pos)
+	root.add_child(view)
+	modal = view
+	sfx("paper")
 
 func collect(id: String) -> void:
 	if id not in save_data.letters:
@@ -1153,6 +1176,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.kind=="letter_box":return true
 	if obj.kind=="riddle_stone":return obj.id not in save_data.riddle_stones and (not obj.get("hidden_hedge",false) or obj.pos.distance_to(player)<=54)
 	if obj.kind=="medkit":return true
 	if obj.kind=="flashlight_pedestal":return false
@@ -1236,6 +1260,7 @@ func find_nearest() -> void:
 			if objects[i].kind=="pet_cat" and available(objects[i]) and player.distance_to(objects[i].pos)<60 and interaction_reachable(objects[i]):nearest=i;break
 
 func item_name(obj: Dictionary) -> String:
+	if obj.kind=="letter_box":return tx("journal_title")
 	if obj.kind=="riddle_stone":return rune_stones.name_for(obj)
 	if obj.kind=="medkit":return tx("item_medkit")
 	if obj.kind in ["cat_fish","cat_hut","pet_cat","stats_stone"]:return tx("item_"+obj.kind)
@@ -1325,6 +1350,7 @@ func draw_item_names() -> void:
 		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,14,CREAM)
 
 func action_text(obj: Dictionary) -> String:
+	if obj.kind=="letter_box":return tx("read_letter")
 	if obj.kind=="riddle_stone":return tx("pickup_rune")
 	if obj.kind=="medkit":return tx("use_medkit")
 	if obj.kind=="cat_fish":return tx("take_fish")
@@ -1384,6 +1410,7 @@ func interact() -> void:
 	if obj.kind=="medkit":
 		if health>=8:notify(tx("health_full"));return
 		health=8;objects.erase(obj);burst(player,12,Color("a9e7b6"));sfx("chime");notify(tx("medkit_used"));find_nearest();persist();return
+	if obj.kind=="letter_box":show_letter_stack(obj);return
 	if obj.kind=="stats_stone":stats.show(self);return
 	if obj.kind in ["axe","shears","drill"]:world_tools.pickup(obj.kind);return
 	if obj.kind=="secret_book":show_secret_book();return
@@ -2129,6 +2156,7 @@ func _draw_world() -> void:
 			elif kind in ["house","pond"]: draw_sprite(kind,p,Color.WHITE,2.0)
 			elif kind=="house_door":draw_sprite("house_door_empty" if save_data.get("skull_taken",false) or save_data.get("skull_inserted",false) else "house_door_open" if item.get("opened",false) else "house_door",p,Color.WHITE,2.0)
 			elif kind=="skull_relic":draw_sprite(kind,screen(item_display_position(item)),Color.WHITE,.7)
+			elif kind=="letter_box":draw_sprite("letter_box_open" if item.get("archive_open",false) else "letter_box",p)
 			elif kind=="skull_stand":draw_sprite("skull_stand_full" if save_data.get("skull_inserted",false) else "skull_stand",p)
 			elif kind=="doorway":
 				draw_sprite("doorpost",p+Vector2(-90,0));draw_sprite("doorpost",p+Vector2(90,0))
@@ -2631,6 +2659,7 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 		put_object("skull_stand",Vector2i(4,14),"skull_stand",true)
 		put_object("secret_book",Vector2i(4,10),"secret_book",true)
 		put_object("stats_stone",Vector2i(22,10),"stats_stone",true)
+		put_object("letter_box",Vector2i(4,18),"letter_archive",true)
 		for y in range(5):grid[y]=" ".repeat(grid[0].length())
 		grid[5]="#".repeat(grid[0].length())
 	if level==2:
@@ -3145,7 +3174,9 @@ func prepare_room_details(rng: RandomNumberGenerator) -> void:
 	if level in [4,6]:
 		objects.assign(objects.filter(func(o):return o.kind not in ["flowers","blueflowers","tree"]))
 		for spec in [["crate",Vector2i(3,10)],["column",Vector2i(23,10)],["crate",Vector2i(22,19)],["column",Vector2i(4,19)],["crate",Vector2i(4,11)],["crate",Vector2i(22,18)],["column",Vector2i(5,8)],["column",Vector2i(21,8)],["crate",Vector2i(3,20)],["crate",Vector2i(23,20)]]:
-			if valid_ground((Vector2(spec[1])+Vector2(.5,.5))*TILE):put_object(spec[0],spec[1],"",true)
+			var prop_position := (Vector2(spec[1]) + Vector2(.5, .5)) * TILE
+			if objects.any(func(obj): return obj.kind=="letter_box" and obj.pos.distance_to(prop_position)<100):continue
+			if valid_ground(prop_position):put_object(spec[0],spec[1],"",true)
 	if level==1:
 		for obj in objects:
 			if obj.kind=="lamp":obj.kind="lamp_off"

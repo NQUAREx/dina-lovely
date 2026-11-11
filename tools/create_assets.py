@@ -754,3 +754,5 @@ import runpy
 runpy.run_path(str(R/"tools/create_frame_art.py"))
 # Seven carved keepsake stones and separate socket states.
 runpy.run_path(str(R/"tools/create_rune_art.py"))
+# Physical archive for the collected letter pile.
+runpy.run_path(str(R/"tools/create_archive_art.py"))

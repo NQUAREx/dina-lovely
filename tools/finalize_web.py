@@ -39,7 +39,7 @@ for room in range(7):
 (p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__FONT_HASH__',hashlib.sha256((root/'assets/body.ttf').read_bytes()+(root/'assets/title.ttf').read_bytes()).hexdigest()[:12]).replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)))
 shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
 shutil.copyfile(root/'assets/title.ttf',p.parent/'letter-title.ttf')
-(p.parent/'font-licenses.txt').write_text((root/'assets/FONT-LICENSE.txt').read_text()+'\n'+(root/'assets/RUBIK-OFL.txt').read_text())
+(p.parent/'font-licenses.txt').write_text((root/'assets/FONT-LICENSE.txt').read_text()+'\n'+(root/'assets/PIXELIFY-OFL.txt').read_text())
 from PIL import Image, ImageDraw
 paper_image=Image.new("RGBA",(464,660))
 paper_draw=ImageDraw.Draw(paper_image)
