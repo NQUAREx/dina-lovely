@@ -30,12 +30,22 @@ var layer_routes: Dictionary = {}
 var route_tick := 0
 var collision_candidates: Dictionary = {}
 
-# Local route state never changes the rest positions or neighbouring crowns.
+# Routes may add only eight pixels to the normal bend. Their anchor never follows
+# the heroine, so changing layers cannot pull foliage out of the wall.
+func tether_point(index: int, point: Vector2, centre: Vector2) -> Vector2:
+	var anchor:Vector2=crowns[index].base.round()-Vector2(0,16)
+	var bounded:=centre+(point-centre).limit_length(8)
+	return anchor+(bounded-anchor).clamp(Vector2(-26,-10),Vector2(26,32))
+
 func route_pose(index: int, pose: Vector3, front: bool, player: Vector2, delta: float) -> Vector3:
 	var centre := Vector2(pose.x, pose.y)
 	if crowns[index].base.distance_squared_to(player)>=64*64 and (not layer_routes.has(index) or not layer_routes[index].routing):
 		layer_routes.erase(index)
 		return pose
+	var waist:=player.y-28+pose.z
+	var raw_centre:=centre
+	if front and absf(centre.x-player.x)<pose.z+18:centre.y=maxf(centre.y,waist)
+	centre=tether_point(index,centre,raw_centre)
 	if not layer_routes.has(index):
 		layer_routes[index] = {"front":front,"position":centre,"side":1.0 if centre.x>=player.x else -1.0,"routing":false}
 	var state: Dictionary = layer_routes[index]
@@ -45,15 +55,23 @@ func route_pose(index: int, pose: Vector3, front: bool, player: Vector2, delta: 
 		if not state.routing:
 			state.side=1.0 if state.position.x>=player.x else -1.0
 			state.routing=true
-		# Move the whole crown around the silhouette before changing painter pass.
 		var edge:float = player.x+state.side*(pose.z+22)
-		var waypoint := Vector2(edge,maxf(centre.y,player.y-28+pose.z) if state.front else centre.y)
+		var waypoint:=tether_point(index,Vector2(edge,maxf(centre.y,waist) if state.front else centre.y),raw_centre)
+		# Deep inside foliage there is no reachable side route. Use a short arc at
+		# waist height instead of dragging a crown after the moving heroine.
+		if absf(waypoint.x-player.x)<pose.z+19:
+			waypoint=tether_point(index,Vector2(centre.x+state.side*8,maxf(centre.y,waist)),raw_centre)
 		state.position=state.position.move_toward(waypoint,delta*155)
-		if absf(state.position.x-player.x)>=pose.z+19:state.front=front
+		if absf(state.position.x-player.x)>=pose.z+19 or state.position.y>=waist-.1:
+			state.front=front
+		elif not front and waypoint.y<waist-.1:
+			# The hero has moved below this fixed crown; it belongs behind her.
+			state.front=false
 	else:
 		state.front=front
 		state.position=state.position.move_toward(centre,delta*155) if state.routing else centre
 		if state.position.distance_squared_to(centre)<.01:state.routing=false
+	state.position=tether_point(index,state.position,raw_centre)
 	return Vector3(roundf(state.position.x),roundf(state.position.y),pose.z)
 
 
@@ -273,7 +291,7 @@ func closest_on_segment(point: Vector2, segment: Dictionary) -> Vector2:
 	if direction.length_squared()<.001:return segment.a
 	return segment.a+direction*clampf((point-segment.a).dot(direction)/direction.length_squared(),0,1)
 
-func blocks(point: Vector2) -> bool:
+func local_segments(point: Vector2) -> Array:
 	var cell:=Vector2i(point/TILE)
 	# Segment membership is static. Cache the unique local candidates once per cell.
 	if not collision_candidates.has(cell):
@@ -282,12 +300,50 @@ func blocks(point: Vector2) -> bool:
 			for x in range(cell.x-1,cell.x+2):
 				for index in segment_cells.get(Vector2i(x,y),[]):unique[index]=true
 		collision_candidates[cell]=unique.keys()
-	for index in collision_candidates[cell]:
+	return collision_candidates[cell]
+
+func blocks(point: Vector2) -> bool:
+	for index in local_segments(point):
 		var closest:=closest_on_segment(point,segments[index])
 		if not wall(Vector2i(closest/TILE)):continue
 		var offset:Vector2=(point-closest)/Vector2(18,15)
 		if offset.length_squared()<1:return true
 	return false
+
+# Only intentional inward pressure compresses the outer eight pixels of foliage.
+# The original 18x15 collision core is unchanged for players, projectiles and AI.
+func resists_entry(previous: Vector2, next: Vector2, input: Vector2) -> bool:
+	for index in local_segments(next):
+		var closest:=closest_on_segment(previous,segments[index])
+		if not wall(Vector2i(closest/TILE)):continue
+		var away:=previous-closest
+		if away.length_squared()>52*52:continue
+		var normal:Vector2=(away/Vector2(18*18,15*15)).normalized()
+		var pressure:=clampf(-input.limit_length().dot(normal),0,1)
+		var shell:=Vector2(18,15)+Vector2.ONE*(1-pressure)*8
+		var old_distance:float=(away/shell).length_squared()
+		var next_away:=next-closest_on_segment(next,segments[index])
+		var new_distance:float=(next_away/shell).length_squared()
+		# Walking out or alongside an already compressed bush must remain free.
+		if new_distance<1 and new_distance<old_distance-.00001:return true
+	return false
+
+func resist_motion(point: Vector2, motion: Vector2) -> Vector2:
+	var nearest:=INF
+	var normal:=Vector2.ZERO
+	for index in local_segments(point):
+		var closest:=closest_on_segment(point,segments[index])
+		if not wall(Vector2i(closest/TILE)):continue
+		var away:=point-closest
+		var distance:=away.length()
+		if distance<nearest:
+			nearest=distance
+			normal=(away/Vector2(18*18,15*15)).normalized()
+	var inward:=minf(0,motion.dot(normal))
+	if inward==0 or nearest>=34:return motion
+	# Preserve tangential movement; resistance builds smoothly towards the core.
+	var compression:=clampf((34-nearest)/18,0,1)
+	return motion-normal*inward*compression*.55
 
 func foreground(player: Vector2) -> bool:
 	var cell:=Vector2i(player/TILE);var nearest:=INF;var normal:=Vector2.ZERO

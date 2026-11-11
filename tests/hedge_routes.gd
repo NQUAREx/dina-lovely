@@ -9,14 +9,15 @@ func run():
  for n in range(8):
   field.layer_routes.clear()
   var player:Vector2=base+Vector2.from_angle(n*TAU/8)*12
-  var pose:=Vector3(base.x,player.y-16,14)
+  var pose:=Vector3(base.x,player.y-14,14)
   var previous:Vector3=field.route_pose(index,pose,false,player,1.0/60)
   var switched:=false
   for frame in range(100):
    var result:Vector3=field.route_pose(index,pose,true,player,1.0/60)
    assert(Vector2(result.x,result.y).distance_to(Vector2(previous.x,previous.y))<4.1,"crown jumped")
+   assert(Vector2(result.x,result.y).distance_to(Vector2(pose.x,pose.y))<=9,"crown escaped its tether")
    if field.layer_routes[index].front and not switched:
-    assert(absf(result.x-player.x)>=32,"layer changed inside heroine")
+    assert(absf(result.x-player.x)>=32 or result.y-result.z>=player.y-28.1,"layer changed above waist")
     switched=true
    previous=result
   assert(switched and Vector2(previous.x,previous.y).distance_to(Vector2(pose.x,pose.y))<1.5)

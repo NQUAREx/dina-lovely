@@ -1067,10 +1067,11 @@ func move_player(delta: float, input: Vector2) -> void:
 	walk_facing=input.normalized()
 	var before := player
 	var motion := input.limit_length()*SPEED*delta
+	if hedge_field!=null:motion=hedge_field.resist_motion(player,motion)
 	var next := player+Vector2(motion.x,0)
-	if not blocked(next): player = next
+	if not blocked(next) and (hedge_field==null or not hedge_field.resists_entry(player,next,input)): player = next
 	next = player+Vector2(0,motion.y)
-	if not blocked(next): player = next
+	if not blocked(next) and (hedge_field==null or not hedge_field.resists_entry(player,next,input)): player = next
 	var travelled := before.distance_to(player)
 	stats.add(self,"distance",travelled)
 	companion.record()
