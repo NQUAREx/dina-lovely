@@ -150,8 +150,8 @@ func update(delta:float)->void:
   var v:=position-before;direction=(1 if v.x<0 else 3) if absf(v.x)>absf(v.y) else (0 if v.y<0 else 2)
   anim+=delta;stride+=v.length()
   if stride>=16:
-   stride=fmod(stride,16);prints.append({"pos":position-v.normalized()*9,"angle":v.angle()+PI/2,"life":13.0,"stone":g.stone_surface(position)})
-   if prints.size()>120:prints.pop_front()
+   stride=fmod(stride,16);prints.append({"pos":position-v.normalized()*9,"angle":v.angle()+PI/2,"life":39.0,"stone":g.stone_surface(position)})
+   if prints.size()>360:prints.pop_front()
 func draw_cat()->void:
  var name:="cat_walk"+str(direction)+"_"+str(int(anim*10)%4) if moving else "cat_idle"+str(direction)+"_"+str(2 if fposmod(g.time,4.7)>4.55 else int(g.time*1.5)%2)
  var p:Vector2=g.screen(position)
@@ -163,6 +163,7 @@ func draw_cat()->void:
 
 func draw_prints()->void:
  for mark in prints:
+  if not g.get_viewport_rect().grow(20).has_point(g.screen(mark.pos)):continue
   if not g.shadow_floor_cell(Vector2i(mark.pos/48)):continue
   var color:=Color("a39180") if mark.stone else Color("223a2b");color.a=.68*minf(1,mark.life/2)
   g.draw_set_transform(g.screen(mark.pos),mark.angle);g.draw_sprite("cat_paw",Vector2.ZERO,color,.42);g.draw_set_transform(Vector2.ZERO)

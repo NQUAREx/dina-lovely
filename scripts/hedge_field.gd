@@ -334,14 +334,15 @@ func resist_motion(point: Vector2, motion: Vector2, input: Vector2 = Vector2.ZER
 	else:
 		if push_anchor==Vector2.INF or point.distance_squared_to(push_anchor)>18*18 or normal.dot(push_normal)<.65:
 			push_anchor=point;push_normal=normal;push_charge=0
-		push_charge=move_toward(push_charge,clampf((pressure-.45)/.55,0,1),delta*2.2)
+		push_charge=move_toward(push_charge,clampf((pressure-.45)/.55,0,1),delta*.95)
 	var inward:=minf(0,motion.dot(normal))
-	if inward>=0 or compression<=0:return motion
-	# About half a second of deliberate pressure softens the entry. Deeper foliage
+	if compression<=0:return motion
+	if inward>=0:return motion*(1-compression*.24) if pressure<.2 and motion.dot(normal)<=.05 else motion
+	# About a second of deliberate pressure softens the entry. Deeper foliage
 	# remains denser; longitudinal movement and retreat have no extra collision.
-	var grip:=lerpf(.18,.8,push_charge)*(1-compression*.3)
+	var grip:=lerpf(.075,.52,push_charge)*(1-compression*.52)
 	var tangent:=motion-normal*inward
-	return tangent*(1-compression*.06)+normal*inward*lerpf(1,grip,compression)
+	return tangent*(1-compression*.32)+normal*inward*lerpf(1,grip,compression)
 
 func foreground(player: Vector2) -> bool:
 	var cell:=Vector2i(player/TILE);var nearest:=INF;var normal:=Vector2.ZERO

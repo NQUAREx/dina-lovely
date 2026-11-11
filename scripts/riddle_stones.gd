@@ -58,7 +58,7 @@ func excavate(pos:Vector2)->void:
  var point:Array=g.save_data.riddle_stone_positions.get("3",[])
  if point.size()!=2:return
  var hidden:=Vector2(point[0],point[1]);var distance:=pos.distance_to(hidden)
- if distance<56:
+ if distance<38:
   g.save_data.riddle_stone_exposed=true;g.save_data.riddle_stone_positions["3"]=[pos.x,pos.y];install()
   g.burst(pos,12,Color("e6c592"));g.notify(g.tx("stone_unearthed"))
  elif distance<170:g.notify(g.tx("stone_dig_near"))

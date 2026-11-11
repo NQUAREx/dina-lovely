@@ -762,3 +762,6 @@ runpy.run_path(str(R/"tools/create_leaf_bits.py"))
 
 # Reproducible relief ground, trimmed foliage and a hidden stone lip.
 runpy.run_path(str(R/"tools/create_quest_refinements.py"))
+
+# Irregular excavation masks and pixel rocket/dirt effects.
+runpy.run_path(str(R/"tools/create_dig_rocket_art.py"))

@@ -136,6 +136,7 @@ func gunner(e:Dictionary,delta:float)->void:
   g.shots.append({"pos":e.pos+Vector2(0,-24)+direction*28,"vel":direction*float(profile.speed),"life":3.0,"kind":"enemy_rocket" if rocket else "enemy_bullet","age":0.0,"range_left":profile.travel,"max_range":profile.travel,"shooter_type":int(e.type),"damage":profile.damage})
   e.fired_at=g.time;e.cooldown=randf_range(profile.interval.x,profile.interval.y);e.target=g.player;e.ammo-=1
   g.sfx_at("rpg_launch" if rocket else "rifle" if e.type==6 else "pistol",e.pos)
+  if rocket:g.scene_fx.launch(e.pos+Vector2(0,-24)+direction*28,e.pos+Vector2(0,-24)-direction*24,direction,false)
   if e.ammo<=0:
    e.reload_duration=randf_range(profile.reload.x,profile.reload.y);e.reload_left=e.reload_duration;g.sfx_at("reload",e.pos)
  var velocity:=Vector2.ZERO
@@ -248,13 +249,8 @@ func draw_gun(e:Dictionary,p:Vector2)->void:
 func spawn_medkit()->void:
  var id:="arena_medkit"
  if g.save_data.arena_medkit_claimed or g.objects.any(func(o):return o.kind=="medkit"):return
- var origin:=Vector2(13.5,21.0)*48
- var point:Vector2=g.accessory_drop_position(origin)
- for offset in [Vector2.ZERO,Vector2(-144,0),Vector2(144,0),Vector2(-288,0),Vector2(288,0),Vector2(0,-96),Vector2(-144,-96),Vector2(144,-96)]:
-  var candidate:Vector2=origin+offset;var bounds:=Rect2(candidate-Vector2(30,44),Vector2(60,52))
-  if not g.valid_ground(candidate) or g.blocked(candidate):continue
-  if g.objects.any(func(o):return o.kind not in ["doorway","arch","pet_cat"] and g.item_visual_bounds(o).grow(12).intersects(bounds)):continue
-  point=candidate;break
+ var point:=Vector2(g.grid[0].length(),g.grid.size())*24
+
  g.objects.append({"kind":"medkit","id":id,"pos":point,"solid":false})
  g.notify(g.tx("medkit_spawned").format({"wave":g.wave}))
 func bullet_length(shot:Dictionary)->float:
@@ -280,5 +276,5 @@ func restore_medkit_limit(legacy:bool)->void:
   g.objects.assign(g.objects.filter(func(obj):return obj.kind!="medkit"))
  elif not medkits.is_empty():
   var keep:Dictionary=medkits[0]
-  keep.id="arena_medkit"
+  keep.id="arena_medkit";keep.pos=Vector2(g.grid[0].length(),g.grid.size())*24
   g.objects.assign(g.objects.filter(func(obj):return obj.kind!="medkit" or obj==keep))

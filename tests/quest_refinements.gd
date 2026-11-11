@@ -57,7 +57,8 @@ func run():
  g.world_tools.complete("snip_hedge:%d:%d"%[cell.x,cell.y],(Vector2(cell)+Vector2(.5,.5))*48)
  assert([cell.x,cell.y] in g.world_tools.state().hedges and g.particles.size()-count_before>=28)
  g.build_level(3);var p:Array=g.save_data.riddle_stone_positions["3"]
- g.rune_stones.excavate(Vector2(p[0],p[1])+Vector2(50,0));assert(g.save_data.riddle_stone_exposed)
+ g.rune_stones.excavate(Vector2(p[0],p[1])+Vector2(50,0));assert(not g.save_data.riddle_stone_exposed)
+ g.rune_stones.excavate(Vector2(p[0],p[1])+Vector2(36,0));assert(g.save_data.riddle_stone_exposed)
  for level in range(7):g.level=level;g.update_hud();assert(g.status.text.is_empty() and g.hint.text.is_empty())
- print("PASS stone foliage cue, cut stems/particles, wider stone excavation and hint-free HUD")
+ print("PASS stone foliage cue, cut stems/particles, original stone excavation radius and hint-free HUD")
  quit()

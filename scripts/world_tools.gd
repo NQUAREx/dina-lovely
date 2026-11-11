@@ -2,6 +2,8 @@ extends RefCounted
 const PIT_WALL := [Color("76543c"),Color("674832"),Color("5c3f2e"),Color("51382b"),Color("473229"),Color("402e28"),Color("382b27"),Color("332925"),Color("2e2724"),Color("2b2523")]
 ## Optional world editing. Only the current room runs; other rooms keep saved data.
 const TOOLS := ["axe","shears","drill"]
+var dig_shapes:Image=preload("res://assets/dig_shapes.png").get_image()
+var soil_fx_clock:=0.0
 var stubble:Texture2D=preload("res://assets/hedge_stubble.png")
 var g:Node2D
 var images:Dictionary={}
@@ -133,26 +135,32 @@ func ensure_dirt()->void:
  for point in state().excavations:stamp(Vector2(point[0],point[1]))
  textures[key]=ImageTexture.create_from_image(images[key])
 func stamp(pos:Vector2)->void:
- var key:=str(g.level);var mask:Image=masks[key];var image:Image=images[key];var centre:=pos/2
- for y in range(maxi(1,int(centre.y)-10),mini(mask.get_height()-1,int(centre.y)+11)):
-  for x in range(maxi(1,int(centre.x)-16),mini(mask.get_width()-1,int(centre.x)+17)):
-   var noise:float=sin(x*17.31+y*7.91)*.07
-   if ((Vector2(x+.5,y+.5)-centre)/Vector2(15.5,9.5)).length()<1+noise:mask.set_pixel(x,y,Color.WHITE)
- for y in range(maxi(1,int(centre.y)-12),mini(mask.get_height()-1,int(centre.y)+33)):
-  for x in range(maxi(1,int(centre.x)-18),mini(mask.get_width()-1,int(centre.x)+19)):
-   if mask.get_pixel(x,y).r<.5:continue
-   var top_depth:=20
-   for depth in range(1,21):
-    if y-depth<0 or mask.get_pixel(x,y-depth).r<.5:top_depth=depth;break
-   var upper_edge:=mask.get_pixel(x,y-1).r<.5
+ var key:=str(g.level);var mask:Image=masks[key];var image:Image=images[key];var centre:=Vector2i(pos/2)
+ var shape_rng:=RandomNumberGenerator.new()
+ shape_rng.seed=int(g.save_data.seed)^(int(pos.x)*73856093)^(int(pos.y)*19349663)^(g.level*4177)
+ var variant:=shape_rng.randi_range(0,7);var mirror:=shape_rng.randf()>.5
+ for y in range(28):
+  for x in range(40):
+   var target:=centre+Vector2i(x-20,y-14)
+   if target.x<1 or target.y<1 or target.x>=mask.get_width()-1 or target.y>=mask.get_height()-1:continue
+   if dig_shapes.get_pixel(variant*40+(39-x if mirror else x),y).a>.5:mask.set_pixelv(target,Color.WHITE)
+ # The union mask owns the rim. Running depth down each column avoids the old
+ # twenty-pixel upward search at every pixel and leaves no seams between stamps.
+ var first_y:=maxi(1,centre.y-16);var last_y:=mini(mask.get_height()-1,centre.y+36)
+ for x in range(maxi(1,centre.x-23),mini(mask.get_width()-1,centre.x+24)):
+  var depth:=0
+  for y in range(maxi(0,first_y-20),last_y):
+   if mask.get_pixel(x,y).r<.5:depth=0;continue
+   depth=mini(20,depth+1)
+   if y<first_y:continue
    var side_edge:=mask.get_pixel(x-1,y).r<.5 or mask.get_pixel(x+1,y).r<.5
-   var color:=Color("a88255") if upper_edge else Color("49362d") if side_edge else Color("2b2523")
-   if top_depth>1:
-    color=PIT_WALL[mini(9,top_depth-2)]
-    if top_depth in [3,6] and posmod(x*13+y*7,17)<4:color=color.lightened(.035)
-    elif top_depth>9 and posmod(x*31+y*17,23)<2:color=Color("3a3029")
-
+   var color:=Color("a88255") if depth==1 else Color("49362d") if side_edge else Color("2b2523")
+   if depth>1:
+    color=PIT_WALL[mini(9,depth-2)]
+    if depth in [3,6] and posmod(x*13+y*7,17)<4:color=color.lightened(.035)
+    elif depth>9 and posmod(x*31+y*17,23)<2:color=Color("3a3029")
    image.set_pixel(x,y,color)
+
 func has_sample(pos:Vector2)->bool:
  var room:=str(g.level)
  if not sample_indices.has(room):
@@ -172,9 +180,14 @@ func excavate(pos:Vector2)->void:
    g.save_data.buried_exposed=true;g.save_data.dig_target=[pos.x,pos.y];g.objects.append({"kind":"note","id":"buried","solid":false,"pos":pos,"rise_start":g.time});g.notify(g.tx("buried_note_exposed"))
   elif not g.save_data.buried_exposed:g.notify(g.tx("buried_note_near") if pos.distance_to(hidden)<260 else g.tx("digging_empty"))
  g.rune_stones.excavate(pos)
- g.burst(pos,7,Color("aa8263"));g.persist()
+ g.scene_fx.soil(pos,10);g.persist()
 func update(delta:float)->void:
  drilling=g.held_item=="drill" and g.playing and not g.paused and not g.transition and soil(ground_point())
+ soil_fx_clock-=delta
+ var shoveling:bool=g.playing and not g.paused and not g.transition and g.held_item=="shovel" and g.task_time>0 and g.task_kind.begins_with("dig:")
+ if (drilling or shoveling) and soil_fx_clock<=0:
+  soil_fx_clock=.075 if shoveling else .085
+  g.scene_fx.soil(g.task_target if shoveling else ground_point(),10 if shoveling else 7)
  drill_clock-=delta
  if drilling and drill_clock<=0:drill_clock=.18;excavate(ground_point())
  if drill_voice==null:

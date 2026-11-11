@@ -24,6 +24,8 @@ var web_save_callback:JavaScriptObject
 const stats:=preload("res://scripts/journey_stats.gd")
 var torch:=preload("res://scripts/flashlight_state.gd").new(self)
 var companion:=preload("res://scripts/cat_companion.gd").new(self)
+var weapon_crates:=preload("res://scripts/weapon_crates.gd").new(self)
+var scene_fx:=preload("res://scripts/scene_fx.gd").new(self)
 var world_tools := preload("res://scripts/world_tools.gd").new(self)
 const SPEED := 150.0
 const SAVE_PATH := "user://garden_save_v1.json"
@@ -38,6 +40,7 @@ var rpg_textures:Dictionary={"loaded":preload("res://assets/rpg_loaded.png"),"em
 var tool_table_texture:Texture2D=preload("res://assets/tool_table.png")
 var atlas: Texture2D = preload("res://assets/atlas.png")
 var romance_ground: Texture2D = preload("res://assets/ground_romance.png")
+var grass_clumps:Texture2D=preload("res://assets/grass_clumps.png")
 var grass_variants:Texture2D=preload("res://assets/grass_variants.png")
 var stone_peek:Texture2D=preload("res://assets/stone_peek.png")
 var ground: Texture2D = preload("res://assets/ground.png")
@@ -227,7 +230,7 @@ func _ready() -> void:
 		JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"arena_medkit_claimed":false,"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_stones":[],"riddle_inserted":[],"riddle_stone_order":[],"riddle_stone_positions":{},"riddle_stone_exposed":false,"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"weapon_crates_opened":[],"arena_medkit_claimed":false,"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_stones":[],"riddle_inserted":[],"riddle_stone_order":[],"riddle_stone_positions":{},"riddle_stone_exposed":false,"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -623,6 +626,7 @@ func activate_cached_room(index: int) -> void:
 	weapon=held_item if held_item in ["sword","rifle","rpg"] else "";sync_hands()
 	objects.assign(objects.filter(func(obj):return not obj.get("dropped_accessory",false)))
 	restore_accessory_drops();restore_gate_key();normalize_dig_site();world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install()
+	weapon_crates.install()
 	for door in objects:
 		if door.kind=="doorway":door.gate_amount=1.0 if door_is_open(str(door.id)) else 0.0
 	task_time=0;rpg_windup=-1;resting="";nearest=-1
@@ -925,7 +929,9 @@ func build_level(index: int) -> void:
 				put_object("stone",p,"",true)
 				put_object("lamp",p+Vector2i(0,-1))
 			put_object("chest",Vector2i(13,7),"courage")
-			for i in range(3): put_object("rack_"+["rpg","rifle","sword"][i],Vector2i(9+i*4,14),["rpg","rifle","sword"][i])
+			for i in range(3):
+				var w:String=["rpg","rifle","sword"][i]
+				put_object("weapon_crate",Vector2i(9+i*4,12),"crate_"+w,true);objects[-1].weapon=w
 			put_object("arch",Vector2i(13,2),"exit")
 		elif level == 5:
 			put_object("rake",Vector2i(7,14),"rake")
@@ -1013,6 +1019,7 @@ func build_level(index: int) -> void:
 	world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install()
 	if index==4:
 		arena_save.restore_room();restore_gate_key();rune_stones.install()
+		weapon_crates.install()
 		battle.navigation_checked=-INF;battle.ensure_navigation()
 	camera = camera_target()
 	nearest = -1
@@ -1065,12 +1072,15 @@ func blocked(pos: Vector2) -> bool:
 			elif pos.distance_to(obj.pos)<(58 if obj.kind=="house" else 24):return true
 	return false
 
+func movement_speed()->float:
+	return SPEED*float({"rifle":.90,"rpg":.62}.get(held_item,1.0))
+
 func move_player(delta: float, input: Vector2) -> void:
 	moving = input.length()>0.1
 	if not moving: return
 	walk_facing=input.normalized()
 	var before := player
-	var motion := input.limit_length()*SPEED*delta
+	var motion := input.limit_length()*movement_speed()*delta
 	if hedge_field!=null:motion=hedge_field.resist_motion(player,motion,input,delta)
 	var next := player+Vector2(motion.x,0)
 	if not blocked(next): player = next
@@ -1178,7 +1188,9 @@ func _process(delta: float) -> void:
 	for i in range(particles.size()-1,-1,-1):
 		particles[i].life -= delta
 		if particles[i].life<=0:particles.remove_at(i);continue
-		if particles[i].get("foliage",false):
+		if particles[i].get("physical_fx",false):
+			scene_fx.step(particles[i],delta)
+		elif particles[i].get("foliage",false):
 			leaf_debris.step(particles[i],delta)
 		else:
 			particles[i].pos += particles[i].vel*delta
@@ -1262,6 +1274,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.kind=="weapon_crate":return false
+	if obj.has("flight_start") and time<float(obj.flight_start)+float(obj.flight_duration):return false
+	if obj.kind.begins_with("weapon_") and level==4 and not weapon_crates.unlocked(str(obj.weapon)):return false
 	if obj.kind=="letter_box":return true
 	if obj.kind=="riddle_stone":return obj.id not in save_data.riddle_stones and (not obj.get("hidden_hedge",false) or obj.pos.distance_to(player)<=HIDDEN_REACH)
 	if obj.kind=="medkit":return true
@@ -1377,6 +1392,9 @@ func item_name(obj: Dictionary) -> String:
 
 func item_display_position(obj: Dictionary) -> Vector2:
 	var pos:Vector2=obj.pos
+	if obj.has("flight_start"):
+		var t:=clampf((time-float(obj.flight_start))/float(obj.flight_duration),0,1)
+		return Vector2(obj.flight_from).lerp(pos,1-pow(1-t,2))+Vector2(0,-sin(t*PI)*60) if t<1 else pos
 	if obj.kind=="skull_relic":pos.y-=46
 	if obj.kind=="gate_key" and obj.has("key_origin"):
 		var t:=clampf((time-float(obj.get("rise_start",time-1)))/.55,0,1)
@@ -1484,7 +1502,7 @@ func interact() -> void:
 	if task_time>0:return
 	if nearest>=0 and world_tools.use_object(objects[nearest]):return
 	if new_bed_action_ready():world_tools.make_bed();return
-	if level==3 and save_data.shovel and task_time<=0 and (nearest<0 or (objects[nearest].id not in ["exit","back","buried","gate_key_3"] and objects[nearest].kind not in ["accessory","riddle_stone"])):
+	if level==3 and held_item=="shovel" and task_time<=0 and nearest<0:
 		dig_here()
 		return
 	if nearest<0: return
@@ -1758,10 +1776,10 @@ func update_hud() -> void:
 	action_button.visible = (nearest>=0 or world_tools.can_bed() or (level==3 and save_data.shovel)) and playing
 	if new_bed_action_ready():action_button.text=tx("new_bed_action")
 	elif nearest>=0:action_button.text=action_text(objects[nearest])
-	if level==3 and save_data.shovel and (nearest<0 or (objects[nearest].id not in ["exit","back","buried","gate_key_3"] and objects[nearest].kind not in ["accessory","riddle_stone"])): action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
+	if level==3 and held_item=="shovel" and nearest<0: action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
 	fit_button_text(action_button)
 	switch_button.visible = false
-	attack_button.visible = playing and not weapon.is_empty() and ((level==4 and not combat_done) or save_data.finished)
+	attack_button.visible = playing and ((level==4 and wave>0 and not combat_done) or (save_data.finished and not weapon.is_empty()))
 	hint.text = ""
 
 func notify(text: String) -> void:
@@ -1778,6 +1796,7 @@ func spawn_wave() -> void:
 	poison_zones.clear()
 	wave_timer = 3.0
 	battle.spawn()
+	weapon_crates.install(true)
 	persist()
 
 func update_combat(delta: float) -> void:
@@ -1802,7 +1821,8 @@ func rifle_muzzle() -> Vector2:
 	return player+Vector2(14,-28)+Vector2(-18.0 if left else 18.0,-1.6).rotated(angle)
 
 func attack(launch_ready: bool = false) -> void:
-	if (rpg_windup>=0 and not launch_ready) or paused or (not save_data.finished and (level!=4 or combat_done)) or attack_cd>0 or transition or weapon.is_empty() or reload_time>0 or (weapon=="rpg" and rpg_reload>0): return
+	var fists:=weapon.is_empty() and level==4 and wave>0 and not combat_done
+	if (rpg_windup>=0 and not launch_ready) or paused or (not save_data.finished and (level!=4 or combat_done)) or attack_cd>0 or transition or (weapon.is_empty() and not fists) or reload_time>0 or (weapon=="rpg" and rpg_reload>0): return
 	if weapon=="rifle" and magazine<=0:
 		reload_time=1.8;sfx("reload");return
 	if not launch_ready and save_data.finished:
@@ -1818,12 +1838,19 @@ func attack(launch_ready: bool = false) -> void:
 	else:direction=0 if aim.y<0 else 2
 	if weapon=="rpg" and not launch_ready:
 		rpg_aim=aim;rpg_windup=.20;return
-	attack_cd = {"sword":.48,"rifle":.13,"rpg":RPG_RELOAD}[weapon]
+	attack_cd = .4 if fists else {"sword":.48,"rifle":.13,"rpg":RPG_RELOAD}[weapon]
 	attack_flash=.22
-	sfx("attack" if weapon=="sword" else "rifle" if weapon=="rifle" else "rpg_launch")
+	sfx("attack" if fists or weapon=="sword" else "rifle" if weapon=="rifle" else "rpg_launch")
 	shake = 2.5 if weapon!="rpg" else 5
 	haptic(14)
-	if weapon=="sword":
+	if fists:
+		var hit:=false
+		for i in range(enemies.size()-1,-1,-1):
+			var diff:Vector2=enemies[i].pos-player
+			if diff.length()<86 and aim.dot(diff.normalized())>.05:
+				damage_enemy(i,12,diff.normalized()*12);hit=true
+		if hit:sfx("sword_hit")
+	elif weapon=="sword":
 		for i in range(enemies.size()-1,-1,-1):
 			var diff: Vector2 = enemies[i].pos-player
 			if diff.length()<130 and aim.dot(diff.normalized())>-.35:
@@ -1831,6 +1858,7 @@ func attack(launch_ready: bool = false) -> void:
 	else:
 		shots.append({"pos":rpg_muzzle() if weapon=="rpg" else rifle_muzzle(),"vel":aim.rotated(randf_range(-.036,.036) if weapon=="rifle" else 0)*(570 if weapon=="rifle" else 75),"life":1.4 if weapon=="rifle" else 4.5,"kind":weapon,"age":0.0})
 		if weapon=="rpg":
+			scene_fx.launch(rpg_muzzle(),player+Vector2(14,-28)-aim*34,aim)
 			stats.add(self,"rockets")
 			rpg_reload=RPG_RELOAD
 			for step in range(12):
@@ -2086,6 +2114,7 @@ func _draw_world() -> void:
 				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	for obj in objects:
+		if obj.has("flight_start") and time<float(obj.flight_start):continue
 		if obj.kind in ["axe","shears","drill","tool_table"] and not save_data.finished:continue
 		if obj.kind in ["hedge_target","tool_table","pet_cat"]:continue
 		if obj.kind=="cat_fish" and (save_data.cat_fish or save_data.cat_tamed):continue
@@ -2157,6 +2186,7 @@ func _draw_world() -> void:
 
 	if level==2:draw_new_rooms()
 	draw_leaf_debris()
+	scene_fx.draw(true)
 	renderables.sort_custom(func(a,b):
 		if a.pos.y==b.pos.y:
 			if a.kind=="dug" and b.kind!="dug":return true
@@ -2250,6 +2280,8 @@ func _draw_world() -> void:
 				if item.id=="exit":draw_gate(p,float(item.get("gate_amount",0.0)))
 			elif kind=="flashlight_pedestal":draw_sprite("pedestal",p)
 			elif kind=="stand_flashlight":draw_sprite("flashlight_rest",p)
+			elif kind=="weapon_crate":weapon_crates.draw(item,p)
+			elif kind.begins_with("weapon_"):draw_sprite(kind,screen(item_display_position(item)))
 			elif kind.begins_with("rack_") and item.id in save_data.weapons_taken: draw_sprite("rack_empty",p)
 			elif kind=="mound": draw_sprite("dug" if item.id in save_data.dug else "mound",p)
 			elif kind=="chest": draw_sprite("chest_open" if ((item.id=="final" and chest_open) or item.id in save_data.letters) else "chest",p,Color.WHITE,3.0 if item.id=="final" else 1.0)
@@ -2304,7 +2336,7 @@ func _draw_world() -> void:
 			draw_rect(Rect2(Vector2(-2,-1),Vector2(4,2)),Color(.95,.65,.78,.35))
 			draw_set_transform(Vector2.ZERO)
 	for part in particles:
-		if part.get("ground",false) or part.get("foliage",false):continue
+		if part.get("ground",false) or part.get("foliage",false) or part.get("physical_fx",false):continue
 		var c: Color = part.color
 		c.a = minf(1,part.life)
 		if part.heart:draw_heart(screen(part.pos),1.2,c)
@@ -2312,6 +2344,8 @@ func _draw_world() -> void:
 	if level!=2:draw_new_rooms()
 	if not drawing_neighbor:
 		draw_extra_effects()
+		weapon_crates.draw_fist()
+		scene_fx.draw(false)
 		draw_reply_deposit()
 		world_tools.draw_falling()
 	for number in damage_numbers:draw_string(body_font,screen(number.pos),tx("damage_amount").format({"amount":number.value}),HORIZONTAL_ALIGNMENT_LEFT,-1,19,Color(1,.55,.61,minf(1,number.life*3)))
@@ -2409,6 +2443,7 @@ func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	task_time = duration
 	task_duration = duration
 	moving = false
+	if kind.begins_with("dig:"):scene_fx.soil(target,12);world_tools.soil_fx_clock=.075
 	var toward := target-player
 	walk_facing=toward.normalized()
 	if absf(toward.x)>absf(toward.y):direction=1 if toward.x<0 else 3
@@ -2501,11 +2536,13 @@ func update_shots(delta: float) -> void:
 		if shot.kind in ["enemy_bullet","enemy_rocket"]:
 			var t:=clampf((player+Vector2(0,-26)-start).dot(segment)/maxf(.001,segment.length_squared()),0,1)
 			var contact:=start.lerp(end,t).distance_to(player+Vector2(0,-26))<18 and t<=wall_t
-			shot.pos=end;shot.life-=delta
+			shot.pos=start.lerp(end,clampf(t if contact else wall_t,0,1)) if contact or wall_t<=1 else end
+			shot.life-=delta
+			if shot.kind=="enemy_rocket":scene_fx.trail(shot,start,shot.pos,delta)
 			if shot.has("range_left"):shot.range_left=maxf(0,float(shot.range_left)-motion.length())
 			var expired:bool=shot.life<=0 or float(shot.get("range_left",1))<=.25
 			if contact:hurt(float(shot.get("damage",1.0)))
-			if shot.kind=="enemy_rocket" and (contact or wall_t<=1 or expired):burst(end,18,Color("ee9d59"));sfx_at("rpg_explosion",end)
+			if shot.kind=="enemy_rocket" and (contact or wall_t<=1 or expired):scene_fx.explosion(shot.pos);sfx_at("rpg_explosion",shot.pos)
 			if contact or wall_t<=1 or expired:shots.remove_at(i)
 			continue
 		var hit_index := -1
@@ -2528,12 +2565,11 @@ func update_shots(delta: float) -> void:
 			if t>=0 and t<=1 and t<hit_t:hit_t=t;hit_index=j
 		shot.pos=start.lerp(end,minf(1.0,hit_t))
 		shot.life-=delta
-		if shot.kind=="rpg" and particles.size()<420:
-			particles.append({"pos":shot.pos-shot.vel.normalized()*12,"vel":-shot.vel.normalized()*22,"life":.55,"color":Color(.5,.47,.44,.35),"heart":false})
+		if shot.kind=="rpg":scene_fx.trail(shot,start,shot.pos,delta)
 		var hit: bool = hit_index>=0 or wall_t<=1 or shot.life<=0
 		if not hit:continue
 		if shot.kind=="rpg":
-			shake=maxf(shake,10.0*clampf(1-player.distance_to(shot.pos)/750,0,1));sfx_at("rpg_explosion",shot.pos);burst(shot.pos,42,Color("ffd69c"))
+			shake=maxf(shake,10.0*clampf(1-player.distance_to(shot.pos)/750,0,1));sfx_at("rpg_explosion",shot.pos);scene_fx.explosion(shot.pos)
 		if hit_index>=0:damage_enemy(hit_index,99.0 if shot.kind=="rpg" else 8.5,shot.vel.normalized()*9)
 		shots.remove_at(i)
 
@@ -2557,18 +2593,14 @@ func draw_extra_effects() -> void:
 	for shot in shots:
 		var p := screen(shot.pos)
 		if shot.kind=="rpg":
-			var backwards: Vector2 = -shot.vel.normalized()
-			var side := backwards.orthogonal()
-			var length := 36+12*sin(time*49)
-			draw_colored_polygon(PackedVector2Array([p+backwards*8+side*7,p+backwards*8-side*7,p+backwards*length]),Color("f79e51"))
-			draw_colored_polygon(PackedVector2Array([p+backwards*9+side*3,p+backwards*9-side*3,p+backwards*(length*.7)]),Color("fff2b7"))
+			scene_fx.draw_jet(p,shot.vel.normalized(),shot.age)
 			draw_set_transform(p,shot.vel.angle())
 			draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55)
 			draw_set_transform(Vector2.ZERO)
 			draw_texture_rect(glow,Rect2(p-Vector2(25,25),Vector2(50,50)),false,Color(1,.7,.35,.6))
 		elif shot.kind=="enemy_rocket":
 			draw_set_transform(p,shot.vel.angle());draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55);draw_set_transform(Vector2.ZERO)
-			draw_circle(p-shot.vel.normalized()*13,randf_range(4,7),Color("ffc56b"))
+			scene_fx.draw_jet(p,shot.vel.normalized(),shot.age)
 		elif shot.kind=="enemy_bullet":battle.draw_bullet(shot,p)
 		else:battle.draw_bullet(shot,p)
 	if (level==4 or save_data.finished) and not weapon.is_empty():
@@ -3136,8 +3168,8 @@ func leave_footprint(direction: Vector2) -> void:
 	left_foot=not left_foot
 	var stone := stone_surface(player)
 	var position := player-direction*5+direction.orthogonal()*(5 if left_foot else -5)
-	footprints.append({"pos":position,"rotation":direction.angle()+PI/2,"life":9.0,"stone":stone})
-	if footprints.size()>150:footprints.pop_front()
+	footprints.append({"pos":position,"rotation":direction.angle()+PI/2,"life":27.0,"stone":stone})
+	if footprints.size()>450:footprints.pop_front()
 	for n in range(8):
 		if particles.size()>=420:break
 		particles.append({"pos":position+Vector2(randf_range(-3,3),0),"vel":-direction*randf_range(5,14)+Vector2(randf_range(-9,9),randf_range(-12,-3)),"life":randf_range(.25,.5),"color":Color("b6ab9b") if stone else Color("a6b786"),"heart":false,"ground":true})
@@ -3145,7 +3177,9 @@ func leave_footprint(direction: Vector2) -> void:
 func draw_footprints() -> void:
 	var id:int=sprites["footprint"]
 	for footprint in footprints:
-		draw_set_transform(screen(footprint.pos),footprint.rotation)
+		var point:=screen(footprint.pos)
+		if not get_viewport_rect().grow(20).has_point(point):continue
+		draw_set_transform(point,footprint.rotation)
 		var garden_mark:bool=level==5 and footprint.pos.y>=7*TILE and footprint.pos.y<=(grid.size()-7)*TILE
 		var color:=Color("74583f") if footprint.stone and garden_mark else Color("b8ab9a") if footprint.stone else Color("243a2d")
 		color.a=(.78 if garden_mark else .56)*minf(1.0,footprint.life/2)
@@ -3224,8 +3258,20 @@ func prepare_grass_details() -> void:
 	var image := Image.create(grid[0].length()*24,grid.size()*24,false,Image.FORMAT_RGBA8)
 	for y in range(grid.size()):
 		for x in range(grid[0].length()):
-			var variant:=rng.randi_range(0,15)
-			image.blit_rect(base,Rect2i(variant%4*24,(96 if level==0 else 0)+variant/4*24,24,24),Vector2i(x*24,y*24))
+			image.blit_rect(base,Rect2i(posmod(x+int(save_data.seed),4)*24,(96 if level==0 else 0)+posmod(y+int(save_data.seed/7),4)*24,24,24),Vector2i(x*24,y*24))
+	# Individual relief motifs are scattered once into the room bitmap. No repeated
+	# large tile pattern, extra scene objects, or per-frame grass work is needed.
+	var clumps:=grass_clumps.get_image();clumps.convert(Image.FORMAT_RGBA8)
+	var palette:=1 if level==0 else 0
+	for y in range(2,image.get_height()-2,8):
+		for x in range(2,image.get_width()-2,8):
+			if rng.randf()<.20:continue
+			var point:=Vector2i(x+rng.randi_range(-3,3),y+rng.randi_range(-3,3))
+			var cell:=Vector2i(Vector2(point)/24)
+			if not shadow_floor_cell(cell) or corridor_row(cell.y):continue
+			var chance:=rng.randf()
+			var variant:=rng.randi_range(0,11) if chance<.975 else rng.randi_range(12,13) if chance<.992 else rng.randi_range(14,15)
+			image.blend_rect(clumps,Rect2i(variant*16,palette*16,16,16),point-Vector2i(8,12))
 	var sheet := atlas.get_image();sheet.convert(Image.FORMAT_RGBA8)
 	for detail in grass_details:
 		var id: int = sprites[detail.kind]

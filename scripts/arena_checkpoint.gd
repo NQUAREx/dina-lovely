@@ -57,13 +57,16 @@ func restore_room()->void:
  g.battle.restore_medkit_limit(int(state.get("medkit_schema",0))==0)
 func restore_hands()->void:
  if g.level!=4 or not valid():return
- g.held_item=str(g.save_data.arena_checkpoint.get("held_item",""));g.weapon=g.held_item if g.held_item in ["rifle","rpg","sword"] else "";g.sync_hands()
+ g.held_item=str(g.save_data.arena_checkpoint.get("held_item",""))
+ if g.held_item in ["rifle","rpg","sword"] and not g.weapon_crates.unlocked(g.held_item):g.held_item="";g.save_data.arena_checkpoint.held_item=""
+ g.weapon=g.held_item if g.held_item in ["rifle","rpg","sword"] else "";g.sync_hands()
 func mark_dead()->void:
  if g.level==4:g.save_data.arena_checkpoint={"dead":true,"seed":g.save_data.seed}
 func reset_saved()->void:
  g.save_data.arena_checkpoint={}
  g.save_data.arena_medkit_claimed=false
  g.save_data.weapons_taken=[]
+ g.save_data.weapon_crates_opened=[]
  for drop in g.save_data.loose_accessories:
   if int(drop.room)==4:drop.room=g.accessory_origin(str(drop.accessory));drop.pos=[]
  g.save_data.loose_weapons=g.save_data.loose_weapons.filter(func(o):return int(o.get("room",4))!=4)

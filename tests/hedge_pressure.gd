@@ -18,12 +18,12 @@ func run():
   var next:Vector2=point+field.resist_motion(point,Vector2(0,.5),Vector2.DOWN,.016)
   assert(not field.blocks(next),"longitudinal movement caught on segment seam")
   point=next
- assert(point.y>310)
+ assert(point.y>280)
  # Both sides of a wall use the same normal-based resistance.
  var other:=approach(field,Vector2(318,264),Vector2.LEFT,1)
  assert(other.x>=281.99 and other.x<283)
  var tangential:Vector2=field.resist_motion(Vector2(240,264),Vector2(0,3))
- assert(tangential==Vector2(0,3))
+ assert(tangential.y>2 and tangential.y<3 and tangential.x==0)
  var inward:Vector2=field.resist_motion(Vector2(240,264),Vector2(3,0))
  assert(inward.x>0 and inward.x<3)
  # Horizontal wall: same pressure law, original vertical core remains 15 pixels.

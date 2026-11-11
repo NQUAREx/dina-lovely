@@ -1,29 +1,56 @@
 """Deterministic ground relief, cut foliage and a partly buried stone. Original pixel art."""
 from pathlib import Path
 from PIL import Image, ImageDraw
-import random
+import random, math
 R=Path(__file__).resolve().parents[1]; A=R/'assets'
 rng=random.Random(81473)
-# Sixteen seamless 24px patches for each existing grass palette. Fine relief stays
-# baked into the ground, never moves with the camera or becomes a floating sprite.
+# A continuous, shaded grass carpet: low patches, many bent blade clusters,
+# stones and tiny wildflowers. Runtime keeps these patches contiguous and bakes
+# room-specific details into one stationary texture.
 sheet=Image.new('RGB',(96,192))
-for palette,base in enumerate([(49,77,78),(83,104,97)]):
- for variant in range(16):
-  im=Image.new('RGB',(24,24),base);d=ImageDraw.Draw(im)
-  def tone(offset):return tuple(max(0,min(255,c+offset)) for c in base)
-  for n in range(13):
-   x=rng.randrange(24);y=rng.randrange(24)
-   d.point((x,y),fill=tone(rng.choice([-5,-3,4,6])))
-  for n in range(rng.randrange(4,7)):
-   x=rng.randrange(24);y=rng.randrange(24);h=rng.choice([2,2,3])
-   for dx,dy,c in [(0,1,-10),(1,1,-7),(0,0,9),(0,-1,13),(1,-1,4),(-1,0,-3)]:
-    d.point(((x+dx)%24,(y+dy)%24),fill=tone(c))
-   if h==3:d.point((x,(y-2)%24),fill=tone(8))
-  if variant%4==0:
-   x,y=rng.randrange(24),rng.randrange(24)
-   for dx,dy,c in [(0,1,-13),(1,1,-9),(0,0,12),(1,0,6)]:d.point(((x+dx)%24,(y+dy)%24),fill=tone(c))
-  sheet.paste(im,((variant%4)*24,palette*96+(variant//4)*24))
-sheet.save(A/'grass_variants.png')
+base_sheet=Image.new('RGB',(96,192));clump_sheet=Image.new('RGBA',(256,32))
+for palette,base in enumerate([(60,85,80),(80,108,98)]):
+ im=Image.new('RGB',(96,96));d=ImageDraw.Draw(im)
+ for y in range(96):
+  for x in range(96):
+   v=math.sin(x*math.tau/96)+math.cos(y*math.tau/48)+.7*math.sin((x+y)*math.tau/96)
+   shade=round(v*1.5)+rng.randrange(-1,2)
+   im.putpixel((x,y),tuple(max(0,min(255,c+shade)) for c in base))
+ base_sheet.paste(im,(0,palette*96))
+ def wrap(layer,x,y):
+  for dx in [-96,0,96]:
+   for dy in [-96,0,96]:im.paste(layer,(x+dx,y+dy),layer)
+ lift=palette*13
+ for n in range(285):
+  clump=Image.new('RGBA',(16,16));cd=ImageDraw.Draw(clump)
+  cd.ellipse((3,11,13,14),fill=(44+lift,68+lift,63+lift,85))
+  for blade in range(rng.randrange(2,5)):
+   x=rng.randrange(5,12);h=rng.randrange(1,4);bend=rng.choice([-3,-2,-1,1,2,3]);mid=12-h//2
+   dark=(56+lift,83+lift,73+lift);green=(76+lift,104+lift,89+lift);tip=(102+lift,127+lift,105+lift)
+   if n%7==0:green=(88+lift,107+lift,86+lift);tip=(113+lift,130+lift,105+lift)
+   cd.line((x+1,13,x+1,mid,x+bend+1,12-h),fill=dark,width=2)
+   cd.line((x,12,x,mid-1,x+bend,11-h),fill=green)
+   cd.point((x+bend,11-h),fill=tip)
+   if h>4:cd.point((x+bend,12-h),fill=(tip[0]+8,tip[1]+5,tip[2]+5))
+  if n<12:clump_sheet.alpha_composite(clump,(n*16,palette*16))
+  wrap(clump,rng.randrange(96)-8,rng.randrange(96)-12)
+ for n in range(22):
+  stone=Image.new('RGBA',(10,8));sd=ImageDraw.Draw(stone)
+  sd.ellipse((1,4,8,7),fill=(57,76,69,100))
+  sd.polygon([(2,3),(4,1),(7,2),(8,4),(6,6),(2,5)],fill=rng.choice(['#8b9b94','#9da89a','#889a92','#a8ae9d']))
+  sd.line((3,2,5,1,7,2),fill='#c6cabc');sd.line((2,5,6,6,8,4),fill='#6c8277')
+  if n<2:clump_sheet.alpha_composite(stone,((12+n)*16+3,palette*16+5))
+  wrap(stone,rng.randrange(96)-4,rng.randrange(96)-4)
+ for n in range(18):
+  flower=Image.new('RGBA',(8,9));fd=ImageDraw.Draw(flower)
+  fd.line((4,8,4,3),fill='#7f9a83');fd.point((3,6),fill='#a2b39a')
+  color=rng.choice(['#d5c6a8','#c5b7cc','#c6b5c8','#d0c19c'])
+  fd.point((3,2),fill=color);fd.point((5,2),fill=color);fd.point((4,1),fill=color);fd.point((4,3),fill=color);fd.point((4,2),fill='#f0dca4')
+  if n<2:clump_sheet.alpha_composite(flower,((14+n)*16+4,palette*16+4))
+  wrap(flower,rng.randrange(96)-4,rng.randrange(96)-7)
+ sheet.paste(im,(0,palette*96))
+base_sheet.save(A/'grass_variants.png')
+clump_sheet.save(A/'grass_clumps.png')
 # Distinct, low cut stems. Small highlights show severed ends above their shadows.
 im=Image.new('RGBA',(72,24));d=ImageDraw.Draw(im)
 for variant in range(3):
