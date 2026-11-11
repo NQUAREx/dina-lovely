@@ -11,10 +11,10 @@ if marker not in s:
   window.gardenHideLoading?.();
   if(document.getElementById('garden-recovery'))return;
   const box=document.createElement('div');box.id='garden-recovery';
-  Object.assign(box.style,{position:'fixed',inset:'0',zIndex:'1000',background:'#242538',color:'#f5e3cf',display:'grid',placeContent:'center',textAlign:'center',padding:'32px',font:'18px sans-serif'});
+  Object.assign(box.style,{position:'fixed',inset:'0',zIndex:'1000',background:'#242538',color:'#f5e3cf',display:'grid',placeContent:'center',textAlign:'center',padding:'32px',font:'18px GardenLetter,sans-serif'});
   const text=document.createElement('p');text.textContent=window.gardenContent?.ui?.[message]?.text||'';box.append(text);
   const button=document.createElement('button');button.textContent=window.gardenContent?.ui?.recovery_return?.text||' ';button.onclick=()=>location.reload();
-  Object.assign(button.style,{padding:'16px',background:'#70536e',color:'#f5e3cf',border:'1px solid #e5a6bd',borderRadius:'12px',font:'18px sans-serif'});box.append(button);document.body.append(box);
+  Object.assign(button.style,{padding:'16px',background:'#70536e',color:'#f5e3cf',border:'1px solid #e5a6bd',borderRadius:'12px',font:'18px GardenLetter,sans-serif'});box.append(button);document.body.append(box);
  }
  window.addEventListener('garden-asset-error',()=>recover('recovery_load_failed'));
  canvas.addEventListener('webglcontextlost',()=>recover('recovery_context_lost'));
@@ -36,9 +36,10 @@ frame_colors=[]
 for room in range(7):
  with Image.open(root/'assets'/f'frame_field_{room}.png') as field:
   frame_colors.append([round(c) for c in ImageStat.Stat(field.convert('RGB')).mean])
-(p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)))
+(p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__FONT_HASH__',hashlib.sha256((root/'assets/body.ttf').read_bytes()+(root/'assets/title.ttf').read_bytes()).hexdigest()[:12]).replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)))
 shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
 shutil.copyfile(root/'assets/title.ttf',p.parent/'letter-title.ttf')
+(p.parent/'font-licenses.txt').write_text((root/'assets/FONT-LICENSE.txt').read_text()+'\n'+(root/'assets/RUBIK-OFL.txt').read_text())
 from PIL import Image, ImageDraw
 paper_image=Image.new("RGBA",(464,660))
 paper_draw=ImageDraw.Draw(paper_image)

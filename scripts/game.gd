@@ -188,11 +188,14 @@ func _ready() -> void:
 	load_save()
 	ensure_riddle()
 	held_item = save_data.get("held_item","")
+	body_font.fallbacks = [preload("res://assets/symbols.ttf")]
+	title_font.fallbacks = [preload("res://assets/symbols.ttf")]
 	setup_audio()
 	setup_fog()
 	setup_ui()
-	build_level(5)
-	camera = Vector2(13.5,9.5)*TILE
+	build_level(clampi(int(save_data.level),0,6) if save_data.started else 0)
+	camera = camera_target()
+	sync_room_theme()
 	touch_mode = true
 	show_menu()
 	get_viewport().size_changed.connect(layout_ui)
@@ -318,19 +321,31 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	b.text = text
 	b.custom_minimum_size = Vector2(minf(width, 420), 60)
 	b.add_theme_font_override("font", body_font)
-	b.add_theme_font_size_override("font_size", 16)
+	b.add_theme_font_size_override("font_size", 26)
+	b.clip_text = true
+	b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	b.add_theme_color_override("font_color", CREAM)
 	b.add_theme_stylebox_override("normal", panel_style(Color("51445f")))
 	b.add_theme_stylebox_override("hover", panel_style(Color("70536e"), PINK))
 	b.add_theme_stylebox_override("pressed", panel_style(Color("97677d"), CREAM))
+	b.resized.connect(fit_button_text.bind(b))
 	b.pressed.connect(callback)
 	return b
+
+func fit_button_text(control: Button) -> void:
+	var available_width := maxf(1, control.size.x - control.get_theme_stylebox("normal").get_minimum_size().x - 4)
+	var font_size := 26
+	while font_size > 16 and body_font.get_string_size(control.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > available_width:
+		font_size -= 1
+	control.add_theme_font_size_override("font_size", font_size)
 
 func setup_ui() -> void:
 	ui = CanvasLayer.new()
 	ui.layer = 2
 	add_child(ui)
 	root = Control.new()
+	root.theme = Theme.new()
+	root.theme.default_font = body_font
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(root)
@@ -344,11 +359,17 @@ func setup_ui() -> void:
 	top.add_theme_stylebox_override("panel", panel_style(Color(0.12,0.14,0.22,0.92)))
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(top)
-	objective = label("", 18)
+	objective = label("", 19)
+	objective.autowrap_mode = TextServer.AUTOWRAP_OFF
+	objective.clip_text = true
+	objective.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	objective.position = Vector2(32, 45)
 	objective.size = Vector2(374, 42)
 	hud.add_child(objective)
-	status = label("", 14, Color("c1bdce"))
+	status = label("", 15, Color("c1bdce"))
+	status.autowrap_mode = TextServer.AUTOWRAP_OFF
+	status.clip_text = true
+	status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	status.position = Vector2(32, 92)
 	status.size = Vector2(374, 30)
 	hud.add_child(status)
@@ -1630,6 +1651,7 @@ func update_hud() -> void:
 	if new_bed_action_ready():action_button.text=tx("new_bed_action")
 	elif nearest>=0:action_button.text=action_text(objects[nearest])
 	if level==3 and save_data.shovel and (nearest<0 or (objects[nearest].id not in ["exit","back","buried","gate_key_3"] and objects[nearest].kind not in ["accessory","riddle_stone"])): action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
+	fit_button_text(action_button)
 	switch_button.visible = false
 	attack_button.visible = playing and not weapon.is_empty() and ((level==4 and not combat_done) or save_data.finished)
 	hint.text = (tx("hedge_collision_prefix") + str(Vector2i(player/TILE))) if stuck_seconds>.8 else (tx("movement_hint") if not joy_active else "")
