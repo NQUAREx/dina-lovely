@@ -138,7 +138,7 @@ func try_crown(point: Vector2, radius: float) -> void:
 		var other:Dictionary=crowns[index]
 		if point.distance_squared_to(other.base)<pow(radius+float(other.radius)+.35,2):return
 	var index:=crowns.size()
-	crowns.append({"base":point,"offset":Vector2.ZERO,"velocity":Vector2.ZERO,"radius":radius,"variant":rng.randi_range(0,11),"berry":"","press":0.0,"depression":0.0,"depression_velocity":0.0,"released":false,"sway":0.0,"sway_velocity":0.0,"last_pressure":0.0})
+	crowns.append({"base":point,"offset":Vector2.ZERO,"velocity":Vector2.ZERO,"radius":radius,"variant":rng.randi_range(0,11),"berry":"","press":0.0,"depression":0.0,"depression_velocity":0.0,"released":false,"sway":0.0,"sway_velocity":0.0,"last_pressure":0.0,"layer_blend":0.0,"layer_start":0.0,"layer_target":0.0,"layer_progress":1.0,"layer_side":1.0,"layer_initialized":false})
 	var bin:=Vector2i(point/BIN)
 	if not bins.has(bin):bins[bin]=[]
 	bins[bin].append(index)
@@ -363,7 +363,7 @@ func remove_cell(cell:Vector2i)->void:
 			for x in range(cell.x*24,mini(image.get_width(),(cell.x+1)*24)):image.set_pixel(x,y,Color.TRANSPARENT)
 		body_texture.update(image)
 
-func prepare_draw(indices:PackedInt32Array,player:Vector2)->void:
+func prepare_draw(indices:PackedInt32Array,player:Vector2,delta:float=1.0/60.0)->void:
 	front_crowns.clear();draw_poses.clear()
 	# Preserve painter order across the hero split: a later overlapping crown follows
 	# an earlier foreground crown into the same pass. No leaf can jump above its neighbour.
@@ -382,3 +382,24 @@ func prepare_draw(indices:PackedInt32Array,player:Vector2)->void:
 			front_crowns[index]=true
 			if not foreground_bins.has(bin):foreground_bins[bin]=[]
 			foreground_bins[bin].append(index)
+	var desired_front:=front_crowns.duplicate()
+	front_crowns.clear()
+	for index in indices:
+		var node:Dictionary=crowns[index]
+		var target:=1.0 if desired_front.has(index) else 0.0
+		if not node.layer_initialized:
+			node.layer_initialized=true;node.layer_blend=target;node.layer_start=target;node.layer_target=target;node.layer_progress=1.0
+		elif target!=node.layer_target:
+			node.layer_start=node.layer_blend;node.layer_target=target;node.layer_progress=0.0
+			var side:=1.0 if node.base.x>=player.x else -1.0
+			if absf(node.base.x-player.x)<5:side=1.0 if int(node.variant)%2==0 else -1.0
+			node.layer_side=side
+		if node.layer_progress<1.0:
+			node.layer_progress=minf(1.0,node.layer_progress+clampf(delta,0,0.05)/0.24)
+			var arc:=sin(node.layer_progress*PI)
+			node.layer_blend=lerpf(node.layer_start,node.layer_target,smoothstep(0,1,node.layer_progress))
+			var pose:Vector3=draw_poses[index]
+			pose.x+=arc*20.0*float(node.layer_side);pose.y-=arc*8.0
+			draw_poses[index]=pose
+		else:node.layer_blend=node.layer_target
+		if node.layer_blend>=0.5:front_crowns[index]=true

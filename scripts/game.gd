@@ -2150,7 +2150,7 @@ func _draw_world() -> void:
 	var visible_crowns:=PackedInt32Array()
 	if hedge_field!=null:
 		visible_crowns=hedge_field.visible_ids(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
-		hedge_field.prepare_draw(visible_crowns,player)
+		hedge_field.prepare_draw(visible_crowns,player,get_process_delta_time())
 		for item in renderables:
 			if item.get("integrated_tree",false):draw_cast_shadow(item.kind,screen(item.pos),1)
 		for index in visible_crowns:
