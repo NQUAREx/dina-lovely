@@ -14,12 +14,12 @@ func run():
    assert(g.enemies.size()==7 and g.enemies.filter(func(e):return e.boss).size()==1)
    for kind in [5,6,7]:assert(g.enemies.filter(func(e):return e.type==kind).size()==2)
   for e in g.enemies:assert(g.battle.spawn_clear(e.pos) and e.pos.distance_to(g.player)>=190)
-  assert(g.objects.filter(func(o):return o.kind=="medkit").size()==(1 if wave in [3,5] else 0))
+  assert(g.objects.filter(func(o):return o.kind=="medkit").size()==(1 if wave==4 else 0))
   g.objects.assign(g.objects.filter(func(o):return o.kind!="medkit"))
  assert(g.battle.GUNS[5].travel==175 and g.battle.GUNS[6].travel==196 and g.battle.GUNS[7].travel==280)
  # Saved wave 10 must become the new final wave, never a dead end.
  g.wave=10;g.health=3.5;g.playing=true;g.arena_save.capture();g.save_data.arena_checkpoint.balance=4;g.arena_save.restore_room();assert(g.wave==7 and g.enemies.size()==7 and g.health==3.5)
- print("PASS seven waves, gradual shooters, exact finale, two medkits, range and old wave migration")
+ print("PASS seven waves, gradual shooters, exact finale, one medkit, range and old wave migration")
  var positions:Dictionary={}
  for room in range(7):
   g.activate_cached_room(room);g.rune_stones.install()

@@ -1,6 +1,7 @@
 extends RefCounted
 const BALANCE_VERSION := 5
 const WAVE_COUNT := 7
+const MEDKIT_WAVE := 4
 const BULLET_RANGE := 196.0
 const ROCKET_RANGE := 280.0
 const WAVES := [
@@ -40,7 +41,7 @@ func spawn(medkits:bool=true,announce:bool=true)->void:
   if best<0:push_error("No valid arena spawn point");return
   points.erase(chosen)
   enemy(2 if kind<0 else kind,chosen,roundi(base_hp(kind)),kind<0)
- if medkits and g.wave in [3,5]:spawn_medkit()
+ if medkits and g.wave==MEDKIT_WAVE:spawn_medkit()
  elif announce:g.notify(g.tx("boss_announcement") if g.wave==WAVE_COUNT else g.tx("wave_announcement")%g.wave)
 func base_hp(kind:int)->float:
  return 1100.0 if kind<0 else 32+g.wave*4+(kind-5)*4 if kind>=5 else 26+g.wave*4 if kind==4 else 16+g.wave*3+kind*2
@@ -195,8 +196,8 @@ func draw_gun(e:Dictionary,p:Vector2)->void:
  if recoil>0:g.draw_texture_rect(g.glow,Rect2(origin+direction*28-Vector2(14,14),Vector2(28,28)),false,Color(1,.8,.4,recoil))
 
 func spawn_medkit()->void:
- var id:="wave"+str(g.wave)+"_medkit"
- if g.objects.any(func(o):return o.id==id):return
+ var id:="arena_medkit"
+ if g.save_data.arena_medkit_claimed or g.objects.any(func(o):return o.kind=="medkit"):return
  var origin:=Vector2(13.5,21.0)*48
  var point:Vector2=g.accessory_drop_position(origin)
  for offset in [Vector2.ZERO,Vector2(-144,0),Vector2(144,0),Vector2(-288,0),Vector2(288,0),Vector2(0,-96),Vector2(-144,-96),Vector2(144,-96)]:
@@ -221,3 +222,13 @@ func normalize_projectile(shot:Dictionary)->void:
  elif float(shot.max_range)>cap:
   var travelled:=maxf(0,float(shot.max_range)-float(shot.range_left))
   shot.max_range=cap;shot.range_left=maxf(0,cap-travelled)
+
+func restore_medkit_limit(legacy:bool)->void:
+ var medkits:Array=g.objects.filter(func(obj):return obj.kind=="medkit")
+ if legacy and g.wave>=3 and medkits.is_empty():g.save_data.arena_medkit_claimed=true
+ if g.save_data.arena_medkit_claimed:
+  g.objects.assign(g.objects.filter(func(obj):return obj.kind!="medkit"))
+ elif not medkits.is_empty():
+  var keep:Dictionary=medkits[0]
+  keep.id="arena_medkit"
+  g.objects.assign(g.objects.filter(func(obj):return obj.kind!="medkit" or obj==keep))

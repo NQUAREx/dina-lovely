@@ -52,6 +52,7 @@ var fog: ColorRect
 var skulls: Array[Dictionary] = []
 var damage_numbers: Array[Dictionary] = []
 var room_remains: Dictionary = {}
+var rocket_audio:=preload("res://scripts/rocket_audio.gd").new(self)
 var rocket_voice: AudioStreamPlayer
 var path_meshes: Array = []
 var path_texture: Texture2D
@@ -142,6 +143,9 @@ var hud: Control
 var modal: Control
 var rotate_overlay: Control
 var objective: Label
+var enemy_wave_bar: Control
+var enemy_count_progress: ProgressBar
+var enemy_count_label: Label
 var status: Label
 var hint: Label
 var action_button: Button
@@ -207,7 +211,7 @@ func _ready() -> void:
 		JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_stones":[],"riddle_inserted":[],"riddle_stone_order":[],"riddle_stone_positions":{},"riddle_stone_exposed":false,"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"arena_medkit_claimed":false,"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_stones":[],"riddle_inserted":[],"riddle_stone_order":[],"riddle_stone_positions":{},"riddle_stone_exposed":false,"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -265,6 +269,7 @@ func setup_audio() -> void:
 	rocket_voice.stream=flight
 	if OS.has_feature("web"):rocket_voice.playback_type=AudioServer.PLAYBACK_TYPE_SAMPLE
 	add_child(rocket_voice)
+	rocket_audio.setup()
 	foliage_voice = AudioStreamPlayer.new()
 	var leaves:=preload("res://assets/rustle.wav").duplicate() as AudioStreamWAV
 	leaves.loop_mode=AudioStreamWAV.LOOP_FORWARD;leaves.loop_begin=0;leaves.loop_end=int(leaves.get_length()*leaves.mix_rate)
@@ -280,6 +285,9 @@ func setup_audio() -> void:
 		audio_pool.append(voice)
 
 func sfx(name: String = "chime") -> void:
+	if name in ["rpg_launch","rpg_explosion"]:
+		rocket_audio.event(name, player)
+		return
 	if not sound_on or DisplayServer.get_name()=="headless": return
 	var voice := audio_pool[audio_cursor % audio_pool.size()]
 	audio_cursor += 1
@@ -375,6 +383,7 @@ func setup_ui() -> void:
 	status.position = Vector2(32, 92)
 	status.size = Vector2(374, 30)
 	hud.add_child(status)
+	setup_enemy_progress()
 	var menu_button := button("", show_menu, 68)
 	menu_button.tooltip_text=tx("menu_action")
 	menu_button.icon=preload("res://assets/pause_icon.png")
@@ -421,6 +430,52 @@ func setup_ui() -> void:
 	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rotate_overlay.add_child(tip)
 	rotate_overlay.z_index = 100
+
+func setup_enemy_progress() -> void:
+	enemy_wave_bar = Panel.new()
+	enemy_wave_bar.position = Vector2(16, 144)
+	enemy_wave_bar.size = Vector2(508, 44)
+	enemy_wave_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	enemy_wave_bar.add_theme_stylebox_override("panel", panel_style(Color(.12, .14, .22, .94), Color("8d718c"), 8))
+	hud.add_child(enemy_wave_bar)
+	var icon := TextureRect.new()
+	var icon_texture := AtlasTexture.new()
+	icon_texture.atlas = atlas
+	var sprite_id: int = sprites["enemy0"]
+	var tile_origin := Vector2i(sprite_id % 16 * 32, sprite_id / 16 * 48)
+	var used := label_atlas_pixels.get_region(Rect2i(tile_origin, Vector2i(32, 48))).get_used_rect()
+	icon_texture.region = Rect2(Vector2(tile_origin + used.position), Vector2(used.size))
+	icon.texture = icon_texture
+	icon.position = Vector2(238, 6)
+	icon.size = Vector2(32, 32)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	enemy_wave_bar.add_child(icon)
+	enemy_count_progress = ProgressBar.new()
+	enemy_count_progress.position = Vector2(10, 10)
+	enemy_count_progress.size = Vector2(488, 24)
+	enemy_count_progress.show_percentage = false
+	enemy_count_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var background := StyleBoxFlat.new()
+	background.bg_color = Color("252438")
+	background.set_corner_radius_all(3)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color("b97591")
+	fill.set_corner_radius_all(3)
+	enemy_count_progress.add_theme_stylebox_override("background", background)
+	enemy_count_progress.add_theme_stylebox_override("fill", fill)
+	enemy_wave_bar.add_child(enemy_count_progress)
+	enemy_count_label = label("", 15)
+	enemy_count_label.position = Vector2(278, 10)
+	enemy_count_label.size = Vector2(210, 24)
+	enemy_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	enemy_count_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	enemy_count_label.add_theme_color_override("font_outline_color", Color("201c30"))
+	enemy_count_label.add_theme_constant_override("outline_size", 3)
+	enemy_wave_bar.add_child(enemy_count_label)
+	enemy_wave_bar.move_child(icon, enemy_wave_bar.get_child_count()-1)
+	enemy_wave_bar.hide()
 
 func layout_ui() -> void:
 	var size := get_viewport_rect().size
@@ -1035,14 +1090,7 @@ func _process(delta: float) -> void:
 	if playing and not paused:
 		var previous := rpg_reload;rpg_reload=maxf(0,rpg_reload-delta)
 		if previous>.3 and rpg_reload<=.3 and weapon=="rpg":sfx("rpg_load")
-	if is_instance_valid(rocket_voice):
-		var distance := INF
-		for shot in shots:
-			if shot.kind in ["rpg","enemy_rocket"]:distance=minf(distance,player.distance_to(shot.pos))
-		if sound_on and playing and not paused and distance<1400:
-			rocket_voice.volume_db=lerpf(rocket_voice.volume_db,-10-20*log(1+distance/420)/log(10.0),minf(1,delta*12))
-			if not rocket_voice.playing:rocket_voice.play()
-		else:rocket_voice.stop()
+	rocket_audio.update(delta)
 	for door in objects:
 		if door.kind=="doorway":
 			door.gate_amount=move_toward(float(door.get("gate_amount",0)),1.0 if door_is_open(str(door.id)) else 0.0,delta*2.5)
@@ -1411,6 +1459,7 @@ func interact() -> void:
 	if obj.kind=="riddle_stone":rune_stones.collect(obj);return
 	if obj.kind=="medkit":
 		if health>=8:notify(tx("health_full"));return
+		save_data.arena_medkit_claimed=true
 		health=8;objects.erase(obj);burst(player,12,Color("a9e7b6"));sfx("chime");notify(tx("medkit_used"));find_nearest();persist();return
 	if obj.kind=="letter_box":show_letter_stack(obj);return
 	if obj.kind=="stats_stone":stats.show(self);return
@@ -1671,8 +1720,12 @@ func update_hud() -> void:
 		4: status.text = tx("combat_status") % [mini(wave,battle.WAVE_COUNT),tx("combat_chest_hint") if combat_done else {"sword":tx("weapon_sword"),"rifle":tx("weapon_rifle"),"rpg":tx("weapon_rpg")}.get(weapon,tx("weapon_required"))]
 		5: status.text = tx("garden_status") % [required_flower_count(),tx("water_prefix")+str(water)+" / 6" if garden_can else tx("can_search_hint")]
 		6: status.text = tx("rune_status").format({"found":save_data.riddle_stones.size(),"inserted":save_data.riddle_inserted.size()}) if not rune_stones.ready() else tx("puzzle_status") % puzzle.size()
-	if level==4 and wave>0 and not combat_done:
-		status.text+=" · "+tx("combat_enemies_left").format({"count":enemies.size()})
+	enemy_wave_bar.visible = playing and level==4 and wave>0 and not combat_done and not enemies.is_empty()
+	toast.position.y = 198 if enemy_wave_bar.visible else 146
+	if enemy_wave_bar.visible:
+		enemy_count_progress.max_value = battle.WAVES[clampi(wave-1, 0, battle.WAVE_COUNT-1)].size()
+		enemy_count_progress.value = enemies.size()
+		enemy_count_label.text = str(enemies.size())
 	if level>0 and level<6 and room_letters_complete() and not door_is_open("exit"):
 		status.text+=" · "+tx("gate_key_ready" if level in save_data.gate_keys else "gate_key_ground")
 	action_button.disabled = task_time>0
@@ -1754,7 +1807,6 @@ func attack(launch_ready: bool = false) -> void:
 		if weapon=="rpg":
 			stats.add(self,"rockets")
 			rpg_reload=RPG_RELOAD
-			if sound_on and not rocket_voice.playing:rocket_voice.volume_db=-10;rocket_voice.play()
 			for step in range(12):
 				var recoil := player-aim*6
 				if blocked(recoil):break
@@ -2455,6 +2507,18 @@ func update_shots(delta: float) -> void:
 		shots.remove_at(i)
 
 func draw_extra_effects() -> void:
+	if playing and held_item=="can":
+		var water_position := screen(player) + Vector2(-26, -134 if level==4 and wave>0 and not combat_done else -120)
+		var display_water := float(water)
+		if task_time>0 and task_duration>0:
+			var progress := clampf(1-task_time/task_duration, 0, 1)
+			if task_kind=="fill":display_water = lerpf(water, 6, progress)
+			elif task_kind.begins_with("water:"):display_water = maxf(0, water-progress)
+		draw_rect(Rect2(water_position-Vector2.ONE, Vector2(54, 8)), Color("232d43"))
+		draw_rect(Rect2(water_position, Vector2(52, 6)), Color("36536e"))
+		var fill_width := roundf(52 * clampf(display_water/6.0, 0, 1))
+		if fill_width>0:
+			draw_rect(Rect2(water_position, Vector2(fill_width, 6)), Color("73cdef"))
 	if level==4 and inside_main_room() and wave>0 and not combat_done and playing:
 		var p:=screen(player)+Vector2(-27,-104)
 		draw_rect(Rect2(p-Vector2.ONE,Vector2(56,9)),Color("292735"));draw_rect(Rect2(p,Vector2(54,7)),Color("574153"))
@@ -3102,6 +3166,9 @@ func draw_gate_leaf(name: String, pos: Vector2) -> void:
 
 
 func sfx_at(name: String, pos: Vector2) -> void:
+	if name in ["rpg_launch","rpg_explosion"]:
+		rocket_audio.event(name, pos)
+		return
 	if not sound_on or DisplayServer.get_name()=="headless":return
 	var distance := player.distance_to(pos)
 	if distance>1400:return

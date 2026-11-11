@@ -227,10 +227,19 @@
     "sha256": "80d48af81ce71c97e49a07446693b8fc8ab2b1b190bf47f98a872dc7bae2f774"
   },
   "rpg_launch.wav": {
-    "source": "qubodup, Rocket launch / launch.wav",
-    "url": "https://opengameart.org/content/rocket-launch",
-    "license": "CC0",
-    "processing": "Leading silence removed, 0.8s excerpt, mono 44.1kHz, filter, +19.55dB gain, tail fade and limiter",
-    "sha256": "cf9dbd2a032461269acc00ef8c3c70b114ee259396505465ebb986cfc203bb48"
+    "source": "rpg_reference_launch.wav",
+    "url": "https://youtu.be/4Vu0Hr9660U",
+    "excerpt_seconds": "5.88–7.38",
+    "license": "Reference recording supplied by user; rights remain with respective owners (not CC0)",
+    "processing": "Mono 44.1kHz, peak 29000, 60ms tail fade; original pitch",
+    "sha256": "299631c282e737d93200db25877c309aecf3732d829f270c9c841d7aa22b388d"
+  },
+  "rpg_explosion.wav": {
+    "source": "rpg_reference_impact.wav",
+    "url": "https://youtu.be/4Vu0Hr9660U",
+    "excerpt_seconds": "8.40–10.50",
+    "license": "Reference recording supplied by user; rights remain with respective owners (not CC0)",
+    "processing": "Mono 44.1kHz, peak 29000, 60ms tail fade; original pitch",
+    "sha256": "ea93579b683451ce5f59bb74b11cfa8b56ce238ffcbec5cb0d17d43743eeb1f0"
   }
 }

@@ -33,4 +33,8 @@ Gate update: Kenney RPG Audio creak1 + creak3, slowed recorded layers. RPG launc
 Whistle-led RPG flight loop: recorded `tin-whistle-whoosh-02.wav` by Jan Schupke / Vehicle (Tinysized SFX, CC0), mixed with Kenney `thrusterFire_004.ogg` (CC0). Band filtering, normalized recorded layers and an 80 ms cyclic crossfade; no synthesized oscillator. Reproduce with `tools/make_rpg_whistle.py`. Runtime flight gain increased by 6 dB with distance attenuation retained.
 
 Current RPG audio (balance 5): launch uses **qubodup**, Rocket launch, CC0, https://opengameart.org/content/rocket-launch (`launch.wav` from launch.7z; trimmed leading silence, 0.8s excerpt, mono conversion and tail fade). Flight uses **theMinesAreShakin**, Rocket Engine, CC0, https://opengameart.org/content/rocket-engine (`rocket_engine.001.wav`; full sustained recording, 130Hz–8.5kHz filter, mono conversion and 220ms cyclic crossfade). The flight loop is 5.87 seconds rather than a short repeated whistle. It plays continuously while any rocket is airborne; additional launches do not restart it. Source recordings are included in tools/audio_source/.
+
+### Current RPG launch and explosion reference
+
+`rpg_launch.wav` and `rpg_explosion.wav` now use the second clean shot from the user-supplied reference [RPG - 3d sound](https://youtu.be/4Vu0Hr9660U): 5.88–7.38 s and 8.40–10.50 s. Original pitch, mono 44.1 kHz, peak normalization and short tail fade. These excerpts are **not CC0**; rights remain with their respective recording/game owners. Rebuild with `python3 tools/make_reference_rpg.py`. Earlier launch/explosion source entries above describe replaced recordings.
 </pre></html>

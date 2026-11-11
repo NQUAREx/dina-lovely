@@ -38,7 +38,7 @@ func capture()->void:
  if resetting or not g.playing or g.level!=4 or g.health<=0:return
  var fields={}
  for field in FIELDS:fields[field]=pack(g.get(field))
- g.save_data.arena_checkpoint={"schema":1,"balance":g.battle.BALANCE_VERSION,"seed":g.save_data.seed,"fields":fields,"held_item":g.held_item,"time":g.time,"remains":pack(g.room_remains.get(4,[]))}
+ g.save_data.arena_checkpoint={"schema":1,"medkit_schema":1,"balance":g.battle.BALANCE_VERSION,"seed":g.save_data.seed,"fields":fields,"held_item":g.held_item,"time":g.time,"remains":pack(g.room_remains.get(4,[]))}
  clock=0
 func restore_room()->void:
  if resetting or g.level!=4 or not valid():return
@@ -54,6 +54,7 @@ func restore_room()->void:
  if int(state.get("balance",0))!=g.battle.BALANCE_VERSION and g.wave>0 and not g.combat_done:
   g.wave=clampi(g.wave,1,g.battle.WAVE_COUNT)
   g.enemies.clear();g.shots.clear();g.poison_zones.clear();g.battle.spawn(false,false)
+ g.battle.restore_medkit_limit(int(state.get("medkit_schema",0))==0)
 func restore_hands()->void:
  if g.level!=4 or not valid():return
  g.held_item=str(g.save_data.arena_checkpoint.get("held_item",""));g.weapon=g.held_item if g.held_item in ["rifle","rpg","sword"] else "";g.sync_hands()
@@ -61,6 +62,7 @@ func mark_dead()->void:
  if g.level==4:g.save_data.arena_checkpoint={"dead":true,"seed":g.save_data.seed}
 func reset_saved()->void:
  g.save_data.arena_checkpoint={}
+ g.save_data.arena_medkit_claimed=false
  g.save_data.weapons_taken=[]
  for drop in g.save_data.loose_accessories:
   if int(drop.room)==4:drop.room=g.accessory_origin(str(drop.accessory));drop.pos=[]
