@@ -3,6 +3,7 @@ extends RefCounted
 ## No tile sprites, baked leaf strips or fixed canopy overlays.
 const TILE := 48.0
 const BIN := 24.0
+const SWAY_VISUAL_GAIN := 1.12
 var grid: Array[String] = []
 var crowns: Array[Dictionary] = []
 var chains: Array[PackedVector2Array] = []
@@ -182,7 +183,7 @@ func update(delta: float, player: Vector2) -> void:
 			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(48+pressure*16)
 		node.last_pressure=pressure
 		# Keep original contact impulse; softer return damping preserves several visible swings.
-		node.sway_velocity+=(-node.sway*30-node.sway_velocity*1.7)*delta
+		node.sway_velocity+=(-node.sway*33-node.sway_velocity*1.9)*delta
 		node.sway=clampf(node.sway+node.sway_velocity*delta,-12.0,12.0)
 		if absf(node.sway)<.025 and absf(node.sway_velocity)<.1:node.sway=0.0;node.sway_velocity=0.0
 		contact_strength=maxf(contact_strength,pressure)
@@ -268,7 +269,8 @@ func crown_in_contact(index: int, player: Vector2) -> bool:
 func crown_pose(index: int, player: Vector2) -> Vector3:
 	var node:Dictionary=crowns[index]
 	var radius:=roundf(node.radius*1.48*(1-node.press*.07))
-	var centre:Vector2=(node.base+node.offset+Vector2(float(node.get("sway",0)),0)).round()-Vector2(0,16)+Vector2(0,roundf(node.depression))
+	var sway_visual:=float(node.get("sway",0))*SWAY_VISUAL_GAIN
+	var centre:Vector2=(node.base+node.offset+Vector2(sway_visual,0)).round()-Vector2(0,16)+Vector2(0,roundf(node.depression))
 	# Bend the whole contacting crown down to leg height, never slice its texture.
 	if crown_in_contact(index,player):centre.y=maxf(centre.y,minf(ceilf(player.y-28+radius),node.base.round().y+6))
 	return Vector3(centre.x,centre.y,radius)
