@@ -7,16 +7,16 @@ func run():
  assert(g.body_font.get_font_name().contains("Garden Pixel") and g.title_font.get_font_name().contains("Garden Pixel"))
  for node in g.modal.find_children("*", "Button", true, false):
   if node.text.is_empty():continue
-  assert(node.get_theme_font_size("font_size")==26)
+  assert(node.get_theme_font_size("font_size")==30)
  g.action_button.size=Vector2(180,76)
  for key in ["fill_water","insert_rune","pickup_flashlight","open_gate"]:
   var text:String=g.tx(key)
   if text.is_empty():continue
   g.action_button.text=text;g.fit_button_text(g.action_button)
-  var width:float=g.body_font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,g.action_button.get_theme_font_size("font_size")).x
+  var width:float=g.action_button.get_theme_font("font").get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,g.action_button.get_theme_font_size("font_size")).x
   assert(width<=g.action_button.size.x-g.action_button.get_theme_stylebox("normal").get_minimum_size().x-4)
  assert(g.objective.autowrap_mode==TextServer.AUTOWRAP_OFF and g.status.autowrap_mode==TextServer.AUTOWRAP_OFF)
- assert(g.objective.get_theme_font_size("font_size")==22 and g.status.get_theme_font_size("font_size")==18)
+ assert(g.objective.get_theme_font_size("font_size")==24 and g.status.get_theme_font_size("font_size")==20)
  var data:Dictionary=g.default_save();data.started=true;data.level=2;data.seed=7322
  var f=FileAccess.open(path,FileAccess.WRITE);f.store_string(JSON.stringify(data));f.close();g.queue_free();await process_frame
  var saved=scene.instantiate();root.add_child(saved);await process_frame;saved.set_process(false);saved.set_physics_process(false)

@@ -310,7 +310,7 @@ func label(text: String, size: int, color: Color = CREAM, fancy: bool = false) -
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_override("font", title_font if fancy else body_font)
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", maxi(14, roundi(size * 1.1)))
 	l.add_theme_color_override("font_color", color)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -321,7 +321,7 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	b.text = text
 	b.custom_minimum_size = Vector2(minf(width, 420), 60)
 	b.add_theme_font_override("font", title_font)
-	b.add_theme_font_size_override("font_size", 26)
+	b.add_theme_font_size_override("font_size", 30)
 	b.clip_text = true
 	b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	b.add_theme_color_override("font_color", CREAM)
@@ -334,8 +334,8 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 
 func fit_button_text(control: Button) -> void:
 	var available_width := maxf(1, control.size.x - control.get_theme_stylebox("normal").get_minimum_size().x - 4)
-	var font_size := 26
-	while font_size > 16 and body_font.get_string_size(control.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > available_width:
+	var font_size := 30
+	while font_size > 16 and control.get_theme_font("font").get_string_size(control.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > available_width:
 		font_size -= 1
 	control.add_theme_font_size_override("font_size", font_size)
 
@@ -360,6 +360,7 @@ func setup_ui() -> void:
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(top)
 	objective = label("", 22)
+	objective.add_theme_font_override("font", title_font)
 	objective.autowrap_mode = TextServer.AUTOWRAP_OFF
 	objective.clip_text = true
 	objective.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -367,6 +368,7 @@ func setup_ui() -> void:
 	objective.size = Vector2(374, 42)
 	hud.add_child(objective)
 	status = label("", 18, Color("c1bdce"))
+	status.add_theme_font_override("font", title_font)
 	status.autowrap_mode = TextServer.AUTOWRAP_OFF
 	status.clip_text = true
 	status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -1335,8 +1337,8 @@ func draw_item_names() -> void:
 		if text.is_empty():continue
 		var bounds:=item_visual_bounds(obj)
 		var p:=screen(Vector2(bounds.get_center().x,bounds.position.y)-Vector2(0,8)).round()
-		var width:=ceilf(minf(240,body_font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,14).x))+8
-		var box:=Rect2(p+Vector2(-width/2,-14),Vector2(width,18))
+		var width:=ceilf(minf(240,body_font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,16).x))+8
+		var box:=Rect2(p+Vector2(-width/2,-16),Vector2(width,21))
 		candidates.append({"box":box,"p":p,"text":text,"distance":obj.pos.distance_squared_to(player)})
 	candidates.sort_custom(func(a,b):return a.distance<b.distance)
 	var occupied:Array[Rect2]=[]
@@ -1347,7 +1349,7 @@ func draw_item_names() -> void:
 		var p:Vector2=candidate.p;var text:String=candidate.text
 		# Neutral translucent backing only; text keeps full opacity.
 		draw_rect(box,Color(.3,.3,.3,.25))
-		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,14,CREAM)
+		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,16,CREAM)
 
 func action_text(obj: Dictionary) -> String:
 	if obj.kind=="letter_box":return tx("read_letter")
@@ -2110,7 +2112,7 @@ func _draw_world() -> void:
 			draw_shadow(p,20)
 			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,.2,.25) if time<float(enemy.get("hit_until",0)) else Color(1,.65,.75,.45 if enemy.state=="spawn" else 1) if enemy.get("boss",false) else (Color(.65,1,.85) if enemy.type==3 else Color(.75,.8,1) if enemy.type==4 else Color.WHITE),1.8 if enemy.get("boss",false) else 1.2 if enemy.type==4 else .72 if enemy.type==5 else .85 if enemy.type==3 else 1.0)
 			if enemy.type in [5,6,7]:battle.draw_gun(enemy,p)
-			if enemy.get("boss",false): draw_string(body_font,p+Vector2(-62,-115),tx("boss_name"),HORIZONTAL_ALIGNMENT_LEFT,-1,14,CREAM)
+			if enemy.get("boss",false): draw_string(body_font,p+Vector2(-62,-115),tx("boss_name"),HORIZONTAL_ALIGNMENT_LEFT,-1,16,CREAM)
 			var bar_width := 100.0 if enemy.get("boss",false) else 36.0
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width,5)),INK)
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width*float(enemy.hp)/float(enemy.get("max_hp",enemy.hp)),5)),PINK)
@@ -2227,7 +2229,7 @@ func _draw_world() -> void:
 		draw_extra_effects()
 		draw_reply_deposit()
 		world_tools.draw_falling()
-	for number in damage_numbers:draw_string(body_font,screen(number.pos),tx("damage_amount").format({"amount":number.value}),HORIZONTAL_ALIGNMENT_LEFT,-1,17,Color(1,.55,.61,minf(1,number.life*3)))
+	for number in damage_numbers:draw_string(body_font,screen(number.pos),tx("damage_amount").format({"amount":number.value}),HORIZONTAL_ALIGNMENT_LEFT,-1,19,Color(1,.55,.61,minf(1,number.life*3)))
 	if level==6 and not drawing_neighbor:
 		for n in range(puzzle.size()):
 			var center := Vector2(74+n*65,225)
@@ -2499,7 +2501,7 @@ func draw_extra_effects() -> void:
 			var insertion := screen(player)+Vector2(14,-28)-aim*(rpg_reload/.3)*26
 			draw_set_transform(insertion,aim.angle());draw_sprite("rocket_item",Vector2(0,16),Color.WHITE,.45);draw_set_transform(Vector2.ZERO)
 	if weapon=="rifle" and (level==4 or save_data.finished):
-		draw_string(body_font,screen(player)+Vector2(6,-55),str(magazine)+"/30",HORIZONTAL_ALIGNMENT_LEFT,-1,11,CREAM)
+		draw_string(body_font,screen(player)+Vector2(6,-55),str(magazine)+"/30",HORIZONTAL_ALIGNMENT_LEFT,-1,13,CREAM)
 		if reload_time>0:
 			var bar := screen(player)+Vector2(-28,-102)
 			draw_rect(Rect2(bar,Vector2(56,6)),INK);draw_rect(Rect2(bar,Vector2(56*(1-reload_time/1.8),6)),CREAM)

@@ -77,11 +77,13 @@ License: GPL-2+
  License version 2 can be found in the file
  /usr/share/common-licenses/GPL-2'.
 
-Current text fonts use Garden Pixel SemiBold and Bold, derivatives of Pixelify Sans
-by Stefie Justprince. SIL Open Font License 1.1. The derivative adds the missing
-Cyrillic capital letters О and П and uses a new family name.
+Current text fonts use Garden Pixel Medium and Bold, version 2.
+Russian uppercase and lowercase, Latin and digits are original pixel drawings.
+The two font files contain separate stroke geometry. Pixelify Sans supplies
+punctuation and remaining symbols under the SIL Open Font License 1.1.
 Copyright 2021 The Pixelify Sans Project Authors (https://github.com/eifetx/Pixelify-Sans).
-Full license in PIXELIFY-OFL.txt. tools/create_pixel_fonts.py reproduces the fonts.
+Original Garden Pixel alphabet drawings, 2026, distributed under the same OFL.
+Full license in PIXELIFY-OFL.txt. Rebuild with tools/create_pixel_fonts.py.
 The DejaVu license above covers symbols.ttf, a symbol-only fallback subset.
 
 Copyright 2021 The Pixelify Sans Project Authors (https://github.com/eifetx/Pixelify-Sans)

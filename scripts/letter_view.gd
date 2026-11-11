@@ -34,7 +34,7 @@ func _ready() -> void:
     var column := VBoxContainer.new()
     column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     text_scroll.add_child(column)
-    var body: Label = game.label(str(letter.text), 20, game.INK)
+    var body: Label = game.label(str(letter.text), 22, game.INK)
     body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_child(body)
     if not str(letter.get("image", "")).is_empty() and ResourceLoader.exists(letter.image):
@@ -47,7 +47,7 @@ func _ready() -> void:
     close_button = Button.new()
     close_button.text = game.tx("return_to_journal") if is_instance_valid(stack_view) else game.tx("reply_close_symbol")
     close_button.flat = true
-    close_button.add_theme_font_size_override("font_size", 18 if is_instance_valid(stack_view) else 28)
+    close_button.add_theme_font_size_override("font_size", 20 if is_instance_valid(stack_view) else 30)
     close_button.add_theme_color_override("font_color", game.INK)
     close_button.position = Vector2(218, 8) if is_instance_valid(stack_view) else Vector2(416, 10)
     close_button.size = Vector2(230, 40) if is_instance_valid(stack_view) else Vector2(38, 38)

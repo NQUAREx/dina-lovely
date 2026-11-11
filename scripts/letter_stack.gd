@@ -175,7 +175,7 @@ func _draw() -> void:
         draw_texture_rect(SHEETS[index % SHEETS.size()], Rect2(Vector2.ZERO, destination.size), false)
         if progress > .8:
             var title := str(letters[index].title)
-            var font_size := 22
+            var font_size := 24
             while font_size > 16 and game.title_font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > 340:
                 font_size -= 1
             draw_string(game.title_font, Vector2(26, 53), title, HORIZONTAL_ALIGNMENT_LEFT, 340, font_size, game.INK)
