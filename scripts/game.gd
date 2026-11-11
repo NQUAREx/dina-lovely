@@ -143,6 +143,8 @@ var joy_id := 0
 var joy_origin := Vector2.ZERO
 var joy_vector := Vector2.ZERO
 var attack_held := false
+var drill_touch_id := -1
+var neighbor_return_gate := false
 var ui: CanvasLayer
 var root: Control
 var hud: Control
@@ -427,6 +429,9 @@ func setup_ui() -> void:
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hud.add_child(hint)
 	action_button = button(tx("read_letter"), interact, 155)
+	action_button.button_down.connect(func():
+		if held_item=="drill" and nearest<0:world_tools.start_drill())
+	action_button.button_up.connect(world_tools.stop_drill)
 	hud.add_child(action_button)
 	attack_button = button(tx("attack_action"), func(): attack(), 120)
 	attack_button.button_down.connect(func(): attack_held = true)
@@ -1251,6 +1256,8 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if not event is InputEventScreenTouch: return
+	if not event.pressed and event.index==drill_touch_id:
+		drill_touch_id=-1;world_tools.stop_drill()
 	touch_mode = true
 	if not event.pressed and joy_active and event.index==joy_id:
 		joy_active = false
@@ -1268,6 +1275,7 @@ func _input(event: InputEvent) -> void:
 			sfx("ui")
 			touch_buttons[event.index] = weakref(target)
 			if target==attack_button: attack_held = true; attack()
+			if target==action_button and held_item=="drill" and nearest<0:drill_touch_id=event.index;world_tools.start_drill()
 			get_viewport().set_input_as_handled()
 	elif touch_buttons.has(event.index):
 		var target = touch_buttons[event.index].get_ref()
@@ -1525,7 +1533,7 @@ func interact() -> void:
 	if task_time>0:return
 	if nearest>=0 and world_tools.use_object(objects[nearest]):return
 	if new_bed_action_ready():world_tools.make_bed();return
-	if held_item=="drill" and nearest<0:world_tools.start_drill();return
+	if held_item=="drill" and nearest<0:return
 	if level==3 and held_item=="shovel" and task_time<=0 and nearest<0:
 		dig_here()
 		return
@@ -1632,13 +1640,21 @@ func sync_hands() -> void:
 	garden_can=held_item=="can";save_data.garden_can=garden_can
 	has_fertilizer=held_item=="fertilizer";save_data.has_fertilizer=has_fertilizer
 	save_data.rake=held_item=="rake";save_data.shovel=held_item=="shovel";save_data.flashlight=held_item=="flashlight"
-	if held_item not in ["sword","rifle","rpg"]:weapon=""
+	var previous_weapon:=weapon
+	weapon=held_item if held_item in ["sword","rifle","rpg"] else ""
+	if save_data.finished and not weapon.is_empty() and weapon not in save_data.world_kit:save_data.world_kit.append(weapon)
+	if previous_weapon!=weapon:attack_held=false;attack_flash=0;rpg_windup=-1;rifle_kick=0
 
 func return_held_tool(force_drop:bool=false,drop_at:Vector2=Vector2.INF) -> void:
+	world_tools.stop_drill()
 	var point:=item_drop_spot(player+Vector2(0,26) if drop_at==Vector2.INF else drop_at)
 	if held_item=="flashlight":torch.drop(point);return
 	world_tools.drop_held(force_drop,point)
 	if held_item in ["sword","rifle","rpg"]:
+		if save_data.finished and not force_drop:
+			if held_item not in save_data.world_kit:save_data.world_kit.append(held_item)
+			held_item="";sync_hands();return
+		save_data.world_kit.erase(held_item)
 		var dropped := {"kind":"weapon_"+held_item,"id":"drop_"+held_item+"_"+str(Time.get_ticks_usec()),"weapon":held_item,"room":level,"pos":point,"solid":false}
 		objects.append(dropped)
 		var saved := dropped.duplicate();saved.pos=[dropped.pos.x,dropped.pos.y];save_data.loose_weapons.append(saved)
@@ -2051,14 +2067,14 @@ func _draw() -> void:
 		level=destination
 		var new_center:float=13.5*TILE if destination>old_level else (15.5 if destination==0 else 13.5)*TILE
 		var offset:=Vector2(new_center-old_center,grid.size()*TILE+HALL_SEAM*2 if destination>old_level else -old_height-HALL_SEAM*2)
-		camera=old_camera+offset;player=old_state.player+offset;drawing_neighbor=true
+		camera=old_camera+offset;player=old_state.player+offset;drawing_neighbor=true;neighbor_return_gate=destination<old_level
 		_draw_world()
 		if level==1:
 			night_band=Rect2(screen(Vector2(0,5*TILE)),Vector2(grid[0].length()*TILE,(grid.size()-10)*TILE))
 			for obj in objects:
 				if obj.kind=="flashlight_pedestal":corridor_pedestal=screen(obj.pos)
 				if obj.kind=="stand_flashlight" and held_item!="flashlight" and int(save_data.flashlight_location.get("room",1))==1:corridor_torch=screen(obj.pos);corridor_torch_ground=obj.get("ground_tool",false)
-		drawing_neighbor=false;level=old_level;camera=old_camera
+		drawing_neighbor=false;neighbor_return_gate=false;level=old_level;camera=old_camera
 		for field in ROOM_FIELDS:set(field,old_state[field])
 	if destination>level:_draw_world()
 	# Corridor props must survive the foreground room floor pass.
@@ -2340,7 +2356,7 @@ func _draw_world() -> void:
 			elif kind=="skull_stand":draw_sprite("skull_stand_full" if save_data.get("skull_inserted",false) else "skull_stand",p)
 			elif kind=="doorway":
 				draw_sprite("doorpost",p+Vector2(-90,0));draw_sprite("doorpost",p+Vector2(90,0))
-				if item.id=="exit":draw_gate(p,float(item.get("gate_amount",0.0)))
+				if item.id=="exit":draw_gate(p,1.0 if drawing_neighbor and (neighbor_return_gate or door_is_open("exit")) else float(item.get("gate_amount",0.0)))
 			elif kind=="flashlight_pedestal":draw_sprite("pedestal",p)
 			elif kind=="stand_flashlight":draw_sprite("flashlight_rest",p)
 			elif kind=="weapon_crate":weapon_crates.draw(item,p)
@@ -2761,9 +2777,17 @@ func update_fog() -> void:
 	var dip := (.28*exp(-pow((phase-1.0)/.085,2))+.16*exp(-pow((phase-1.25)/.10,2))) if chance>.42 else 0.0
 	material.set_shader_parameter("light_dir",facing.rotated(sway))
 	material.set_shader_parameter("optics",Vector4(1+n_focus*(.015+motion*.12),1+n_size*(.01+motion*.09),1+n_soft*(.02+motion*.18),.97+n_brightness*.04-dip))
-	material.set_shader_parameter("enabled",save_data.flashlight)
-	for obj in objects:
-		if obj.id=="flashlight": material.set_shader_parameter("pedestal_pos",screen(obj.pos)-Vector2(0,40))
+	material.set_shader_parameter("enabled",held_item=="flashlight")
+	material.set_shader_parameter("ground_light",false)
+	if held_item!="flashlight":
+		for obj in objects:
+			if obj.id!="flashlight":continue
+			var origin:=screen(obj.pos)+(Vector2(9,1) if obj.get("ground_tool",false) else Vector2(23,-44))
+			material.set_shader_parameter("enabled",true)
+			material.set_shader_parameter("ground_light",true)
+			material.set_shader_parameter("light_pos",origin)
+			material.set_shader_parameter("light_dir",Vector2.RIGHT.rotated(sway*.3))
+			break
 
 func dark_letter_count() -> int:
 	var count := 0
@@ -3231,8 +3255,8 @@ func leave_footprint(direction: Vector2) -> void:
 	left_foot=not left_foot
 	var stone := stone_surface(player)
 	var position := player-direction*5+direction.orthogonal()*(5 if left_foot else -5)
-	footprints.append({"pos":position,"rotation":direction.angle()+PI/2,"life":13.5,"stone":stone})
-	if footprints.size()>225:footprints.pop_front()
+	footprints.append({"pos":position,"rotation":direction.angle()+PI/2,"life":6.75,"stone":stone})
+	if footprints.size()>113:footprints.pop_front()
 	for n in range(8):
 		if particles.size()>=420:break
 		particles.append({"pos":position+Vector2(randf_range(-3,3),0),"vel":-direction*randf_range(5,14)+Vector2(randf_range(-9,9),randf_range(-12,-3)),"life":randf_range(.25,.5),"color":Color("b6ab9b") if stone else Color("a6b786"),"heart":false,"ground":true})
@@ -3327,17 +3351,24 @@ func prepare_grass_details() -> void:
 	# large tile pattern, extra scene objects, or per-frame grass work is needed.
 	var clumps:=grass_clumps.get_image();clumps.convert(Image.FORMAT_RGBA8)
 	var palette:=1 if level==0 else 0
+	var motifs:Array[Image]=[]
+	for variant in range(16):
+		for size in [8,11,14,18,22]:
+			var motif:=clumps.get_region(Rect2i(variant*16,palette*16,16,16))
+			motif.resize(size,size,Image.INTERPOLATE_NEAREST);motifs.append(motif)
 	for y in range(2,image.get_height()-2,8):
 		for x in range(2,image.get_width()-2,8):
-			if rng.randf()<.32:continue
+			if rng.randf()<.42:continue
 			var bare:=sin(x*.037+float(save_data.seed%77))*.55+cos(y*.043-x*.012)*.45
-			if bare>.49:continue
+			if bare>.30:continue
 			var point:=Vector2i(x+rng.randi_range(-3,3),y+rng.randi_range(-3,3))
 			var cell:=Vector2i(Vector2(point)/24)
 			if not shadow_floor_cell(cell) or corridor_row(cell.y):continue
 			var chance:=rng.randf()
 			var variant:=rng.randi_range(0,11) if chance<.975 else rng.randi_range(12,13) if chance<.992 else rng.randi_range(14,15)
-			image.blend_rect(clumps,Rect2i(variant*16,palette*16,16,16),point-Vector2i(8,12))
+			var motif:Image=motifs[variant*5+rng.randi_range(0,4)]
+			var motif_size:=motif.get_width()
+			image.blend_rect(motif,Rect2i(0,0,motif_size,motif_size),point-Vector2i(motif_size/2,motif_size*3/4))
 	var sheet := atlas.get_image();sheet.convert(Image.FORMAT_RGBA8)
 	for detail in grass_details:
 		var id: int = sprites[detail.kind]
@@ -3776,7 +3807,7 @@ func new_bed_action_ready() -> bool:
 func restore_weapon_drops() -> void:
 	objects.assign(objects.filter(func(obj):return not str(obj.id).begins_with("drop_")))
 	for saved in save_data.loose_weapons:
-		if int(saved.get("room",4))!=level:continue
+		if int(saved.get("room",4))!=level or str(saved.weapon) in save_data.world_kit:continue
 		var obj:Dictionary=saved.duplicate();obj.pos=Vector2(saved.pos[0],saved.pos[1]);objects.append(obj)
 
 func rpg_muzzle() -> Vector2:

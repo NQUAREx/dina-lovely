@@ -14,6 +14,7 @@ var seed_value:=-1
 var drill_clock:=0.0
 var drill_voice:AudioStreamPlayer
 var drilling:=false
+var drill_held:=false
 var falling:Array[Dictionary]=[]
 func _init(game:Node2D):g=game
 func state() -> Dictionary:
@@ -44,7 +45,7 @@ func install()->void:
    else:existing[0].pos=Vector2(bed.pos[0],bed.pos[1])
   repair_beds()
  if not g.save_data.has("world_kit"):g.save_data.world_kit=[]
- if g.held_item in TOOLS and g.save_data.finished and g.held_item not in g.save_data.world_kit:g.save_data.world_kit.append(g.held_item)
+ if g.held_item in TOOLS+["sword","rifle","rpg"] and g.save_data.finished and g.held_item not in g.save_data.world_kit:g.save_data.world_kit.append(g.held_item)
  restore_tools()
  if not data.excavations.is_empty():ensure_dirt()
 func restore_tools()->void:
@@ -69,12 +70,18 @@ func pickup(tool:String)->void:
  g.held_item=tool;g.sync_hands();g.save_data.world_tool_locations[tool]={"room":-1,"pos":[]};restore_tools();g.persist();g.sfx("ui");g.find_nearest();g.update_hud()
 func cycle()->void:
  if g.paused or g.transition or not g.playing or g.task_time>0:return
+ stop_drill()
  var kit:Array=g.save_data.get("world_kit",[])
  if kit.is_empty():return
  var next:String=kit[(kit.find(g.held_item)+1)%kit.size()]
  g.return_held_tool();g.held_item=next;g.sync_hands();g.persist();g.sfx("ui");g.find_nearest();g.update_hud()
 func start_drill()->void:
- if g.held_item=="drill" and soil(ground_point()):g.begin_task("drill",ground_point(),.65)
+ if g.held_item!="drill" or not g.playing or g.paused or g.transition:return
+ drill_held=true;drill_clock=0.0
+ update(0.0)
+func stop_drill()->void:
+ drill_held=false;drilling=false
+ if is_instance_valid(drill_voice):drill_voice.stop();drill_voice.volume_db=-80
 func is_excavated(point:Vector2)->bool:
  var key:=str(g.level)
  if not masks.has(key):return false
@@ -206,10 +213,10 @@ func excavate(pos:Vector2)->void:
   elif not g.save_data.buried_exposed:g.notify(g.tx("buried_note_near") if pos.distance_to(hidden)<260 else g.tx("digging_empty"))
  g.rune_stones.excavate(pos)
  g.scene_fx.soil(pos,10)
- if g.held_item=="drill":g.sfx_at("dig",pos)
  g.persist()
 func update(delta:float)->void:
- drilling=g.held_item=="drill" and g.task_time>0 and g.task_kind=="drill" and g.playing and not g.paused and not g.transition and soil(ground_point())
+ if g.held_item!="drill" or g.paused or g.transition or not g.playing:drill_held=false
+ drilling=drill_held and g.held_item=="drill" and g.playing and not g.paused and not g.transition and soil(ground_point())
  soil_fx_clock-=delta
  var shoveling:bool=g.playing and not g.paused and not g.transition and g.held_item=="shovel" and g.task_time>0 and g.task_kind.begins_with("dig:")
  if (drilling or shoveling) and soil_fx_clock<=0:
@@ -223,7 +230,7 @@ func update(delta:float)->void:
   g.add_child(drill_voice)
  var gain:float=-22 if drilling and g.sound_on else -80
  drill_voice.volume_db=move_toward(drill_voice.volume_db,gain,delta*200)
- if gain>-80 and not drill_voice.playing:drill_voice.play()
+ if gain>-80 and not drill_voice.playing:drill_voice.volume_db=gain;drill_voice.play()
  if drill_voice.volume_db<=-79 and drill_voice.playing:drill_voice.stop()
  for index in range(falling.size()-1,-1,-1):
   falling[index].age+=delta

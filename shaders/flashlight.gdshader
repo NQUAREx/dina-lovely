@@ -9,6 +9,7 @@ uniform vec2 light_dir = vec2(0.0,-1.0);
 // Width, reach, penumbra and intensity arrive as smooth, seed-based motion.
 uniform vec4 optics = vec4(1.0);
 uniform bool enabled = false;
+uniform bool ground_light = false;
 void fragment(){
  vec2 pixel=UV*view_size;
  vec2 offset=pixel-light_pos;
@@ -28,7 +29,7 @@ void fragment(){
  vec2 body=hero_pos-light_pos;
  float body_t=clamp(dot(offset,body)/max(dot(body,body),1.0),0.0,1.0);
  vec2 reflected=offset-body*body_t;
- float bounce=exp(-dot(reflected,reflected)/(26.0*26.0))*(.34-.14*body_t);
+ float bounce=(ground_light?0.0:1.0)*exp(-dot(reflected,reflected)/(26.0*26.0))*(.34-.14*body_t);
  float light=enabled?clamp(max(beam,max(lens_spill,bounce))*optics.w,0.0,1.0):0.0;
  float in_room=smoothstep(room_band.x-64.0,room_band.x+64.0,pixel.y)*(1.0-smoothstep(room_band.y-64.0,room_band.y+64.0,pixel.y));
  COLOR=vec4(vec3(.08,.043,.016)*max(beam,bounce)*(enabled?1.0:0.0),(1.0-light)*max(room_opacity,in_room));

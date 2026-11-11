@@ -46,7 +46,7 @@ func run():
  var hidden:Array=g.save_data.riddle_stone_positions["3"]
  g.rune_stones.excavate(Vector2(hidden[0],hidden[1])+Vector2(45,0));assert(not g.save_data.riddle_stone_exposed)
  g.rune_stones.excavate(Vector2(hidden[0],hidden[1])+Vector2(36,0));assert(g.save_data.riddle_stone_exposed)
- g.leave_footprint(Vector2.RIGHT);assert(g.footprints[-1].life==13.5)
+ g.leave_footprint(Vector2.RIGHT);assert(g.footprints[-1].life==6.75)
  # A missile keeps its direct-hit damage; its visual blast never damages neighbours.
  g.build_level(4);g.objects.clear();g.enemies.clear();g.shots.clear();g.particles.clear();g.player=Vector2(700,700)
  g.held_item="rpg";g.weapon="rpg";g.aim=Vector2.RIGHT;g.rpg_aim=Vector2.RIGHT;g.attack_cd=0;g.rpg_reload=0;g.task_time=0

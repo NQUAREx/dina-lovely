@@ -150,8 +150,8 @@ func update(delta:float)->void:
   var v:=position-before;direction=(1 if v.x<0 else 3) if absf(v.x)>absf(v.y) else (0 if v.y<0 else 2)
   anim+=delta;stride+=v.length()
   if stride>=16:
-   stride=fmod(stride,16);prints.append({"pos":position-v.normalized()*9,"angle":v.angle()+PI/2,"life":19.5,"stone":g.stone_surface(position)})
-   if prints.size()>180:prints.pop_front()
+   stride=fmod(stride,16);prints.append({"pos":position-v.normalized()*9,"angle":v.angle()+PI/2,"life":9.75,"stone":g.stone_surface(position)})
+   if prints.size()>90:prints.pop_front()
 func draw_cat()->void:
  var name:="cat_walk"+str(direction)+"_"+str(int(anim*10)%4) if moving else "cat_idle"+str(direction)+"_"+str(2 if fposmod(g.time,4.7)>4.55 else int(g.time*1.5)%2)
  var p:Vector2=g.screen(position)

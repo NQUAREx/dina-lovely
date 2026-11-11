@@ -31,7 +31,7 @@ func install(animate:bool=false)->void:
    g.objects.assign(g.objects.filter(func(o):return not (o.kind=="weapon_"+w)))
    if g.held_item==w:g.held_item="";g.weapon="";g.sync_hands()
    continue
-  var existing:bool=g.held_item==w or g.save_data.loose_weapons.any(func(d):return d.weapon==w)
+  var existing:bool=g.held_item==w or w in g.save_data.get("world_kit",[]) or g.save_data.loose_weapons.any(func(d):return d.weapon==w)
   var checkpoint:Dictionary=g.save_data.arena_checkpoint
   if int(checkpoint.get("seed",-1))==int(g.save_data.seed) and checkpoint.get("held_item","")==w:existing=true
   if existing and w not in g.save_data.weapon_crates_opened:g.save_data.weapon_crates_opened.append(w)

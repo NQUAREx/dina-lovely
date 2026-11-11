@@ -212,7 +212,8 @@
     "source_file": "engineCircular_004.ogg",
     "pack": "Kenney Sci-Fi Sounds",
     "license": "CC0",
-    "sha256": "1f06078821c521af884713183c84347313c7c180b796f8f97594ad915b4e906f"
+    "sha256": "870e1c486905d18381997e6c749394f10062a6c9d04dc2c96b57e313154c711f",
+    "processing": "90 ms loop seam crossfade; continuous motor only"
   },
   "pistol": {
     "source_file": "Existing recorded rifle sample, pitch raised and normalized",
