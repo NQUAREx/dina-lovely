@@ -5,7 +5,8 @@ from PIL import Image,ImageDraw
 R=Path(__file__).resolve().parents[1]
 art=runpy.run_path(str(R/'tools/create_diagonal_art.py'));save=art['save'];ns=art['ns']
 def profile(face,bob):
- points=[(17,16),(20,16),(22,18),(23,21),(23,24),(22,26),(20,27),(17,26),(16,23),(16,19)]
+ # A closed oval inset into the hood; no projecting nose/chin rectangle.
+ points=[(18,16),(20,16),(21,17),(22,19),(22,24),(21,26),(20,27),(18,27),(17,26),(16,24),(16,19),(17,17)]
  return [(x if face==3 else 32-x,y+bob) for x,y in points]
 
 def pose(face,frame):
@@ -27,8 +28,7 @@ def pose(face,frame):
  d.polygon([(8,16+bob),(24,16+bob),(24-s*2,30+bob),(back-s*2+trail,35+bob),(back-s*3,26+bob)],fill='#8e7c90')
  d.line((11+s,12+bob,16+s*2,9+bob,22+s,13+bob),fill='#c7b0be',width=2)
  d.polygon(profile(face,bob),fill='#d6a383',outline='#8e7c90')
- x=17 if s>0 else 15
- d.line((x,19+bob,x,24+bob),fill='#bc8e78')
+
  d.line((back,17+bob,back-s,27+bob,back-s*2+trail,31+bob),fill='#65576d')
  near=16+stride*s
  d.line((17,29+bob,near,35+bob),fill='#55516c',width=4)
