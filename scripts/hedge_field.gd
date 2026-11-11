@@ -387,15 +387,14 @@ func prepare_draw(indices:PackedInt32Array,player:Vector2,delta:float=1.0/60.0)-
 	for index in indices:
 		var node:Dictionary=crowns[index]
 		var target:=1.0 if desired_front.has(index) else 0.0
-		var near_hero:bool=node.base.distance_to(player)<64.0
-		if not node.layer_initialized or not near_hero:
+		if not node.layer_initialized:
 			node.layer_initialized=true;node.layer_blend=target;node.layer_start=target;node.layer_target=target;node.layer_progress=1.0
 		elif target!=node.layer_target:
 			node.layer_start=node.layer_blend;node.layer_target=target;node.layer_progress=0.0
 			var side:=1.0 if node.base.x>=player.x else -1.0
 			if absf(node.base.x-player.x)<5:side=1.0 if int(node.variant)%2==0 else -1.0
 			node.layer_side=side
-		if near_hero and node.layer_progress<1.0:
+		if node.layer_progress<1.0:
 			node.layer_progress=minf(1.0,node.layer_progress+clampf(delta,0,0.05)/0.24)
 			var arc:=sin(node.layer_progress*PI)
 			node.layer_blend=lerpf(node.layer_start,node.layer_target,smoothstep(0,1,node.layer_progress))
