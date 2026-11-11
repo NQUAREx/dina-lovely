@@ -22,8 +22,8 @@ func run():
  assert(not body.get_parsed_text().contains("«") and not body.get_parsed_text().contains("»"))
  g.clear_modal();g.build_level(0);g.particles.clear();g.hedge_field=null;g.objects.clear();g.player=Vector2(500,500);g.moving=true;g.joy_active=true;g.joy_vector=Vector2.RIGHT;g.vegetation_fx_cooldown=0;g.vegetation_was_touched=false
  g.objects.append({"kind":"flowers","id":"","pos":g.player,"solid":false});g.update_vegetation(.04)
- assert(g.particles.size()==2 and g.particles.all(func(p):return p.get("foliage",false)))
- g.update_vegetation(.01);assert(g.particles.size()==2)
+ assert(g.particles.size()==3 and g.particles.all(func(p):return p.get("foliage",false)))
+ g.update_vegetation(.01);assert(g.particles.size()==3)
  print("PASS throttled flower foliage particles")
  print("PASS unique presses/reset/old-input migration, shared tree corridor material, scroll-bound ruling and unquoted icons")
  g.clear_modal();g.queue_free();await process_frame

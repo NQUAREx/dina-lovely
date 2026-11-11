@@ -160,6 +160,9 @@ var step_clock := 0.0
 var foliage_voice: AudioStreamPlayer
 var foliage_gain:=0.0
 var foliage_motion:=0.0
+var leaf_bits := preload("res://assets/leaf_bits.png")
+var flashlight_noise := FastNoiseLite.new()
+var flashlight_motion := 0.0
 var vegetation_fx_cooldown := 0.0
 var vegetation_was_touched := false
 var hedge_contact := false
@@ -194,6 +197,8 @@ func _ready() -> void:
 			var parsed = JSON.parse_string(live)
 			if parsed is Dictionary and parsed.get("letters") is Array: content = parsed
 	load_save()
+	flashlight_noise.seed=int(save_data.seed)^0x464c4153
+	flashlight_noise.frequency=1.0
 	ensure_riddle()
 	held_item = save_data.get("held_item","")
 	body_font.fallbacks = [preload("res://assets/symbols.ttf")]
@@ -2305,9 +2310,11 @@ func _draw_world() -> void:
 		c.a = minf(1,part.life)
 		if part.heart: draw_heart(screen(part.pos),1.2,c)
 		elif part.get("foliage",false):
-			draw_set_transform(screen(part.pos).round(),float(part.spin)+sin(time*7+float(part.spin))*.5)
-			draw_rect(Rect2(Vector2(-1,-2),Vector2(2,4)),c)
-			draw_rect(Rect2(Vector2(-2,-1),Vector2(4,2)),c.darkened(.12))
+			if not Rect2(Vector2.ZERO,Vector2(grid[0].length(),grid.size())*TILE).has_point(part.pos):continue
+			c.a=minf(1,float(part.life)/.28)
+			var scale_factor: float = part.get("size",1.0)
+			draw_set_transform(screen(part.pos).round(),float(part.spin)+sin(time*7+float(part.spin))*.65)
+			draw_texture_rect_region(leaf_bits,Rect2(Vector2(-4,-4)*scale_factor,Vector2(8,8)*scale_factor),Rect2(int(part.get("variant",0))*8,0,8,8),c)
 			draw_set_transform(Vector2.ZERO)
 		else: draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
 	if level!=2:draw_new_rooms()
@@ -2654,10 +2661,21 @@ func update_fog() -> void:
 	material.set_shader_parameter("hero_pos",screen(player)+Vector2(0,-35))
 	material.set_shader_parameter("view_size",get_viewport_rect().size)
 	var stride := 1.0 if moving and not paused else 0.0
-	var sway := sin(time*10.0)*.075*stride + sin(time*1.3)*.018
+	flashlight_motion=move_toward(flashlight_motion,stride,minf(get_process_delta_time(),.1)*3)
+	var motion := flashlight_motion
+	# Coherent noise changes targets continuously; no per-frame random jumps.
+	var n_sway := flashlight_noise.get_noise_2d(time*2.8,11)
+	var n_focus := flashlight_noise.get_noise_2d(time*.85,57)
+	var n_size := flashlight_noise.get_noise_2d(time*.55,103)
+	var n_soft := flashlight_noise.get_noise_2d(time*.7,211)
+	var n_brightness := flashlight_noise.get_noise_2d(time*1.9,401)
+	var sway := n_sway*(.018+motion*.15)+n_size*.018
+	var interval := floorf(time/3.8)
+	var chance := fposmod(sin(interval*12.9898+float(flashlight_noise.seed%1000))*43758.5453,1)
+	var phase := fposmod(time,3.8)
+	var dip := (.28*exp(-pow((phase-1.0)/.085,2))+.16*exp(-pow((phase-1.25)/.10,2))) if chance>.42 else 0.0
 	material.set_shader_parameter("light_dir",facing.rotated(sway))
-	material.set_shader_parameter("light_time",time)
-	material.set_shader_parameter("walking",stride)
+	material.set_shader_parameter("optics",Vector4(1+n_focus*(.015+motion*.12),1+n_size*(.01+motion*.09),1+n_soft*(.02+motion*.18),.97+n_brightness*.04-dip))
 	material.set_shader_parameter("enabled",save_data.flashlight)
 	for obj in objects:
 		if obj.id=="flashlight": material.set_shader_parameter("pedestal_pos",screen(obj.pos)-Vector2(0,40))
@@ -3002,7 +3020,7 @@ func update_vegetation(delta: float) -> void:
 	var hedge_touch: bool = level==0 and hedge_field!=null and hedge_field.contact_strength>.02
 	var touched: bool = contact or hedge_touch
 	if touched and vegetation_fx_cooldown<=0 and (moving or intent>.1 or not vegetation_was_touched):
-		vegetation_fx_cooldown=.17
+		vegetation_fx_cooldown=.19
 		if hedge_touch:
 			var best := INF
 			var source := Vector2.INF
@@ -3010,15 +3028,15 @@ func update_vegetation(delta: float) -> void:
 				var crown: Dictionary = hedge_field.crowns[index]
 				var distance: float = crown.base.distance_squared_to(player)
 				if not crown.get("hidden",false) and distance<best:best=distance;source=crown.base+crown.offset
-			if source!=Vector2.INF:emit_vegetation_bits(source-Vector2(0,13),false)
+			if source!=Vector2.INF:emit_vegetation_bits(source.lerp(player,.55)-Vector2(0,19),false)
 		if flower_source!=Vector2.INF:emit_vegetation_bits(flower_source-Vector2(0,16),true)
 	vegetation_was_touched=touched
 
 func emit_vegetation_bits(origin: Vector2, petals: bool) -> void:
 	if particles.size()>360:return
-	for i in range(2):
-		var shade := Color("c89bc4") if petals and i==0 else Color("85a06b") if i==0 else Color("b5bc81")
-		particles.append({"pos":origin+Vector2(randf_range(-9,9),randf_range(-4,4)),"vel":Vector2(randf_range(-20,20),randf_range(-35,-15)),"life":randf_range(.55,.85),"color":shade,"heart":false,"foliage":true,"spin":randf_range(-PI,PI)})
+	for i in range(3 if petals else 4):
+		var shade: Color = Color("e1b8df") if petals and i==0 else Color.WHITE
+		particles.append({"pos":origin+Vector2(randf_range(-7,7),randf_range(-4,4)),"vel":Vector2(randf_range(75,135)*(-1 if i%2==0 else 1),randf_range(-80,-25)),"life":randf_range(.85,1.2),"color":shade,"heart":false,"foliage":true,"spin":randf_range(-PI,PI),"variant":randi_range(4,5) if petals and i==0 else randi_range(0,3),"size":randf_range(.85,1.2)})
 
 func update_foliage_audio(delta: float) -> void:
 	if not is_instance_valid(foliage_voice):return

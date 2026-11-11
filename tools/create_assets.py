@@ -758,3 +758,5 @@ runpy.run_path(str(R/"tools/create_rune_art.py"))
 runpy.run_path(str(R/"tools/create_archive_art.py"))
 # Keep the longer, narrower RPG head in held, reloading and flying artwork.
 runpy.run_path(str(R/"tools/redraw_rpg_head.py"))
+# Small original contact leaves and petals use one shared sprite strip.
+runpy.run_path(str(R/"tools/create_leaf_bits.py"))
