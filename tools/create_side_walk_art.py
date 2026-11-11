@@ -9,7 +9,7 @@ def profile(face,bob):
  points=[]
  for i in range(24):
   angle=i*math.tau/24
-  x=round(18.5+3.5*math.cos(angle));y=round(21.5+5.5*math.sin(angle))+bob
+  x=round(18+5.5*math.cos(angle));y=round(21+6.5*math.sin(angle))+bob
   points.append((x if face==3 else 32-x,y))
  return points
 
