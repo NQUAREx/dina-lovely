@@ -3,7 +3,7 @@ extends RefCounted
 ## No tile sprites, baked leaf strips or fixed canopy overlays.
 const TILE := 48.0
 const BIN := 24.0
-const SWAY_VISUAL_GAIN := 1.12
+const SWAY_VISUAL_GAIN := 1.20
 var grid: Array[String] = []
 var crowns: Array[Dictionary] = []
 var chains: Array[PackedVector2Array] = []
@@ -183,7 +183,7 @@ func update(delta: float, player: Vector2) -> void:
 			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(48+pressure*16)
 		node.last_pressure=pressure
 		# Keep original contact impulse; softer return damping preserves several visible swings.
-		node.sway_velocity+=(-node.sway*33-node.sway_velocity*1.9)*delta
+		node.sway_velocity+=(-node.sway*36-node.sway_velocity*2.0)*delta
 		node.sway=clampf(node.sway+node.sway_velocity*delta,-12.0,12.0)
 		if absf(node.sway)<.025 and absf(node.sway_velocity)<.1:node.sway=0.0;node.sway_velocity=0.0
 		contact_strength=maxf(contact_strength,pressure)
@@ -218,10 +218,10 @@ func update(delta: float, player: Vector2) -> void:
 			if clear or pressure==0:node.offset=trial
 		var leaf_radius:=roundf(node.radius*1.48*(1-node.press*.07))
 		if node.press>.01 and not node.released and away.length_squared()<42*42:
-			node.depression=minf(22,maxf(0,ceilf(player.y-28+leaf_radius)-((node.base+node.offset).round().y-16)))
+			node.depression=minf(20,maxf(0,ceilf(player.y-28+leaf_radius)-((node.base+node.offset).round().y-16))*.92)
 			node.depression_velocity=0.0
 		else:
-			node.depression_velocity+=(-node.depression*130-node.depression_velocity*8.0)*delta
+			node.depression_velocity+=(-node.depression*136-node.depression_velocity*8.0)*delta
 			node.depression=clampf(node.depression+node.depression_velocity*delta,-1.5,22)
 			if absf(node.depression)<.03 and absf(node.depression_velocity)<.1:node.depression=0.0;node.depression_velocity=0.0
 

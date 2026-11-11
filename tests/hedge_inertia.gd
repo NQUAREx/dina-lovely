@@ -13,5 +13,12 @@ func run():
   if n>=60 and n<180:tail=maxf(tail,visible_sway)
   if settle_frame<0 and node.sway==0 and node.sway_velocity==0:settle_frame=n
  assert(peak>=7.8 and tail>.5 and settle_frame>=180 and settle_frame<=720)
+ var press_field=load("res://scripts/hedge_field.gd").new()
+ press_field.build(map,72,{},{});press_field.wind_clock=100
+ var press_index:int=press_field.crowns.size()/2;var press_node=press_field.crowns[press_index]
+ var press_player:Vector2=press_node.base+Vector2(0,15)
+ press_field.update(1.0/60,press_player)
+ var unsoftened:=maxf(0,ceilf(press_player.y-28+roundf(press_node.radius*1.48))-((press_node.base+press_node.offset).round().y-16))
+ assert(not press_node.released and press_node.depression>0 and press_node.depression<unsoftened)
  print("PASS original touch impulse, wide sustained sways and controlled settling")
  quit()
