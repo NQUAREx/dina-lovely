@@ -47,7 +47,7 @@ func route_pose(index: int, pose: Vector3, front: bool, player: Vector2, delta: 
 			state.routing=true
 		# Move the whole crown around the silhouette before changing painter pass.
 		var edge:float = player.x+state.side*(pose.z+22)
-		var waypoint := Vector2(edge,centre.y)
+		var waypoint := Vector2(edge,maxf(centre.y,player.y-28+pose.z) if state.front else centre.y)
 		state.position=state.position.move_toward(waypoint,delta*155)
 		if absf(state.position.x-player.x)>=pose.z+19:state.front=front
 	else:
