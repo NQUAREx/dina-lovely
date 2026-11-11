@@ -4,6 +4,10 @@ import runpy,math
 from PIL import Image,ImageDraw
 R=Path(__file__).resolve().parents[1]
 art=runpy.run_path(str(R/'tools/create_diagonal_art.py'));save=art['save'];ns=art['ns']
+def profile(face,bob):
+ points=[(17,16),(20,16),(22,18),(23,21),(23,24),(22,26),(20,27),(17,26),(16,23),(16,19)]
+ return [(x if face==3 else 32-x,y+bob) for x,y in points]
+
 def pose(face,frame):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);s=1 if face==3 else -1
  phase=frame*math.tau/8;stride=round(math.sin(phase)*3);bob=1 if frame in [1,2,5,6] else 0;trail=round(math.sin(phase-.6)*2)
@@ -22,9 +26,9 @@ def pose(face,frame):
  back=9 if s>0 else 23
  d.polygon([(8,16+bob),(24,16+bob),(24-s*2,30+bob),(back-s*2+trail,35+bob),(back-s*3,26+bob)],fill='#8e7c90')
  d.line((11+s,12+bob,16+s*2,9+bob,22+s,13+bob),fill='#c7b0be',width=2)
- left,right=(15,25) if s>0 else (7,17)
- d.polygon([(left+2,15+bob),(right-1,15+bob),(right,19+bob),(right,26+bob),(right-3,28+bob),(left,26+bob),(left,18+bob)],fill='#d6a383')
- d.line((left,19+bob,left,25+bob),fill='#bc8e78')
+ d.polygon(profile(face,bob),fill='#d6a383',outline='#8e7c90')
+ x=17 if s>0 else 15
+ d.line((x,19+bob,x,24+bob),fill='#bc8e78')
  d.line((back,17+bob,back-s,27+bob,back-s*2+trail,31+bob),fill='#65576d')
  near=16+stride*s
  d.line((17,29+bob,near,35+bob),fill='#55516c',width=4)
@@ -48,9 +52,9 @@ def layer(item,face,frame,base,bob,near):
     c=tmp.getpixel((x,y))
     if c[3]:im.putpixel((round(16+(x-16)*.73)+s,y),c)
  elif item in ['veil','white_veil']:
-  left,right=(15,25) if s>0 else (7,17)
-  d.rounded_rectangle((left,15+bob,right,28+bob),3,fill='#d3cedb' if item=='white_veil' else '#4e4057')
-  d.rectangle((left+2,18+bob,right-2,19+bob),fill=(0,0,0,0))
+  d.polygon(profile(face,bob),fill='#d3cedb' if item=='white_veil' else '#4e4057')
+  left,right=(18,21) if s>0 else (11,14)
+  d.rectangle((left,19+bob,right,20+bob),fill=(0,0,0,0))
  elif item=='pink_watch':
   d.rectangle((near-1,34+bob,near+2,35+bob),fill='#b36c94');d.rectangle((near,33+bob,near+1,36+bob),fill='#f0b1cc');d.point((near,34+bob),fill='#fff1e5')
  return im
