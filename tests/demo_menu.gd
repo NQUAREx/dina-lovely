@@ -17,11 +17,19 @@ func run():
   assert(width<=g.action_button.size.x-g.action_button.get_theme_stylebox("normal").get_minimum_size().x-4)
  assert(g.objective.autowrap_mode==TextServer.AUTOWRAP_OFF and g.status.autowrap_mode==TextServer.AUTOWRAP_OFF)
  assert(g.objective.get_theme_font_size("font_size")==24 and g.status.get_theme_font_size("font_size")==20)
- var data:Dictionary=g.default_save();data.started=true;data.level=2;data.seed=7322
+ var data:Dictionary=g.default_save();data.started=true;data.level=2;data.seed=7322;data.open_gates=[0,1];data.completed_levels=[0,1]
  var f=FileAccess.open(path,FileAccess.WRITE);f.store_string(JSON.stringify(data));f.close();g.queue_free();await process_frame
  var saved=scene.instantiate();root.add_child(saved);await process_frame;saved.set_process(false);saved.set_physics_process(false)
  assert(saved.level==2 and not saved.playing and saved.paused and saved.save_data.level==2)
  assert(saved.camera==saved.camera_target())
+ assert(saved.session_prepared and saved.room_cache.size()==7)
+ assert(0 in saved.save_data.open_gates and 1 in saved.save_data.open_gates)
+ var builds:int=saved.room_build_count
+ saved.resume_game();assert(saved.playing and not saved.paused and saved.room_build_count==builds)
+ saved.activate_cached_room(0);saved.restore_gate_key()
+ assert(saved.door_is_open("exit") and not saved.objects.any(func(o):return o.kind=="gate_key"))
+ saved.arena_save.reset_saved();assert(0 in saved.save_data.open_gates)
+ saved.build_level(4);saved.save_data.open_gates.append(4);saved.arena_save.reset_saved();assert(4 in saved.save_data.open_gates)
  saved.queue_free();await process_frame;data.started=false;data.level=5
  f=FileAccess.open(path,FileAccess.WRITE);f.store_string(JSON.stringify(data));f.close()
  var fresh=scene.instantiate();root.add_child(fresh);await process_frame;fresh.set_process(false);fresh.set_physics_process(false)
@@ -30,5 +38,5 @@ func run():
  if previous.is_empty():DirAccess.remove_absolute(path)
  else:
   f=FileAccess.open(path,FileAccess.WRITE);f.store_buffer(previous);f.close()
- print("PASS saved menu room, fresh maze background, camera, paused state and Garden Pixel fonts")
+ print("PASS prepared saved menu, no rebuild on continue, permanent gates across JSON/cache/retry, fresh maze and fonts")
  quit()

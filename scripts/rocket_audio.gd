@@ -29,6 +29,11 @@ func event(name: String, position: Vector2) -> void:
         return
     duck_left = maxf(duck_left, 1.2 if name=="rpg_explosion" else .35)
     game.rocket_voice.volume_db = minf(game.rocket_voice.volume_db, -58)
+    if name=="rpg_explosion":
+        game.rocket_voice.stop()
+        # The launch reference contains a short flight tail; do not let it survive impact.
+        for launch in launch_voices:
+            launch.stop()
     if not game.sound_on or DisplayServer.get_name()=="headless":
         return
     var voices := impact_voices if name=="rpg_explosion" else launch_voices
@@ -42,7 +47,7 @@ func event(name: String, position: Vector2) -> void:
         impact_cursor += 1
     else:
         launch_cursor += 1
-    voice.volume_db = (-3.0 if name=="rpg_explosion" else -6.0) - linear_to_db(1.0 + distance/180.0)
+    voice.volume_db = (-2.0 if name=="rpg_explosion" else -6.0) - linear_to_db(1.0 + distance/(650.0 if name=="rpg_explosion" else 180.0))
     voice.pitch_scale = 1.0
     voice.play()
 
@@ -55,7 +60,7 @@ func update(delta: float) -> void:
     if not game.sound_on or not game.playing or game.paused or distance>=1400:
         game.rocket_voice.stop()
         return
-    var target := -26.0 - 20*log(1+distance/420)/log(10.0)
+    var target := -12.0 - 20*log(1+distance/420)/log(10.0)
     if duck_left>0:
         target -= 26
     game.rocket_voice.volume_db = lerpf(game.rocket_voice.volume_db, target, minf(1, delta*12))

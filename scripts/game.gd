@@ -175,6 +175,8 @@ var sound_on := true
 var fps_average := 60.0
 var low_fx := false
 var save_error := false
+var session_prepared := false
+const HIDDEN_REACH := 56.0
 
 func tx(key: String) -> String:
 	return str(content.get("ui",{}).get(key,{}).get("text",""))
@@ -197,7 +199,10 @@ func _ready() -> void:
 	setup_audio()
 	setup_fog()
 	setup_ui()
-	build_level(clampi(int(save_data.level),0,6) if save_data.started else 0)
+	var target := clampi(int(save_data.level),0,6) if save_data.started else 0
+	if OS.has_feature("web"):await prepare_rooms_web(target, false)
+	else:prepare_room_cache(target)
+	arena_save.restore_hands();companion.restore();session_prepared=true
 	camera = camera_target()
 	sync_room_theme()
 	touch_mode = true
@@ -238,6 +243,13 @@ func load_save() -> void:
 					stats.add(self,"berries" if str(eaten).begins_with("berry_") else "apples")
 			save_data.water = clampi(int(parsed.get("water", 0)), 0, 6)
 			if not parsed.has("weapons_taken") and not str(save_data.weapon).is_empty(): save_data.weapons_taken.append(save_data.weapon)
+	# JSON numeric array entries must use the same integer type as runtime room IDs.
+	for key in ["open_gates","gate_keys","completed_levels","obstacles"]:
+		save_data[key]=save_data[key].map(func(v):return int(v))
+	for room in save_data.completed_levels:
+		if room<6 and room not in save_data.open_gates:save_data.open_gates.append(room)
+	for room in range(int(save_data.level)):
+		if room not in save_data.open_gates:save_data.open_gates.append(room)
 	stats.repair(self)
 	arena_save.sanitize_dead_save()
 	repair_accessory_save(legacy_accessories)
@@ -562,15 +574,16 @@ func new_game() -> void:
 	playing=false;paused=true
 	if OS.has_feature("web"):await prepare_rooms_web(0)
 	else:prepare_room_cache(0)
-	playing=true;sync_room_theme();persist();show_intro()
+	session_prepared=true;playing=true;sync_room_theme();persist();show_intro()
 
 func resume_game() -> void:
-	if playing and level==int(save_data.level):clear_modal();hud.show();return
+	if session_prepared and level==int(save_data.level):
+		playing=true;clear_modal();hud.show();return
 	playing=false;paused=true
 	var target:=int(save_data.level)
 	if OS.has_feature("web") and (room_cache_seed!=int(save_data.seed) or room_cache.size()!=7):await prepare_rooms_web(target)
 	else:prepare_room_cache(target)
-	arena_save.restore_hands();companion.restore();playing=true;sync_room_theme();clear_modal();hud.show()
+	arena_save.restore_hands();companion.restore();session_prepared=true;playing=true;sync_room_theme();clear_modal();hud.show()
 
 func sync_room_theme() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenSetRoom?.("+str(level)+")")
@@ -611,7 +624,7 @@ func prepare_room_cache(target: int) -> void:
 		room_cache_seed=int(save_data.seed)
 	activate_cached_room(target)
 
-func prepare_rooms_web(target: int) -> void:
+func prepare_rooms_web(target: int, hide_after: bool = true) -> void:
 	# Prepare static room data once; never generate rooms while walking through a hall.
 	JavaScriptBridge.eval("window.gardenShowLoading?.();window.gardenRoomProgress?.(0)")
 	await get_tree().process_frame
@@ -621,7 +634,7 @@ func prepare_rooms_web(target: int) -> void:
 		JavaScriptBridge.eval("window.gardenRoomProgress?.("+str(float(room+1)/7)+")")
 		await get_tree().process_frame
 	room_cache_seed=int(save_data.seed);activate_cached_room(target)
-	JavaScriptBridge.eval("window.gardenHideLoading?.()")
+	if hide_after:JavaScriptBridge.eval("window.gardenHideLoading?.()")
 
 func show_intro() -> void:
 	var box:=modal_box(650,410)
@@ -661,8 +674,7 @@ func show_letter(id: String, journal: bool = false, source_stack: Control = null
 	if letter.is_empty(): return
 	if is_instance_valid(source_stack):
 		if id not in save_data.letters: return
-		source_stack.active = false
-		source_stack.set_process(false)
+		source_stack.suspend()
 	else:
 		clear_modal()
 	paused=true;hud.hide()
@@ -718,16 +730,22 @@ func ensure_riddle() -> void:
 	save_data.riddle_order=order;save_data.riddle_clues=clues;save_data.riddle_letters=[];save_data.riddle_input=[]
 	for candidates in content.puzzle.room_letters:save_data.riddle_letters.append(candidates[rng.randi_range(0,candidates.size()-1)])
 
-func riddle_clue(room: int) -> String:
+func riddle_clue(room: int, icons: bool = false) -> String:
 	var index := int(save_data.riddle_clues[room])
 	var order: Array = save_data.riddle_order
-	if index==0:return tx("riddle_start_clue").format({"symbol":tx("symbol_"+str(order[0]))})
-	return tx("riddle_link_clue").format({"before":tx("symbol_"+str(order[index-1])),"after":tx("symbol_"+str(order[index]))})
+	if index==0:return tx("riddle_start_clue").format({"symbol":riddle_symbol(str(order[0]),icons)})
+	return tx("riddle_link_clue").format({"before":riddle_symbol(str(order[index-1]),icons),"after":riddle_symbol(str(order[index]),icons)})
+
+func riddle_symbol(id: String, icons: bool) -> String:
+	return "{rune:"+id+"}" if icons else tx("symbol_"+id)
 
 func letter_with_clue(letter: Dictionary) -> Dictionary:
 	var result := letter.duplicate(true)
 	var room: int = save_data.riddle_letters.find(str(letter.id))
-	if room>=0:result.text=str(letter.text)+"\n\n"+tx("riddle_note_heading")+"\n"+riddle_clue(room)
+	if room>=0:
+		result.body_text=str(letter.text)
+		result.clue_room=room
+		result.text=str(letter.text)+"\n\n"+tx("riddle_note_heading")+"\n"+riddle_clue(room)
 	return result
 
 func press_riddle_symbol(id: String, pos: Vector2) -> void:
@@ -976,7 +994,7 @@ func build_level(index: int) -> void:
 	restore_accessory_drops()
 	restore_gate_key()
 	world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install()
-	if index==4:arena_save.restore_room();rune_stones.install()
+	if index==4:arena_save.restore_room();restore_gate_key();rune_stones.install()
 	camera = camera_target()
 	nearest = -1
 	update_hud()
@@ -1227,7 +1245,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func available(obj: Dictionary) -> bool:
 	if obj.kind=="letter_box":return true
-	if obj.kind=="riddle_stone":return obj.id not in save_data.riddle_stones and (not obj.get("hidden_hedge",false) or obj.pos.distance_to(player)<=54)
+	if obj.kind=="riddle_stone":return obj.id not in save_data.riddle_stones and (not obj.get("hidden_hedge",false) or obj.pos.distance_to(player)<=HIDDEN_REACH)
 	if obj.kind=="medkit":return true
 	if obj.kind=="flashlight_pedestal":return false
 	if obj.kind=="cat_fish":return not save_data.cat_fish and not save_data.cat_tamed
@@ -1247,7 +1265,7 @@ func available(obj: Dictionary) -> bool:
 	if obj.id in ["rpg","rifle","sword"]: return obj.id not in save_data.weapons_taken
 	if obj.id in ["seat","swing"]:return true
 	if obj.id=="rake": return held_item!="rake"
-	if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>54:return false
+	if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>HIDDEN_REACH:return false
 	if obj.kind in ["berries","tree_apples"]: return obj.id not in save_data.eaten
 	if obj.id=="flashlight": return held_item!="flashlight"
 	if obj.id=="shovel": return held_item!="shovel"
@@ -1671,6 +1689,7 @@ func use_exit(walking: bool = false) -> void:
 		if walking:return
 		if level not in save_data.gate_keys:notify(tx("gate_key_required"));return
 		save_data.gate_keys.erase(level)
+		save_data.gate_key_drops.erase(str(level))
 		save_data.open_gates.append(level);persist();sfx("gate_unlock");gate_creak_delay=.14;haptic(30)
 		for door in objects:
 			if door.kind=="doorway" and door.id=="exit":door.unlock_time=time
@@ -1715,7 +1734,7 @@ func update_hud() -> void:
 				if id in save_data.letters: count+=1
 			status.text = tx("maze_status") % [count,(tx("maze_exit_open") if door_is_open("exit") else tx("gate_key_ready") if level in save_data.gate_keys else tx("gate_key_ground")) if count==3 else tx("maze_search_hint")]
 		1: status.text = tx("darkness_status") % [dark_letter_count(),tx("flashlight_on") if save_data.flashlight else tx("flashlight_location")]
-		2: status.text = tx("obstacles_status") % save_data.obstacles.size()
+		2: status.text = ""
 		3: status.text = tx("buried_note_found") if "buried" in save_data.letters else (tx("digging_hint") if save_data.shovel else tx("shovel_location"))
 		4: status.text = tx("combat_status") % [mini(wave,battle.WAVE_COUNT),tx("combat_chest_hint") if combat_done else {"sword":tx("weapon_sword"),"rifle":tx("weapon_rifle"),"rpg":tx("weapon_rpg")}.get(weapon,tx("weapon_required"))]
 		5: status.text = tx("garden_status") % [required_flower_count(),tx("water_prefix")+str(water)+" / 6" if garden_can else tx("can_search_hint")]
@@ -1727,7 +1746,7 @@ func update_hud() -> void:
 		enemy_count_progress.value = enemies.size()
 		enemy_count_label.text = str(enemies.size())
 	if level>0 and level<6 and room_letters_complete() and not door_is_open("exit"):
-		status.text+=" · "+tx("gate_key_ready" if level in save_data.gate_keys else "gate_key_ground")
+		status.text+=(" · " if not status.text.is_empty() else "")+tx("gate_key_ready" if level in save_data.gate_keys else "gate_key_ground")
 	action_button.disabled = task_time>0
 	action_button.visible = (nearest>=0 or world_tools.can_bed() or (level==3 and save_data.shovel)) and playing
 	if new_bed_action_ready():action_button.text=tx("new_bed_action")
@@ -2076,7 +2095,7 @@ func _draw_world() -> void:
 		if p.x < -100 or p.y < -100 or p.x>view.x+100 or p.y>view.y+150: continue
 		if obj.kind in ["berries","dug"]:continue
 		if obj.kind=="skull_relic" and (not save_data.get("house_open",false) or save_data.get("skull_taken",false) or save_data.get("skull_inserted",false)):continue
-		if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>54:continue
+		if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>HIDDEN_REACH:continue
 		if obj.id=="courage" and not combat_done: continue
 		if obj.id=="garden" and (not required_flowers_ready() or not blooms_ready()): continue
 		if obj.kind=="note" and obj.id in save_data.letters:
@@ -2124,6 +2143,7 @@ func _draw_world() -> void:
 		# Each tree has one visible crown/trunk layer, sorted with the heroine below.
 		draw_hedge_canopy(visible_crowns,-1)
 
+	if level==2:draw_new_rooms()
 	renderables.sort_custom(func(a,b):
 		if a.pos.y==b.pos.y:
 			if a.kind=="dug" and b.kind!="dug":return true
@@ -2276,7 +2296,7 @@ func _draw_world() -> void:
 		c.a = minf(1,part.life)
 		if part.heart: draw_heart(screen(part.pos),1.2,c)
 		else: draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
-	draw_new_rooms()
+	if level!=2:draw_new_rooms()
 	if not drawing_neighbor:
 		draw_extra_effects()
 		draw_reply_deposit()
@@ -2619,7 +2639,11 @@ func update_fog() -> void:
 	material.set_shader_parameter("light_pos",screen(held_tool_pose().tip) if held_item=="flashlight" else screen(player)+Vector2(14,-33))
 	material.set_shader_parameter("hero_pos",screen(player)+Vector2(0,-35))
 	material.set_shader_parameter("view_size",get_viewport_rect().size)
-	material.set_shader_parameter("light_dir",facing)
+	var stride := 1.0 if moving and not paused else 0.0
+	var sway := sin(time*10.0)*.045*stride + sin(time*1.3)*.012
+	material.set_shader_parameter("light_dir",facing.rotated(sway))
+	material.set_shader_parameter("light_time",time)
+	material.set_shader_parameter("walking",stride)
 	material.set_shader_parameter("enabled",save_data.flashlight)
 	for obj in objects:
 		if obj.id=="flashlight": material.set_shader_parameter("pedestal_pos",screen(obj.pos)-Vector2(0,40))

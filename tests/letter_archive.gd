@@ -25,7 +25,7 @@ func run():
  g.show_letter(id);var normal=g.modal;normal._process(1.6);assert(not normal.close_button.disabled and not is_instance_valid(normal.stack_view));normal.close();await process_frame
  g.show_letter_stack(box);stack=g.modal;stack.age=1.3;stack._process(0);stack.begin_drag(stack.card_rect(0).position+Vector2(100,25));stack.end_drag(stack.card_rect(0).position+Vector2(100,25));assert(g.modal!=stack)
  g.show_menu();await process_frame;await process_frame;assert(not is_instance_valid(stack) and not box.archive_open and g.paused)
- g.clear_modal();g.save_data.letters=[];g.show_letter_stack(box);stack=g.modal;stack.age=1.3;stack._process(0);assert(stack.letters.is_empty() and stack.previous_button.disabled and stack.next_button.disabled and not stack.exit_button.disabled)
+ g.clear_modal();g.save_data.letters=[];g.show_letter_stack(box);stack=g.modal;stack.age=1.3;stack._process(0);assert(stack.letters.is_empty() and stack.scroll_bar.max_value==stack.VISIBLE_COUNT and not stack.exit_button.disabled)
  g.clear_modal();g.queue_free();await process_frame
  print("PASS archive interaction, saved-only letters, swipe/page/tap, pull-out and return, exit cleanup, empty pile and normal letter opening")
  quit()

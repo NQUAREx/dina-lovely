@@ -34,9 +34,33 @@ func _ready() -> void:
     var column := VBoxContainer.new()
     column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     text_scroll.add_child(column)
-    var body: Label = game.label(str(letter.text), 22, game.INK)
+    var body := RichTextLabel.new()
+    body.fit_content = true
+    body.scroll_active = false
     body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    body.add_theme_font_override("normal_font", game.body_font)
+    body.add_theme_font_size_override("normal_font_size", 24)
+    body.add_theme_color_override("default_color", game.INK)
     column.add_child(body)
+    body.add_text(str(letter.get("body_text", letter.text)))
+    if letter.has("clue_room"):
+        body.add_text("\n\n"+game.tx("riddle_note_heading")+"\n")
+        var clue: String = game.riddle_clue(int(letter.clue_room), true)
+        var markers := RegEx.new()
+        markers.compile("\\{rune:([a-z_]+)\\}")
+        var offset := 0
+        for marker in markers.search_all(clue):
+            body.add_text(clue.substr(offset, marker.get_start()-offset))
+            var symbol: String = marker.get_string(1)
+            var tile: int = game.sprites["rune_"+symbol]
+            var origin := Vector2i(tile%16*32,tile/16*48)
+            var crop: Rect2i = game.label_atlas_pixels.get_region(Rect2i(origin,Vector2i(32,48))).get_used_rect()
+            var icon := AtlasTexture.new()
+            icon.atlas = game.atlas
+            icon.region = Rect2(Vector2(origin+crop.position),Vector2(crop.size))
+            body.add_image(icon, int(34.0*crop.size.x/maxi(1,crop.size.y)), 34, Color.WHITE, INLINE_ALIGNMENT_CENTER)
+            offset = marker.get_end()
+        body.add_text(clue.substr(offset))
     if not str(letter.get("image", "")).is_empty() and ResourceLoader.exists(letter.image):
         var picture := TextureRect.new()
         picture.texture = load(letter.image)
@@ -45,12 +69,13 @@ func _ready() -> void:
         picture.custom_minimum_size = Vector2(380, 180)
         column.add_child(picture)
     close_button = Button.new()
-    close_button.text = game.tx("return_to_journal") if is_instance_valid(stack_view) else game.tx("reply_close_symbol")
+    close_button.icon = preload("res://assets/close_icon.png")
+    close_button.expand_icon = true
+    close_button.add_theme_constant_override("icon_max_width", 38)
+    close_button.tooltip_text = game.tx("reply_close_symbol")
     close_button.flat = true
-    close_button.add_theme_font_size_override("font_size", 20 if is_instance_valid(stack_view) else 30)
-    close_button.add_theme_color_override("font_color", game.INK)
-    close_button.position = Vector2(218, 8) if is_instance_valid(stack_view) else Vector2(416, 10)
-    close_button.size = Vector2(230, 40) if is_instance_valid(stack_view) else Vector2(38, 38)
+    close_button.position = Vector2(400, 8)
+    close_button.size = Vector2(60, 60)
     close_button.pressed.connect(close)
     paper.add_child(close_button)
     if journal and not is_instance_valid(stack_view):

@@ -69,7 +69,7 @@ func reset_saved()->void:
  g.save_data.loose_weapons=g.save_data.loose_weapons.filter(func(o):return int(o.get("room",4))!=4)
  if g.held_item in ["rifle","rpg","sword"]:g.held_item="";g.weapon=""
  if str(g.save_data.held_item) in ["rifle","rpg","sword"]:g.save_data.held_item="";g.save_data.weapon=""
- if not g.save_data.finished:g.save_data.open_gates.erase(4)
+# An unlocked exit is permanent, including when retrying the arena.
 func sanitize_dead_save()->void:
  if g.save_data.arena_checkpoint.get("dead",false):reset_saved()
 func restart()->void:

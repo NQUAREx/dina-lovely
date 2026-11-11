@@ -220,26 +220,27 @@
     "sha256": "dee1e71faf718150c200e71a0e0a86f9682ddef7aa497b8c9ea9d4ff7b7d3b05"
   },
   "rpg_flight.wav": {
-    "source": "rocket_engine.001.wav, theMinesAreShakin",
-    "url": "https://opengameart.org/content/rocket-engine",
-    "license": "CC0",
-    "processing": "Full recording, mono 44.1kHz, 130Hz high-pass/8.5kHz low-pass, 220ms equal-power seam, peak 27000",
-    "sha256": "80d48af81ce71c97e49a07446693b8fc8ab2b1b190bf47f98a872dc7bae2f774"
+    "source": "rpg_reference_flight.wav",
+    "url": "https://youtu.be/4Vu0Hr9660U",
+    "excerpt_seconds": "6.18–8.40",
+    "license": "Reference recording supplied by user; rights remain with respective owners (not CC0)",
+    "processing": "Mono 44.1kHz, peak 27000, 80ms equal-power loop seam; no launch or impact",
+    "sha256": "677a2d3974bbec14c0eb36d6e0c369954d24b5e149972f4e68c56fc68a364a21"
   },
   "rpg_launch.wav": {
     "source": "rpg_reference_launch.wav",
     "url": "https://youtu.be/4Vu0Hr9660U",
-    "excerpt_seconds": "5.88–7.38",
+    "excerpt_seconds": "5.88–6.18",
     "license": "Reference recording supplied by user; rights remain with respective owners (not CC0)",
-    "processing": "Mono 44.1kHz, peak 29000, 60ms tail fade; original pitch",
-    "sha256": "299631c282e737d93200db25877c309aecf3732d829f270c9c841d7aa22b388d"
+    "processing": "Mono 44.1kHz, peak 29000, 60ms tail fade; original pitch; impact leading silence removed",
+    "sha256": "1e29db96c55efc5f0546a6c5e46f90c2490bf2c732f2fca988d1f296e75db3d9"
   },
   "rpg_explosion.wav": {
     "source": "rpg_reference_impact.wav",
     "url": "https://youtu.be/4Vu0Hr9660U",
     "excerpt_seconds": "8.40–10.50",
     "license": "Reference recording supplied by user; rights remain with respective owners (not CC0)",
-    "processing": "Mono 44.1kHz, peak 29000, 60ms tail fade; original pitch",
-    "sha256": "ea93579b683451ce5f59bb74b11cfa8b56ce238ffcbec5cb0d17d43743eeb1f0"
+    "processing": "Mono 44.1kHz, peak 30000, 60ms tail fade; original pitch; impact leading silence removed",
+    "sha256": "1293d28b9a57062a7de266ab2f7edc5bcfa5388b4f48903ec4467215809a755d"
   }
 }
