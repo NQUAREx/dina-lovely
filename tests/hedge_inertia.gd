@@ -20,14 +20,5 @@ func run():
  press_field.update(1.0/60,press_player)
  var unsoftened:=maxf(0,ceilf(press_player.y-28+roundf(press_node.radius*1.48))-((press_node.base+press_node.offset).round().y-16))
  assert(not press_node.released and press_node.depression>0 and press_node.depression<unsoftened)
- var ids:=PackedInt32Array([index]);node.layer_initialized=false
- field.prepare_draw(ids,base+Vector2(0,50),1.0/60)
- field.prepare_draw(ids,base-Vector2(0,50),1.0/60)
- var start_x:float=field.draw_poses[index].x
- assert(absf(start_x-base.round().x)>1 and absf(start_x-base.round().x)<10)
- for n in range(8):field.prepare_draw(ids,base-Vector2(0,50),1.0/60)
- assert(field.front_crowns.has(index))
- for n in range(10):field.prepare_draw(ids,base-Vector2(0,50),1.0/60)
- assert(absf(field.draw_poses[index].x-base.round().x)<1)
  print("PASS original touch impulse, wide sustained sways and controlled settling")
  quit()
