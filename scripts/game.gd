@@ -2281,7 +2281,7 @@ func _draw_world() -> void:
 			if level in [1,2,4] and inside_main_room():
 				draw_cast_shadow("hero"+str(visual_facing())+"_0",p,1.0)
 				draw_shadow(p,19)
-			var frame := int(time*12)%4 if moving and resting.is_empty() and (not paused or reply_deposit_active) else 0
+			var frame := player_walk_frame()
 			if not resting.is_empty():p+=Vector2(0,-18+sin(time*2.4)*12 if resting=="swing" else -18)
 			var color := Color(1,.65,.73) if invincible>0 and int(time*12)%2==0 else Color.WHITE
 			var hero_pos:=p-rifle_kick_dir*rifle_kick+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
@@ -3694,6 +3694,10 @@ func facing_octant(vector: Vector2) -> int:
 func visual_facing() -> int:
 	if not resting.is_empty():return direction
 	return facing_octant(aim if not weapon.is_empty() and (attack_flash>0 or rpg_windup>=0) else walk_facing)
+
+func player_walk_frame() -> int:
+	if not moving or not resting.is_empty() or (paused and not reply_deposit_active):return 0
+	return int(time*16)%8 if visual_facing() in [1,3] else int(time*12)%4
 
 func draw_player_outfit(pos: Vector2, frame: int, color: Color) -> void:
 	var facing:=visual_facing()
