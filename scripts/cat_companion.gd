@@ -147,7 +147,7 @@ func update(delta:float)->void:
   if position.distance_to(rest_goal)<1:rest_goal=Vector2.INF
  moving=position.distance_to(before)>.05
  if moving:
-  var v:=position-before;direction=(1 if v.x<0 else 3) if absf(v.x)>absf(v.y) else (0 if v.y<0 else 2)
+  var v:=position-before;direction=g.facing_octant(v)
   anim+=delta;stride+=v.length()
   if stride>=16:
    stride=fmod(stride,16);prints.append({"pos":position-v.normalized()*9,"angle":v.angle()+PI/2,"life":9.75,"stone":g.stone_surface(position)})

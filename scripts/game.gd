@@ -2243,7 +2243,7 @@ func _draw_world() -> void:
 	for hole in objects:
 		if hole.kind=="dug":draw_sprite("dug",screen(hole.pos))
 	if not drawing_neighbor and (level not in [1,2,4] or not inside_main_room()):
-		draw_cast_shadow("hero"+str(direction)+"_0",screen(player),1.0)
+		draw_cast_shadow("hero"+str(visual_facing())+"_0",screen(player),1.0)
 		var contact_shadow:=PackedVector2Array()
 		for n in range(24):contact_shadow.append(screen(player)+Vector2(cos(n*TAU/24)*19,sin(n*TAU/24)*5.7))
 		draw_floor_shadow(contact_shadow,Color(.06,.09,.15,.28))
@@ -2279,7 +2279,7 @@ func _draw_world() -> void:
 				if hedge_field!=null:draw_hedge_canopy(visible_crowns,1)
 				continue
 			if level in [1,2,4] and inside_main_room():
-				draw_cast_shadow("hero"+str(direction)+"_0",p,1.0)
+				draw_cast_shadow("hero"+str(visual_facing())+"_0",p,1.0)
 				draw_shadow(p,19)
 			var frame := int(time*12)%4 if moving and resting.is_empty() and (not paused or reply_deposit_active) else 0
 			if not resting.is_empty():p+=Vector2(0,-18+sin(time*2.4)*12 if resting=="swing" else -18)
@@ -3686,10 +3686,20 @@ func collect_accessory(item: String) -> void:
 	persist();sfx("chime");burst(player,8,PINK);find_nearest()
 	notify(tx("accessory_found") % tx("accessory_"+item))
 
+func facing_octant(vector: Vector2) -> int:
+	if vector.length_squared()<.0001:return direction
+	var octant:=posmod(roundi(vector.angle()/(PI/4)),8)
+	return [3,7,2,6,1,4,0,5][octant]
+
+func visual_facing() -> int:
+	if not resting.is_empty():return direction
+	return facing_octant(aim if not weapon.is_empty() and (attack_flash>0 or rpg_windup>=0) else walk_facing)
+
 func draw_player_outfit(pos: Vector2, frame: int, color: Color) -> void:
-	draw_sprite("hero"+str(direction)+"_"+str(frame),pos,color)
+	var facing:=visual_facing()
+	draw_sprite("hero"+str(facing)+"_"+str(frame),pos,color)
 	for item in OUTFIT_ORDER:
-		if item in save_data.wearing:draw_sprite("wear_"+item+"_"+str(direction)+"_"+str(frame),pos,color)
+		if item in save_data.wearing:draw_sprite("wear_"+item+"_"+str(facing)+"_"+str(frame),pos,color)
 
 func food_heart_burst() -> void:
 	for n in range(18):

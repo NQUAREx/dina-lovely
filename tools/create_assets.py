@@ -765,3 +765,6 @@ runpy.run_path(str(R/"tools/create_quest_refinements.py"))
 
 # Irregular excavation masks and pixel rocket/dirt effects.
 runpy.run_path(str(R/"tools/create_dig_rocket_art.py"))
+
+# Three-quarter walking and matching accessory layers.
+runpy.run_path(str(R/"tools/create_diagonal_art.py"))
