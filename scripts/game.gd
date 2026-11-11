@@ -3020,8 +3020,8 @@ func update_vegetation(delta: float) -> void:
 	var touched: bool = contact or hedge_touch
 	var moved_since_emission := vegetation_fx_anchor==Vector2.INF or player.distance_to(vegetation_fx_anchor)>=vegetation_fx_spacing
 	if touched and vegetation_fx_cooldown<=0 and (not vegetation_was_touched or moved_since_emission):
-		vegetation_fx_cooldown=randf_range(.2125,.4125)
-		vegetation_fx_spacing=randf_range(7.5,14)
+		vegetation_fx_cooldown=randf_range(.1417,.275)
+		vegetation_fx_spacing=randf_range(5,9.33)
 		vegetation_fx_anchor=player
 		if randf()>.65:vegetation_was_touched=touched;return
 		if hedge_touch:
