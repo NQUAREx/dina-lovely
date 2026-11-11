@@ -1,6 +1,6 @@
 extends RefCounted
 ## JSON-safe, seed-bound arena state. Inactive rooms stay frozen in the room cache.
-const FIELDS:=["objects","enemies","shots","poison_zones","health","invincible","wave","wave_timer","combat_done","player","magazine","reload_time","rpg_reload","attack_cd"]
+const FIELDS:=["pending_spawns","prepared_wave","objects","enemies","shots","poison_zones","health","invincible","wave","wave_timer","combat_done","player","magazine","reload_time","rpg_reload","attack_cd"]
 var g:Node2D
 var clock:=0.0
 var resetting:=false
@@ -47,7 +47,7 @@ func restore_room()->void:
   if not state.fields.has(field):continue
   var value:Variant=unpack(state.fields[field])
   if g.get(field) is Array:g.get(field).assign(value)
-  elif field in ["wave","magazine"]:g.set(field,int(value))
+  elif field in ["wave","magazine","prepared_wave"]:g.set(field,int(value))
   else:g.set(field,value)
  g.time=maxf(g.time,float(state.get("time",0)))
  g.room_remains[4]=unpack(state.get("remains",[]))
@@ -67,6 +67,7 @@ func reset_saved()->void:
  g.save_data.arena_medkit_claimed=false
  g.save_data.weapons_taken=[]
  g.save_data.weapon_crates_opened=[]
+ g.pending_spawns.clear();g.prepared_wave=0
  for drop in g.save_data.loose_accessories:
   if int(drop.room)==4:drop.room=g.accessory_origin(str(drop.accessory));drop.pos=[]
  g.save_data.loose_weapons=g.save_data.loose_weapons.filter(func(o):return int(o.get("room",4))!=4)

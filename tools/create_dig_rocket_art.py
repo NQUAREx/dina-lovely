@@ -55,30 +55,49 @@ for frame in range(8):
  im.alpha_composite(tile,(frame*48,0))
 im.save(A/'rocket_blast.png')
 print('Created 8 excavation silhouettes, earth/fire/smoke sprites and 8 blast frames')
-# Heavy iron weapon crates: closed, cracked lid and fully opened artwork.
-im=Image.new('RGBA',(96,48))
-for frame in range(3):
+# Eight independently drawn lid poses, with straight sides and visible hinges.
+im=Image.new('RGBA',(256,48))
+for frame in range(8):
  tile=Image.new('RGBA',(32,48));d=ImageDraw.Draw(tile)
- d.ellipse((1,39,30,46),fill='#2b3038');d.polygon([(3,28),(28,28),(30,31),(29,43),(4,44),(2,40)],fill='#3c4750')
- d.rectangle((4,29,27,40),fill='#71818a');d.line((4,29,27,29),fill='#b6bfc0');d.rectangle((5,39,27,42),fill='#4c606a')
- for x in [5,24]:
-  d.rectangle((x,29,x+2,42),fill='#a2adb0');d.line((x+1,30,x+1,40),fill='#ced1c6')
- for x,y in [(7,32),(25,32),(7,39),(25,39)]:d.point((x,y),fill='#e2d8b7')
- if frame==0:
-  d.polygon([(2,28),(5,19),(25,19),(29,28)],fill='#586b77');d.line((5,20,25,20,28,27),fill='#a6b3b8')
-  d.rectangle((7,22,9,28),fill='#b0b9b6');d.rectangle((22,22,24,28),fill='#b0b9b6')
-  d.rectangle((13,27,18,35),fill='#c1b18b');d.arc((13,24,18,30),180,360,fill='#e4d7af',width=2);d.point((15,31),fill='#45484c');d.line((15,32,16,33),fill='#45484c')
- else:
-  d.rectangle((4,26,27,30),fill='#202d34');d.line((5,28,26,28),fill='#45535b')
-  top=13 if frame==2 else 18
-  d.polygon([(3,top),(27,top),(29,top+8),(3,top+8)],fill='#536774');d.rectangle((5,top+2,25,top+6),fill='#82939b')
-  d.line((4,top,26,top,28,top+7),fill='#c3c9bf');d.rectangle((7,top+1,9,top+7),fill='#aeb8b9');d.rectangle((22,top+1,24,top+7),fill='#aeb8b9')
-  d.rectangle((14,30,17,32),fill='#c1b18b')
+ d.ellipse((1,40,30,46),fill='#353943')
+ d.rectangle((2,27,29,42),fill='#485762');d.rectangle((4,29,27,40),fill='#7b8b93')
+ d.line((2,27,29,27),fill='#bac3c1');d.rectangle((3,40,28,43),fill='#526673')
+ for x in [4,25]:
+  d.rectangle((x,28,x+2,42),fill='#acb7b6');d.line((x,29,x,40),fill='#d0d3c7')
+ for x,y in [(6,32),(26,32),(6,40),(26,40)]:d.point((x,y),fill='#ded7bb')
+ top=20-round(frame*1.25);bottom=28-round(frame*.7)
+ if frame:
+  d.rectangle((3,bottom,28,29),fill='#354852')
+  for x in [3,26]:
+   d.rectangle((x,bottom,x+2,31),fill='#8b9da5');d.line((x,bottom,x,30),fill='#bec8c4')
+ d.rectangle((2,top,29,bottom),fill='#637987');d.rectangle((4,top+2,27,max(top+2,bottom-2)),fill='#8d9fa6')
+ d.line((2,bottom,2,top,29,top,29,bottom),fill='#c8ceca');d.line((3,bottom,28,bottom),fill='#435761')
+ for x in [6,24]:d.line((x,top+1,x,bottom),fill='#c0c8c1',width=2)
+ if frame<2:
+  d.rectangle((13,27,18,34),fill='#c4b795');d.arc((13,24,18,29),180,360,fill='#e3d9b8',width=2);d.point((15,31),fill='#4b5154')
+ else:d.rectangle((14,30,17,32),fill='#c4b795')
  im.alpha_composite(tile,(frame*32,0))
 im.save(A/'iron_weapon_crates.png')
-im=Image.new('RGBA',(12,12));d=ImageDraw.Draw(im)
-d.rectangle((2,7,8,11),fill='#56516b');d.line((3,8,7,8),fill='#9990a0')
-d.polygon([(2,6),(3,3),(5,2),(8,2),(10,4),(10,7),(8,9),(3,8)],fill='#bb937b')
-d.line((3,4,4,3,8,3,9,4),fill='#e4b99a');d.line((3,7,8,8,10,6),fill='#896e66')
-for x in [4,6,8]:d.point((x,4),fill='#f1c9aa')
-im.save(A/'fist.png')
+# Muted warm light, rose embers and lavender-grey smoke match the environment.
+for name in ['physical_particles.png','rocket_blast.png']:
+ image=Image.open(A/name).convert('RGBA')
+ for y in range(image.height):
+  for x in range(image.width):
+   r,g,b,a=image.getpixel((x,y))
+   if not a or (name=='physical_particles.png' and x<72):continue
+   l=round(.25*r+.55*g+.20*b)
+   amount=.75 if r>g*1.15 else .82
+   target=(min(242,l+42),min(230,l+26),min(232,l+32)) if r>g*1.15 else (min(215,l+18),min(213,l+16),min(221,l+25))
+   image.putpixel((x,y),tuple(round(c*(1-amount)+t*amount) for c,t in zip((r,g,b),target))+(a,))
+ image.save(A/name)
+# Icon-only touch controls.
+for name in ['drop_item','cycle_tools']:
+ image=Image.new('RGBA',(24,24));d=ImageDraw.Draw(image)
+ if name=='drop_item':
+  d.line((5,4,10,4,10,12,14,12,14,4,19,4),fill='#f5e3cf',width=2)
+  d.polygon([(8,13),(16,13),(12,18)],fill='#e5a6bd');d.line((5,21,19,21),fill='#f5e3cf',width=2)
+ else:
+  d.line((4,9,4,5,18,5),fill='#f5e3cf',width=2);d.polygon([(16,1),(22,5),(16,9)],fill='#e5a6bd')
+  d.line((20,15,20,19,6,19),fill='#f5e3cf',width=2);d.polygon([(8,15),(2,19),(8,23)],fill='#e5a6bd')
+  d.line((10,11,14,15),fill='#c4cfc4',width=3)
+ image.save(A/(name+'_icon.png'))

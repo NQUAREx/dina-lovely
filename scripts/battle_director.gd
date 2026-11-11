@@ -20,14 +20,18 @@ const GUNS := {
 var navigation:AStarGrid2D
 var navigation_key:=""
 var navigation_checked:=-INF
+var serial_counter:=0
 var routes:Dictionary={}
 var g:Node2D
 func _init(game:Node2D):g=game
 func enemy(kind:int,pos:Vector2,hp:int,boss:bool=false)->void:
- var serial:int=g.enemies.size()+1
- g.enemies.append({"pos":pos,"home":pos,"hp":hp,"max_hp":hp,"boss":boss,"type":kind,"serial":serial,"state":"spawn","timer":1.3+serial*.15,"target":g.player,"cooldown":randf_range(.8,1.5),"slime_cd":4.5,"aggro":false,"alert":0.0,"sense":0.0,"wander":0.0,"patrol":pos,"reload_left":0.0,"reload_duration":1.0,"ammo":int(GUNS[kind].clip) if GUNS.has(kind) else 0})
+ for existing in g.enemies:serial_counter=maxi(serial_counter,int(existing.get("serial",0)))
+ serial_counter+=1
+ var serial:int=serial_counter
+ g.enemies.append({"pos":pos,"home":pos,"hp":hp,"max_hp":hp,"boss":boss,"type":kind,"serial":serial,"state":"spawn","timer":.75,"target":g.player,"cooldown":randf_range(.8,1.5),"slime_cd":4.5,"aggro":false,"alert":0.0,"sense":0.0,"wander":0.0,"patrol":pos,"reload_left":0.0,"reload_duration":1.0,"ammo":int(GUNS[kind].clip) if GUNS.has(kind) else 0})
 func spawn(medkits:bool=true,announce:bool=true)->void:
- routes.clear()
+ routes.clear();g.pending_spawns.clear();serial_counter=0
+ var reserved:Array[Vector2]=[]
  var plan:Array=WAVES[clampi(g.wave-1,0,WAVE_COUNT-1)]
  var points:Array[Vector2]=[]
  for y in range(7,g.grid.size()-5):
@@ -40,14 +44,30 @@ func spawn(medkits:bool=true,announce:bool=true)->void:
   var chosen:Vector2=Vector2.ZERO;var best:=-1.0
   for point in points:
    var gap:=INF
-   for existing in g.enemies:gap=minf(gap,point.distance_to(existing.pos))
+   for existing in reserved:gap=minf(gap,point.distance_to(existing))
    if gap>best:best=gap;chosen=point
    if gap>=88:break
   if best<0:push_error("No valid arena spawn point");return
   points.erase(chosen)
-  enemy(2 if kind<0 else kind,chosen,roundi(base_hp(kind)),kind<0)
+  reserved.append(chosen)
+  g.pending_spawns.append({"type":2 if kind<0 else kind,"pos":chosen,"hp":roundi(base_hp(kind)),"boss":kind<0,"delay":randf_range(.1,.7)})
  if medkits and g.wave==MEDKIT_WAVE:spawn_medkit()
  elif announce:g.notify(g.tx("boss_announcement") if g.wave==WAVE_COUNT else g.tx("wave_announcement")%g.wave)
+func emit_pending(delta:float)->void:
+ if g.pending_spawns.is_empty():return
+ g.pending_spawns[0].delay-=delta
+ if g.pending_spawns[0].delay>0:return
+ var next:Dictionary=g.pending_spawns.pop_front()
+ var point:Vector2=next.pos
+ if not spawn_clear(point) or point.distance_to(g.player)<100:
+  for ring in range(1,7):
+   var found:=false
+   for side in range(8):
+    var candidate:=point+Vector2.from_angle(side*TAU/8)*ring*24
+    if spawn_clear(candidate) and candidate.distance_to(g.player)>110:point=candidate;found=true;break
+   if found:break
+ enemy(int(next.type),point,int(next.hp),bool(next.boss))
+
 func base_hp(kind:int)->float:
  return 1100.0 if kind<0 else 32+g.wave*4+(kind-5)*4 if kind>=5 else 26+g.wave*4 if kind==4 else 16+g.wave*3+kind*2
 func spawn_clear(point:Vector2)->bool:
@@ -113,7 +133,7 @@ func melee(e:Dictionary,delta:float)->void:
   return
  if e.state=="rest" and e.timer>0:return
  if distance<(110 if e.get("boss",false) else 67):
-  e.state="warn";e.timer=1.05 if e.get("boss",false) else .8 if e.type==3 else .9;return
+  e.state="warn";e.timer=.9 if e.get("boss",false) else .68 if e.type==3 else .76;return
  e.state="chase"
  var direction:Vector2=(Vector2(e.home)-g.player).normalized().rotated(sin(float(e.serial)*2.3)*.25)
  var goal:Vector2=g.player+direction*(95 if e.get("boss",false) else 58)
@@ -132,7 +152,7 @@ func gunner(e:Dictionary,delta:float)->void:
  var toward:Vector2=g.player-e.pos;var distance:=toward.length()
  if e.reload_left<=0 and e.cooldown<=0 and distance>=profile.minimum and distance<profile.range and sight(e.pos,g.player):
   var rocket:bool=e.type==7;var direction:=toward.normalized()
-  if not rocket:direction=direction.rotated(randf_range(-.085,.085) if e.type==5 else randf_range(-.04,.04))
+  if not rocket:direction=direction.rotated(randf_range(-.085,.085) if e.type==5 else randf_range(-.048,.048))
   g.shots.append({"pos":e.pos+Vector2(0,-24)+direction*28,"vel":direction*float(profile.speed),"life":3.0,"kind":"enemy_rocket" if rocket else "enemy_bullet","age":0.0,"range_left":profile.travel,"max_range":profile.travel,"shooter_type":int(e.type),"damage":profile.damage})
   e.fired_at=g.time;e.cooldown=randf_range(profile.interval.x,profile.interval.y);e.target=g.player;e.ammo-=1
   g.sfx_at("rpg_launch" if rocket else "rifle" if e.type==6 else "pistol",e.pos)

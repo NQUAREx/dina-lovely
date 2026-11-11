@@ -76,6 +76,7 @@ func collect(obj:Dictionary)->void:
  g.save_data.riddle_stones.append(str(obj.id));g.objects.erase(obj)
  g.sfx("chime");g.burst(obj.pos,16,Color("f4ce96"));g.notify(g.tx("rune_found").format({"count":g.save_data.riddle_stones.size()}));g.persist();g.find_nearest()
 func use_socket(id:String,pos:Vector2)->void:
+ if g.save_data.finished or g.chest_open:return
  if flights.any(func(f):return g.time-float(f.start)<.75):return
  if id=="puzzle_reset":g.press_riddle_symbol(id,pos);return
  if id not in g.save_data.riddle_inserted:

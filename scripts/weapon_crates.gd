@@ -1,7 +1,6 @@
 extends RefCounted
 ## One durable crate per weapon. Progress, floor drops and one-time openings persist.
 const ART:Texture2D=preload("res://assets/iron_weapon_crates.png")
-const FIST:Texture2D=preload("res://assets/fist.png")
 const WEAPONS:=["rpg","rifle","sword"]
 var g:Node2D
 func _init(game:Node2D):g=game
@@ -12,7 +11,7 @@ func unlock_wave(weapon:String)->int:
   if shooter in g.battle.WAVES[i] or (weapon=="rifle" and 5 in g.battle.WAVES[i]):return i+1
  return g.battle.WAVE_COUNT
 func unlocked(weapon:String)->bool:
- return g.save_data.finished or g.combat_done or g.wave>=unlock_wave(weapon)
+ return g.save_data.finished or g.combat_done or maxi(g.wave,g.prepared_wave)>=unlock_wave(weapon)
 func install(animate:bool=false)->void:
  if g.level!=4:return
  if not g.save_data.has("weapon_crates_opened"):g.save_data.weapon_crates_opened=[]
@@ -41,24 +40,24 @@ func install(animate:bool=false)->void:
   var target:=landing_point(crate.pos)
   var id:String="drop_crate_"+w
   var drop:={"kind":"weapon_"+w,"id":id,"weapon":w,"room":4,"pos":target,"solid":false}
-  if animate:drop.flight_from=crate.pos+Vector2(0,6);drop.flight_start=g.time+.12;drop.flight_duration=.7;g.sfx_at("chest",crate.pos)
+  if animate:drop.flight_from=crate.pos+Vector2(0,6);drop.flight_start=g.time+.28;drop.flight_duration=.5;g.sfx_at("chest",crate.pos)
   g.objects.append(drop)
   g.save_data.loose_weapons.append({"kind":"weapon_"+w,"id":id,"weapon":w,"room":4,"pos":[target.x,target.y],"solid":false})
 func landing_point(origin:Vector2)->Vector2:
  var start:=randf()*TAU
  for n in range(32):
-  var point:=origin+Vector2.from_angle(start+n*2.39996)*randf_range(75,125)
+  var point:=origin+Vector2.from_angle(start+n*2.39996)*randf_range(45,70)
   if g.valid_ground(point) and not g.blocked(point) and g.objects.all(func(o):return o.kind=="weapon_crate" or o.pos.distance_to(point)>38):return point
- return g.accessory_drop_position(origin+Vector2(0,90))
+ return g.accessory_drop_position(origin+Vector2(0,56))
 func draw(crate:Dictionary,point:Vector2)->void:
  var opened:bool=crate.weapon in g.save_data.weapon_crates_opened
  var age:float=g.time-float(crate.get("opened_at",g.time-1))
- var frame:=0 if not opened or age<.1 else 1 if age<.23 else 2
+ var frame:=0 if not opened else mini(7,int(smoothstep(0,.65,age)*8))
  g.draw_texture_rect_region(ART,Rect2(point-Vector2(32,86),Vector2(64,96)),Rect2(frame*32,0,32,48))
 func draw_fist()->void:
  if g.level!=4 or not g.weapon.is_empty() or g.attack_flash<=0 or g.combat_done:return
- var reach:float=sin(clampf(1-g.attack_flash/.22,0,1)*PI)*22
- var point:Vector2=g.screen(g.player+Vector2(0,-26)+g.aim*(16+reach))
- g.draw_set_transform(point.round(),g.aim.angle()+PI/2)
- g.draw_texture_rect(FIST,Rect2(Vector2(-10,-12),Vector2(20,20)),false)
- g.draw_set_transform(Vector2.ZERO)
+ var t:=clampf(1-g.attack_flash/.22,0,1)
+ var angle:float=g.aim.angle()-1.0+t*1.8
+ var origin:Vector2=g.screen(g.player)+Vector2(0,-20)
+ g.draw_arc(origin,48,angle-.65,angle+.65,16,Color(.96,.88,.78,g.attack_flash/.22),4)
+ g.draw_arc(origin,54,angle-.45,angle+.45,14,Color(.83,.71,.75,g.attack_flash/.22),2)

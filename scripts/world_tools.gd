@@ -43,23 +43,48 @@ func install()->void:
    if existing.is_empty():g.objects.append({"kind":"sprout","id":bed.id,"pos":Vector2(bed.pos[0],bed.pos[1]),"solid":false,"extra_bed":true})
    else:existing[0].pos=Vector2(bed.pos[0],bed.pos[1])
   repair_beds()
+ if not g.save_data.has("world_kit"):g.save_data.world_kit=[]
+ if g.held_item in TOOLS and g.save_data.finished and g.held_item not in g.save_data.world_kit:g.save_data.world_kit.append(g.held_item)
  restore_tools()
  if not data.excavations.is_empty():ensure_dirt()
 func restore_tools()->void:
  g.objects.assign(g.objects.filter(func(obj):return obj.kind not in TOOLS))
  for tool in TOOLS:
-  if g.held_item==tool:continue
-  var info:Dictionary=g.save_data.world_tool_locations.get(tool,{"room":6,"pos":[22.5*48.0,(12.5+TOOLS.find(tool)*2)*48.0],"rack":true})
-  if int(info.room)==g.level:g.objects.append({"kind":tool,"id":tool,"pos":Vector2(info.pos[0],info.pos[1]),"solid":false,"ground_tool":not info.get("rack",false)})
-func drop_held()->void:
+  if g.held_item==tool or tool in g.save_data.get("world_kit",[]):continue
+  var info:Dictionary=g.save_data.world_tool_locations.get(tool,{"room":6,"pos":[22.5*48.0,(13.5+TOOLS.find(tool)*1.25)*48.0],"rack":true})
+  if int(info.room)==g.level:g.objects.append({"kind":tool,"id":tool,"pos":Vector2(info.pos[0],info.pos[1]),"solid":false,"ground_tool":not info.get("rack",false),"on_table":info.get("rack",false)})
+func drop_held(force:bool=false,point:Vector2=Vector2.INF)->void:
  var tool:String=g.held_item
  if tool not in TOOLS:return
- var pos:Vector2=g.accessory_drop_position(g.player+Vector2(0,30))
+ if not force and tool in g.save_data.get("world_kit",[]):
+  g.held_item="";g.sync_hands();return
+ g.save_data.world_kit.erase(tool)
+ var pos:Vector2=g.accessory_drop_position(g.player+Vector2(0,30)) if point==Vector2.INF else point
  g.save_data.world_tool_locations[tool]={"room":g.level,"pos":[pos.x,pos.y],"rack":false}
  g.held_item="";g.sync_hands();restore_tools()
 func pickup(tool:String)->void:
  if not g.save_data.finished:return
- g.return_held_tool();g.held_item=tool;g.sync_hands();g.save_data.world_tool_locations[tool]={"room":-1,"pos":[]};restore_tools();g.persist();g.sfx("ui")
+ g.return_held_tool();
+ if tool not in g.save_data.world_kit:g.save_data.world_kit.append(tool)
+ g.held_item=tool;g.sync_hands();g.save_data.world_tool_locations[tool]={"room":-1,"pos":[]};restore_tools();g.persist();g.sfx("ui");g.find_nearest();g.update_hud()
+func cycle()->void:
+ if g.paused or g.transition or not g.playing or g.task_time>0:return
+ var kit:Array=g.save_data.get("world_kit",[])
+ if kit.is_empty():return
+ var next:String=kit[(kit.find(g.held_item)+1)%kit.size()]
+ g.return_held_tool();g.held_item=next;g.sync_hands();g.persist();g.sfx("ui");g.find_nearest();g.update_hud()
+func start_drill()->void:
+ if g.held_item=="drill" and soil(ground_point()):g.begin_task("drill",ground_point(),.65)
+func is_excavated(point:Vector2)->bool:
+ var key:=str(g.level)
+ if not masks.has(key):return false
+ var mask:Image=masks[key];var pixel:=Vector2i((point/2).floor())
+ return pixel.x>=0 and pixel.y>=0 and pixel.x<mask.get_width() and pixel.y<mask.get_height() and mask.get_pixelv(pixel).r>.5
+func print_clear(point:Vector2,rotation:float=0)->bool:
+ for offset in [Vector2.ZERO,Vector2(-4,-7),Vector2(4,-7),Vector2(-4,7),Vector2(4,7)]:
+  if is_excavated(point+offset.rotated(rotation)):return false
+ return true
+
 func tree_target(obj:Dictionary)->bool:return g.held_item=="axe" and obj.kind in ["tree","tree_apples","hedge_tree","hedge_tree_apples"]
 func flower_target(obj:Dictionary)->bool:return g.held_item=="shears" and (obj.kind in ["flowers","blueflowers"] or (obj.kind=="sprout" and int(g.plants.get(obj.id,{}).get("stage",0))>0))
 func refresh_targets()->void:
@@ -180,9 +205,11 @@ func excavate(pos:Vector2)->void:
    g.save_data.buried_exposed=true;g.save_data.dig_target=[pos.x,pos.y];g.objects.append({"kind":"note","id":"buried","solid":false,"pos":pos,"rise_start":g.time});g.notify(g.tx("buried_note_exposed"))
   elif not g.save_data.buried_exposed:g.notify(g.tx("buried_note_near") if pos.distance_to(hidden)<260 else g.tx("digging_empty"))
  g.rune_stones.excavate(pos)
- g.scene_fx.soil(pos,10);g.persist()
+ g.scene_fx.soil(pos,10)
+ if g.held_item=="drill":g.sfx_at("dig",pos)
+ g.persist()
 func update(delta:float)->void:
- drilling=g.held_item=="drill" and g.playing and not g.paused and not g.transition and soil(ground_point())
+ drilling=g.held_item=="drill" and g.task_time>0 and g.task_kind=="drill" and g.playing and not g.paused and not g.transition and soil(ground_point())
  soil_fx_clock-=delta
  var shoveling:bool=g.playing and not g.paused and not g.transition and g.held_item=="shovel" and g.task_time>0 and g.task_kind.begins_with("dig:")
  if (drilling or shoveling) and soil_fx_clock<=0:

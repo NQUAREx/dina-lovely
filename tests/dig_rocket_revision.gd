@@ -13,8 +13,8 @@ func run():
   g.world_tools.pickup(tool);assert(g.held_item==tool)
   g.equip_tool("shovel");assert(g.held_item=="shovel")
   var dropped=g.objects.filter(func(o):return o.kind==tool)
-  assert(dropped.size()==1 and g.available(dropped[0]))
-  g.nearest=g.objects.find(dropped[0]);g.interact();assert(g.held_item==tool)
+  assert(dropped.is_empty() and tool in g.save_data.world_kit)
+  g.world_tools.cycle();assert(g.held_item in g.world_tools.TOOLS)
  print("PASS drill/shovel round trip and repeated tool swaps through real interaction")
  # Stencil artwork is distinct and a joined mask replays identically in either order.
  var forms:Dictionary={}
@@ -39,14 +39,14 @@ func run():
   drift=maxf(drift,origin.distance_to(p.pos))
  assert(sizes.size()>3 and drift>12)
  g.particles.clear();g.held_item="drill";g.player=Vector2(13.5,12.5)*48;g.walk_facing=Vector2.RIGHT;g.sync_hands();g.world_tools.soil_fx_clock=0
- g.world_tools.update(.016);assert(g.particles.any(func(p):return p.get("fx_kind","")=="dirt"))
+ g.world_tools.start_drill();g.world_tools.update(.016);assert(g.particles.any(func(p):return p.get("fx_kind","")=="dirt"))
  g.held_item="shovel";g.sync_hands();g.particles.clear();g.begin_task("dig:test",g.player+Vector2(25,0),.25);g.world_tools.update(.08)
  assert(g.particles.size()>=22)
  print("PASS varied physical earth clods, abrupt non-linear flight, drill and shovel emission")
  var hidden:Array=g.save_data.riddle_stone_positions["3"]
  g.rune_stones.excavate(Vector2(hidden[0],hidden[1])+Vector2(45,0));assert(not g.save_data.riddle_stone_exposed)
  g.rune_stones.excavate(Vector2(hidden[0],hidden[1])+Vector2(36,0));assert(g.save_data.riddle_stone_exposed)
- g.leave_footprint(Vector2.RIGHT);assert(g.footprints[-1].life==27)
+ g.leave_footprint(Vector2.RIGHT);assert(g.footprints[-1].life==13.5)
  # A missile keeps its direct-hit damage; its visual blast never damages neighbours.
  g.build_level(4);g.objects.clear();g.enemies.clear();g.shots.clear();g.particles.clear();g.player=Vector2(700,700)
  g.held_item="rpg";g.weapon="rpg";g.aim=Vector2.RIGHT;g.rpg_aim=Vector2.RIGHT;g.attack_cd=0;g.rpg_reload=0;g.task_time=0
@@ -62,5 +62,5 @@ func run():
  assert(g.particles.size()>initial and g.particles.filter(func(p):return p.get("fx_kind","")=="blast").size()==1)
  var blast=g.particles.filter(func(p):return p.get("fx_kind","")=="blast")[0]
  assert(Vector2(blast.pos).distance_to(muzzle+Vector2(115,0))<5)
- print("PASS triple footprint lifetime, original digging radius, rocket launch/trail/contact blast and no area damage")
+ print("PASS shorter footprint lifetime, original digging radius, rocket launch/trail/contact blast and no area damage")
  quit()

@@ -242,5 +242,33 @@
     "license": "Reference recording supplied by user; rights remain with respective owners (not CC0)",
     "processing": "Mono 44.1kHz, peak 30000, 60ms tail fade; original pitch; impact leading silence removed",
     "sha256": "1293d28b9a57062a7de266ab2f7edc5bcfa5388b4f48903ec4467215809a755d"
+  },
+  "punch_swing": {
+    "pack": "Tinysized SFX / Kenney",
+    "source_file": "tube-plastic-whoosh-01.wav",
+    "license": "CC0",
+    "processing": "Trim leading silence, tempo, short fade and loudness normalization",
+    "sha256": "1b259a8e7d3972f356ef73ccbb4f179694e8991b0492526865ac89cbe5e6fc5f"
+  },
+  "sword_swing": {
+    "pack": "Tinysized SFX / Kenney",
+    "source_file": "tube-plastic-whoosh-02.wav",
+    "license": "CC0",
+    "processing": "Trim leading silence, tempo, short fade and loudness normalization",
+    "sha256": "af4f4fc547bca1e3b5a63b65e7a424eab2bce1d86bb0848beab78c52440b33e4"
+  },
+  "dig": {
+    "pack": "Tinysized SFX / Kenney",
+    "source_file": "soil-steps-01.wav",
+    "license": "CC0",
+    "processing": "Trim leading silence, tempo, short fade and loudness normalization",
+    "sha256": "0b9110641a7e1e996f06a77974ef1ca939e71d60a6ed2e6d32b3626fb7cea35e"
+  },
+  "punch_hit": {
+    "pack": "Tinysized SFX / Kenney",
+    "source_file": "impactSoft_medium_001.ogg",
+    "license": "CC0",
+    "processing": "Trim leading silence, tempo, short fade and loudness normalization",
+    "sha256": "f7f0281867f24e083bbec383dd899497444b82af02e865c7f8199ee45e67c06e"
   }
 }

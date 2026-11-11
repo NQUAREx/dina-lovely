@@ -43,3 +43,5 @@ The impact is a separate excerpt with leading silence removed and peak 30000. On
 ### Current three-phase playback
 
 The second reference shot is now split into three independent assets: launch 5.88–6.18 s, flight 6.18–8.40 s (80 ms loop seam), impact 8.40–10.50 s. `rpg_flight.wav` now also comes from this supplied reference, replacing the earlier CC0 engine recording. Each phase uses original pitch, with peak normalization. Flight stops on actual collision at any distance; the separate impact starts immediately. Rights remain with respective recording/game owners; these reference excerpts are not CC0.
+
+Digging and separate punch/sword swings use CC0 Tinysized SFX recordings (soil-steps-01, tube-plastic-whoosh-01/02). Punch contact uses Kenney impactSoft.

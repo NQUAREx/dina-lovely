@@ -22,6 +22,6 @@ func drop(pos:Vector2)->void:
 func drop_at_exit()->void:
  if g.level==1:
   # Keep it on the dark-room side of the shared entrance corridor.
-  drop(Vector2(clampf(g.player.x,12.6*48,14.4*48),clampf(g.player.y,1.5*48,(g.grid.size()-1.5)*48)))
+  drop(g.room_drop_point(g.player.y<g.grid.size()*24))
  else:
   g.held_item="";g.sync_hands();g.save_data.flashlight_location={};install()

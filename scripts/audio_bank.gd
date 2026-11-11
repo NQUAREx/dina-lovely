@@ -1,6 +1,10 @@
 extends RefCounted
 # Strong references keep short effects decoded before input is accepted.
 const STREAMS := {
+ "dig":preload("res://assets/dig.wav"),
+ "punch_swing":preload("res://assets/punch_swing.wav"),
+ "punch_hit":preload("res://assets/punch_hit.wav"),
+ "sword_swing":preload("res://assets/sword_swing.wav"),
 	"pistol":preload("res://assets/pistol.wav"),
 	"axe":preload("res://assets/axe.wav"),
 	"shears":preload("res://assets/shears.wav"),

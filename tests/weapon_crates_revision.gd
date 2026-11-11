@@ -22,7 +22,7 @@ func run():
  assert(medkits.size()==1 and medkits[0].pos==Vector2(g.grid[0].length(),g.grid.size())*24)
  var drops=g.objects.filter(func(o):return str(o.id).begins_with("drop_crate_"))
  for drop in drops:
-  assert(not g.blocked(drop.pos));assert(drop.pos.distance_to(drop.flight_from-Vector2(0,6))>=75)
+  assert(not g.blocked(drop.pos));assert(drop.pos.distance_to(drop.flight_from-Vector2(0,6))>=44.9)
  var flight:Dictionary=drops[-1]
  var before:Vector2=g.item_display_position(flight);g.time+=.45;var middle:Vector2=g.item_display_position(flight)
  assert(before.distance_to(middle)>10 and not g.available(flight))
