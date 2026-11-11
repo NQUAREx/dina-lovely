@@ -2,6 +2,7 @@ extends RefCounted
 const PIT_WALL := [Color("76543c"),Color("674832"),Color("5c3f2e"),Color("51382b"),Color("473229"),Color("402e28"),Color("382b27"),Color("332925"),Color("2e2724"),Color("2b2523")]
 ## Optional world editing. Only the current room runs; other rooms keep saved data.
 const TOOLS := ["axe","shears","drill"]
+var stubble:Texture2D=preload("res://assets/hedge_stubble.png")
 var g:Node2D
 var images:Dictionary={}
 var masks:Dictionary={}
@@ -102,7 +103,7 @@ func complete(kind:String,pos:Vector2)->bool:
     data.trees.append(key_for(obj));obj.kind="fallen_tree";obj.solid=false;obj.erase("integrated_hedge");g.burst(pos,20,Color("ac916d"));break
   return true
  if kind.begins_with("snip_hedge:"):
-  var parts:=kind.split(":");var cell:=Vector2i(int(parts[1]),int(parts[2]));data.hedges.append([cell.x,cell.y]);apply_hedge(cell);g.burst(pos,42,Color("719c65"));return true
+  var parts:=kind.split(":");var cell:=Vector2i(int(parts[1]),int(parts[2]));data.hedges.append([cell.x,cell.y]);apply_hedge(cell);cut_particles(pos);return true
  if kind.begins_with("snip_decor:"):
   data.flowers.append(kind.trim_prefix("snip_decor:"));g.objects.assign(g.objects.filter(func(obj):return obj.kind not in ["flowers","blueflowers"] or key_for(obj)!=kind.trim_prefix("snip_decor:")));g.burst(pos,30,Color("e9a3c6"));return true
  if kind.begins_with("uproot:") or kind.begins_with("snip:"):
@@ -111,6 +112,13 @@ func complete(kind:String,pos:Vector2)->bool:
   else:g.burst(pos,30,Color("e9a3c6"))
   g.plants.erase(id);g.watered.erase(id);g.save_data.watered=g.watered.duplicate();g.fertilized.erase(id);g.bloom_times.erase(id);return true
  return false
+func cut_particles(pos:Vector2)->void:
+ for n in range(randi_range(28,38)):
+  var part:Dictionary=g.leaf_debris.spawn(pos+Vector2(randf_range(-21,21),randf_range(-15,15)),false)
+  part.size=randf_range(.8,1.5) if n%3==0 else randf_range(1.7,3.2)
+  part.vel*=randf_range(.7,1.4);part.leaf_height=randf_range(10,30);part.leaf_vz=randf_range(20,48)
+  g.particles.append(part)
+
 func apply_hedge(cell:Vector2i)->void:
  if cell.x<1 or cell.y<6 or cell.x>=g.grid[0].length()-1 or cell.y>=g.grid.size()-6:return
  g.set_cell(cell.x,cell.y,".")
@@ -181,6 +189,11 @@ func update(delta:float)->void:
   falling[index].age+=delta
   if falling[index].age>1.0:falling.remove_at(index)
 func draw_ground()->void:
+ for cut in state().hedges:
+  var cell:=Vector2i(int(cut[0]),int(cut[1]));var point:=Vector2(cell)*48
+  if not g.get_viewport_rect().grow(48).has_point(g.screen(point)):continue
+  var variant:=posmod(cell.x*13+cell.y*7,3)
+  g.draw_texture_rect_region(stubble,Rect2(g.screen(point),Vector2(48,48)),Rect2(variant*24,0,24,24))
  if textures.has(str(g.level)):g.draw_texture_rect(textures[str(g.level)],Rect2(g.screen(Vector2.ZERO),Vector2(g.grid[0].length(),g.grid.size())*48),false)
 func draw_falling()->void:
  for item in falling:

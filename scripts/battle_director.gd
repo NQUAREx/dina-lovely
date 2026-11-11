@@ -14,15 +14,20 @@ const WAVES := [
  [-1,5,5,6,6,7,7]]
 
 const GUNS := {
- 5:{"clip":3,"interval":Vector2(1.05,1.4),"reload":Vector2(2.5,3.1),"range":168.0,"travel":175.0,"speed":275.0,"damage":1.0,"keep":140.0,"move":30.0,"aggro":285.0,"minimum":85.0},
- 6:{"clip":4,"interval":Vector2(.36,.5),"reload":Vector2(3.1,3.8),"range":189.0,"travel":196.0,"speed":330.0,"damage":1.5,"keep":160.0,"move":28.0,"aggro":315.0,"minimum":100.0},
+ 5:{"clip":3,"interval":Vector2(.86,1.16),"reload":Vector2(2.5,3.1),"range":168.0,"travel":175.0,"speed":570.0,"damage":1.0,"keep":140.0,"move":30.0,"aggro":285.0,"minimum":85.0},
+ 6:{"clip":4,"interval":Vector2(.29,.42),"reload":Vector2(3.1,3.8),"range":189.0,"travel":196.0,"speed":570.0,"damage":1.5,"keep":160.0,"move":28.0,"aggro":315.0,"minimum":100.0},
  7:{"clip":1,"interval":Vector2(1.0,1.3),"reload":Vector2(5.0,6.0),"range":280.0,"travel":280.0,"speed":235.0,"damage":2.0,"keep":235.0,"move":24.0,"aggro":440.0,"minimum":170.0}}
+var navigation:AStarGrid2D
+var navigation_key:=""
+var navigation_checked:=-INF
+var routes:Dictionary={}
 var g:Node2D
 func _init(game:Node2D):g=game
 func enemy(kind:int,pos:Vector2,hp:int,boss:bool=false)->void:
  var serial:int=g.enemies.size()+1
  g.enemies.append({"pos":pos,"home":pos,"hp":hp,"max_hp":hp,"boss":boss,"type":kind,"serial":serial,"state":"spawn","timer":1.3+serial*.15,"target":g.player,"cooldown":randf_range(.8,1.5),"slime_cd":4.5,"aggro":false,"alert":0.0,"sense":0.0,"wander":0.0,"patrol":pos,"reload_left":0.0,"reload_duration":1.0,"ammo":int(GUNS[kind].clip) if GUNS.has(kind) else 0})
 func spawn(medkits:bool=true,announce:bool=true)->void:
+ routes.clear()
  var plan:Array=WAVES[clampi(g.wave-1,0,WAVE_COUNT-1)]
  var points:Array[Vector2]=[]
  for y in range(7,g.grid.size()-5):
@@ -70,8 +75,8 @@ func brain(e:Dictionary,delta:float)->bool:
   var radius:float=360 if e.get("boss",false) else GUNS[int(e.type)].aggro if GUNS.has(int(e.type)) else 270 if e.type==3 else 245
   radius*=1.05 if GUNS.has(int(e.type)) else 1.5
   var distance:float=e.pos.distance_to(g.player)
-  if e.pos.distance_to(e.home)>540 and not e.get("boss",false):e.aggro=false;e.alert=0.0
-  elif distance<=radius and sight(e.pos,g.player):e.aggro=true
+  if distance<=radius and sight(e.pos,g.player):e.aggro=true
+  elif e.pos.distance_to(e.home)>540 and e.alert<=0 and not sight(e.pos,g.player):e.aggro=false
   elif distance>radius+110 and e.alert<=0:e.aggro=false
  return bool(e.aggro) or e.alert>0
 func move(e:Dictionary,velocity:Vector2,delta:float)->void:
@@ -87,7 +92,7 @@ func patrol(e:Dictionary,delta:float)->void:
   e.wander=randf_range(2,4);var angle:=randf()*TAU
   var point:Vector2=e.home+Vector2.from_angle(angle)*randf_range(28,80)
   e.patrol=point if not g.blocked(point) else e.home
- move(e,(Vector2(e.patrol)-Vector2(e.pos)).normalized()*(18 if e.type>=5 else 26),delta)
+ navigate(e,Vector2(e.patrol),18 if e.type>=5 else 26,delta)
 func tick(delta:float)->void:
  for e in g.enemies:
   ensure(e);e.timer-=delta;e.cooldown=maxf(0,float(e.cooldown)-delta)
@@ -115,7 +120,7 @@ func melee(e:Dictionary,delta:float)->void:
  var speed:float=55 if e.get("boss",false) else 55+int(e.type)*6+min(g.wave,9)*2
  if e.type==3:speed=185.0 if fposmod(g.time+float(e.serial)*.41,2.2)<.7 else 70.0
  if e.type==4:speed=58
- move(e,(goal-Vector2(e.pos)).normalized()*speed*1.25,delta)
+ navigate(e,goal,speed*1.25,delta)
 func gunner(e:Dictionary,delta:float)->void:
  ensure(e)
  if e.state=="spawn":return
@@ -135,9 +140,54 @@ func gunner(e:Dictionary,delta:float)->void:
    e.reload_duration=randf_range(profile.reload.x,profile.reload.y);e.reload_left=e.reload_duration;g.sfx_at("reload",e.pos)
  var velocity:=Vector2.ZERO
  if distance<float(profile.keep)-30:velocity=-toward.normalized()*float(profile.move)
- elif distance>float(profile.keep)+35:velocity=toward.normalized()*float(profile.move)
+ elif distance>minf(float(profile.keep)+20,float(profile.range)*.86) or not sight(e.pos,g.player):velocity=toward.normalized()*float(profile.move)
  elif e.reload_left>0:velocity=toward.orthogonal().normalized()*sin(float(e.serial)*2.4)*12
- move(e,velocity*1.3,delta)
+ if velocity.dot(toward)>0:navigate(e,g.player,velocity.length()*1.3,delta)
+ else:move(e,velocity*1.3,delta)
+func ensure_navigation()->void:
+ if navigation!=null and navigation_checked==g.time:return
+ navigation_checked=g.time
+ var solids:Array=[]
+ for obj in g.objects:
+  if obj.solid:solids.append([obj.kind,obj.pos])
+ var key:="%s:%s:%s:%s"%[g.save_data.seed,g.level,g.grid.size(),hash(solids)]
+ if key==navigation_key and navigation!=null:return
+ navigation_key=key;routes.clear();navigation=AStarGrid2D.new()
+ navigation.region=Rect2i(0,0,g.grid[0].length()*2,g.grid.size()*2)
+ navigation.cell_size=Vector2(24,24);navigation.offset=Vector2(12,12)
+ navigation.diagonal_mode=AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+ navigation.update()
+ for y in range(navigation.region.size.y):
+  for x in range(navigation.region.size.x):
+   var point:=Vector2(x,y)*24+Vector2(12,12)
+   var solid:bool=g.blocked(point)
+   if not solid:
+    for offset in [Vector2(9,0),Vector2(-9,0),Vector2(0,9),Vector2(0,-9)]:
+     if g.blocked(point+offset):solid=true;break
+   navigation.set_point_solid(Vector2i(x,y),solid)
+func nav_cell(point:Vector2)->Vector2i:
+ var cell:=Vector2i((point/24).floor())
+ for ring in range(6):
+  for y in range(cell.y-ring,cell.y+ring+1):
+   for x in range(cell.x-ring,cell.x+ring+1):
+    var candidate:=Vector2i(x,y)
+    if navigation.is_in_boundsv(candidate) and not navigation.is_point_solid(candidate):return candidate
+ return Vector2i(-1,-1)
+func navigate(e:Dictionary,goal:Vector2,speed:float,delta:float)->void:
+ if not g.blocked(goal) and sight(e.pos,goal):move(e,(goal-Vector2(e.pos)).normalized()*speed,delta);return
+ ensure_navigation()
+ var id:int=e.serial
+ if not routes.has(id):routes[id]={"goal":Vector2.INF,"points":PackedVector2Array(),"expires":0.0}
+ var route:Dictionary=routes[id]
+ if Vector2(route.goal).distance_squared_to(goal)>48*48 or g.time>=float(route.expires):
+  var start:=nav_cell(e.pos);var finish:=nav_cell(goal)
+  route.points=navigation.get_point_path(start,finish) if start.x>=0 and finish.x>=0 else PackedVector2Array()
+  route.goal=goal;route.expires=g.time+.6+fmod(float(id)*.13,.3)
+ var points:PackedVector2Array=route.points
+ while not points.is_empty() and points[0].distance_to(e.pos)<12:points.remove_at(0)
+ route.points=points
+ if not points.is_empty():move(e,(points[0]-Vector2(e.pos)).normalized()*speed,delta)
+
 func radius(e:Dictionary)->float:
  return 37 if e.get("boss",false) else 14 if e.type==5 else 20
 func separate()->void:

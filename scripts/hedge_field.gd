@@ -26,9 +26,13 @@ var visible_first:=Vector2i(-9999,-9999)
 var visible_last:=Vector2i(-9999,-9999)
 var visible_candidates:Array[int]=[]
 var rng := RandomNumberGenerator.new()
+var stone_marker_index:=-1
 var layer_routes: Dictionary = {}
 var route_tick := 0
 var collision_candidates: Dictionary = {}
+var push_anchor:=Vector2.INF
+var push_charge:=0.0
+var push_normal:=Vector2.ZERO
 
 # Routes may add only eight pixels to the normal bend. Their anchor never follows
 # the heroine, so changing layers cannot pull foliage out of the wall.
@@ -76,7 +80,7 @@ func route_pose(index: int, pose: Vector3, front: bool, player: Vector2, delta: 
 
 
 func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dictionary, material: Image = null) -> void:
-	layer_routes.clear();collision_candidates.clear();route_tick=0;removed_cells.clear();crowns.clear();chains.clear();segments.clear();segment_cells.clear();bins.clear();active.clear();draw_order.clear();trunks.clear();body_tiles.clear();body_texture=null;last_player=Vector2.INF;contact_strength=0.0;motion_strength=0.0
+	stone_marker_index=-1;push_anchor=Vector2.INF;push_charge=0;push_normal=Vector2.ZERO;layer_routes.clear();collision_candidates.clear();route_tick=0;removed_cells.clear();crowns.clear();chains.clear();segments.clear();segment_cells.clear();bins.clear();active.clear();draw_order.clear();trunks.clear();body_tiles.clear();body_texture=null;last_player=Vector2.INF;contact_strength=0.0;motion_strength=0.0
 	grid=map.duplicate();rng.seed=seed_value+38911;wind_rng.randomize();wind_clock=wind_rng.randf_range(4,8)
 	visible_first=Vector2i(-9999,-9999);visible_candidates.clear()
 	for tree in trees.values():trunks.append(tree.pos)
@@ -310,25 +314,9 @@ func blocks(point: Vector2) -> bool:
 		if offset.length_squared()<1:return true
 	return false
 
-# Only intentional inward pressure compresses the outer eight pixels of foliage.
-# The original 18x15 collision core is unchanged for players, projectiles and AI.
-func resists_entry(previous: Vector2, next: Vector2, input: Vector2) -> bool:
-	for index in local_segments(next):
-		var closest:=closest_on_segment(previous,segments[index])
-		if not wall(Vector2i(closest/TILE)):continue
-		var away:=previous-closest
-		if away.length_squared()>52*52:continue
-		var normal:Vector2=(away/Vector2(18*18,15*15)).normalized()
-		var pressure:=clampf(-input.limit_length().dot(normal),0,1)
-		var shell:=Vector2(18,15)+Vector2.ONE*(1-pressure)*8
-		var old_distance:float=(away/shell).length_squared()
-		var next_away:=next-closest_on_segment(next,segments[index])
-		var new_distance:float=(next_away/shell).length_squared()
-		# Walking out or alongside an already compressed bush must remain free.
-		if new_distance<1 and new_distance<old_distance-.00001:return true
-	return false
-
-func resist_motion(point: Vector2, motion: Vector2) -> Vector2:
+# Viscosity affects velocity only. The continuous original collision core is the
+# sole hard boundary, so seams and changes of direction cannot trap the heroine.
+func resist_motion(point: Vector2, motion: Vector2, input: Vector2 = Vector2.ZERO, delta: float = 1.0/60) -> Vector2:
 	var nearest:=INF
 	var normal:=Vector2.ZERO
 	for index in local_segments(point):
@@ -339,11 +327,21 @@ func resist_motion(point: Vector2, motion: Vector2) -> Vector2:
 		if distance<nearest:
 			nearest=distance
 			normal=(away/Vector2(18*18,15*15)).normalized()
-	var inward:=minf(0,motion.dot(normal))
-	if inward==0 or nearest>=34:return motion
-	# Preserve tangential movement; resistance builds smoothly towards the core.
 	var compression:=clampf((34-nearest)/18,0,1)
-	return motion-normal*inward*compression*.55
+	var pressure:=clampf(-input.limit_length().dot(normal),0,1)
+	if nearest>=34 or pressure<.45:
+		push_charge=move_toward(push_charge,0,delta*3)
+	else:
+		if push_anchor==Vector2.INF or point.distance_squared_to(push_anchor)>18*18 or normal.dot(push_normal)<.65:
+			push_anchor=point;push_normal=normal;push_charge=0
+		push_charge=move_toward(push_charge,clampf((pressure-.45)/.55,0,1),delta*2.2)
+	var inward:=minf(0,motion.dot(normal))
+	if inward>=0 or compression<=0:return motion
+	# About half a second of deliberate pressure softens the entry. Deeper foliage
+	# remains denser; longitudinal movement and retreat have no extra collision.
+	var grip:=lerpf(.18,.8,push_charge)*(1-compression*.3)
+	var tangent:=motion-normal*inward
+	return tangent*(1-compression*.06)+normal*inward*lerpf(1,grip,compression)
 
 func foreground(player: Vector2) -> bool:
 	var cell:=Vector2i(player/TILE);var nearest:=INF;var normal:=Vector2.ZERO

@@ -38,6 +38,8 @@ var rpg_textures:Dictionary={"loaded":preload("res://assets/rpg_loaded.png"),"em
 var tool_table_texture:Texture2D=preload("res://assets/tool_table.png")
 var atlas: Texture2D = preload("res://assets/atlas.png")
 var romance_ground: Texture2D = preload("res://assets/ground_romance.png")
+var grass_variants:Texture2D=preload("res://assets/grass_variants.png")
+var stone_peek:Texture2D=preload("res://assets/stone_peek.png")
 var ground: Texture2D = preload("res://assets/ground.png")
 var glow: Texture2D = preload("res://assets/glow.png")
 var body_font: Font = preload("res://assets/body.ttf")
@@ -131,7 +133,6 @@ var playing := false
 var paused := true
 var touch_mode := false
 var touch_buttons: Dictionary = {}
-var stuck_seconds := 0.0
 var joy_active := false
 var joy_id := 0
 var joy_origin := Vector2.ZERO
@@ -394,7 +395,7 @@ func setup_ui() -> void:
 	objective.autowrap_mode = TextServer.AUTOWRAP_OFF
 	objective.clip_text = true
 	objective.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	objective.position = Vector2(32, 45)
+	objective.position = Vector2(32, 68)
 	objective.size = Vector2(374, 42)
 	hud.add_child(objective)
 	status = label("", 18, Color("c1bdce"))
@@ -556,9 +557,9 @@ func modal_box(width: float = 610, height: float = 430, paper: bool = false) -> 
 
 func show_menu() -> void:
 	var box := modal_box(590, 0)
-	box.add_child(label(tx("menu_tagline"), 12, PINK))
+	box.add_child(label(tx("menu_tagline"), 18, CREAM))
 	box.add_child(label(content.game_title, 35, CREAM, true))
-	box.add_child(label(tx("menu_goal"), 15, Color("c1bdce")))
+	box.add_child(label(tx("menu_goal"), 18, CREAM))
 	if playing: box.add_child(button(tx("return_to_garden") if health>0 else tx("retry_room"), func():
 		if health<=0: arena_save.restart()
 		clear_modal()))
@@ -567,7 +568,7 @@ func show_menu() -> void:
 	box.add_child(button(tx("collected_letters_prefix") + str(save_data.letters.size()) + "/" + str(content.letters.size()), show_journal))
 	box.add_child(button(tx("sound_settings"), show_settings))
 	if save_data.finished: box.add_child(button(tx("replay_card"), show_card))
-	box.add_child(label(tx("sound_hint"), 12, Color("b5adc4")))
+	box.add_child(label(tx("sound_hint"), 18, CREAM))
 	hud.visible = playing
 
 func confirm_new() -> void:
@@ -608,6 +609,7 @@ func cache_current_room() -> void:
 func activate_cached_room(index: int) -> void:
 	var state:Dictionary=room_cache[index]
 	level=index
+	if index!=1 and held_item=="flashlight":held_item="";sync_hands()
 	for field in ROOM_FIELDS:
 		var value:Variant=state[field]
 		set(field,value.duplicate(true) if value is Array or value is Dictionary else value)
@@ -650,8 +652,8 @@ func show_intro() -> void:
 	var box:=modal_box(650,410)
 	box.add_child(label(str(content.game_title),30,CREAM,true))
 	box.add_child(label(tx("start_intro"),18))
-	box.add_child(label(tx("gate_key_intro"),14,Color("c1bdce")))
-	box.add_child(label(tx("controls_help"),18,Color("c1bdce")))
+	box.add_child(label(tx("gate_key_intro"),18,CREAM))
+	box.add_child(label(tx("controls_help"),18,CREAM))
 	box.add_child(button(tx("begin_room"),func():clear_modal();hud.show()))
 
 func show_settings() -> void:
@@ -1009,7 +1011,9 @@ func build_level(index: int) -> void:
 	restore_accessory_drops()
 	restore_gate_key()
 	world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install()
-	if index==4:arena_save.restore_room();restore_gate_key();rune_stones.install()
+	if index==4:
+		arena_save.restore_room();restore_gate_key();rune_stones.install()
+		battle.navigation_checked=-INF;battle.ensure_navigation()
 	camera = camera_target()
 	nearest = -1
 	update_hud()
@@ -1067,11 +1071,11 @@ func move_player(delta: float, input: Vector2) -> void:
 	walk_facing=input.normalized()
 	var before := player
 	var motion := input.limit_length()*SPEED*delta
-	if hedge_field!=null:motion=hedge_field.resist_motion(player,motion)
+	if hedge_field!=null:motion=hedge_field.resist_motion(player,motion,input,delta)
 	var next := player+Vector2(motion.x,0)
-	if not blocked(next) and (hedge_field==null or not hedge_field.resists_entry(player,next,input)): player = next
+	if not blocked(next): player = next
 	next = player+Vector2(0,motion.y)
-	if not blocked(next) and (hedge_field==null or not hedge_field.resists_entry(player,next,input)): player = next
+	if not blocked(next): player = next
 	var travelled := before.distance_to(player)
 	stats.add(self,"distance",travelled)
 	companion.record()
@@ -1097,6 +1101,7 @@ func touching_hedge(pos: Vector2) -> bool:
 	return false
 
 func _physics_process(delta: float) -> void:
+	if playing and not transition and level!=1 and held_item=="flashlight":torch.drop_at_exit()
 	if playing and not paused and not transition:update_vegetation(minf(delta,.04))
 	# Simulation must not depend on audio, particles or HUD updating successfully.
 	if reload_time>0 and playing and not paused:
@@ -1106,14 +1111,8 @@ func _physics_process(delta: float) -> void:
 		if joy_vector.length()>.2:stand_up()
 		else:return
 	if playing and not paused and not transition and task_time<=0:
-		var before := player
 		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
 		hedge_contact=pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
-		if joy_vector.length()>.2 and player.distance_to(before)<.01:
-			stuck_seconds += delta
-			if stuck_seconds>.8:
-				hint.text = tx("hedge_collision_prefix") + str(Vector2i(player/TILE))
-		else: stuck_seconds = 0.0
 
 func _process(delta: float) -> void:
 	world_tools.update(delta)
@@ -1287,7 +1286,7 @@ func available(obj: Dictionary) -> bool:
 	if obj.id=="rake": return held_item!="rake"
 	if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>HIDDEN_REACH:return false
 	if obj.kind in ["berries","tree_apples"]: return obj.id not in save_data.eaten
-	if obj.id=="flashlight": return held_item!="flashlight"
+	if obj.id=="flashlight": return level==1 and held_item!="flashlight"
 	if obj.id=="shovel": return held_item!="shovel"
 	if obj.kind=="mound": return obj.id not in save_data.dug
 	var id: String = obj.id
@@ -1584,7 +1583,7 @@ func interact() -> void:
 	find_nearest()
 
 func stand_up() -> void:
-	player=rest_anchor+Vector2(0,46);resting=""
+	player=rest_anchor+Vector2(0,46);resting="";companion.resume_after_rest()
 
 func sync_hands() -> void:
 	garden_can=held_item=="can";save_data.garden_can=garden_can
@@ -1609,6 +1608,7 @@ func return_held_tool() -> void:
 		held_item="";sync_hands()
 
 func equip_tool(id: String) -> void:
+	if id=="flashlight" and level!=1:return
 	return_held_tool()
 	held_item=id;sync_hands()
 
@@ -1747,26 +1747,13 @@ func finish_game() -> void:
 func update_hud() -> void:
 	if not is_instance_valid(objective): return
 	objective.text = tx(TITLES[level])
-	match level:
-		0:
-			var count := 0
-			for id in REQUIRED:
-				if id in save_data.letters: count+=1
-			status.text = tx("maze_status") % [count,(tx("maze_exit_open") if door_is_open("exit") else tx("gate_key_ready") if level in save_data.gate_keys else tx("gate_key_ground")) if count==3 else tx("maze_search_hint")]
-		1: status.text = tx("darkness_status") % [dark_letter_count(),tx("flashlight_on") if save_data.flashlight else tx("flashlight_location")]
-		2: status.text = ""
-		3: status.text = tx("buried_note_found") if "buried" in save_data.letters else (tx("digging_hint") if save_data.shovel else tx("shovel_location"))
-		4: status.text = tx("combat_status") % [mini(wave,battle.WAVE_COUNT),tx("combat_chest_hint") if combat_done else {"sword":tx("weapon_sword"),"rifle":tx("weapon_rifle"),"rpg":tx("weapon_rpg")}.get(weapon,tx("weapon_required"))]
-		5: status.text = tx("garden_status") % [required_flower_count(),tx("water_prefix")+str(water)+" / 6" if garden_can else tx("can_search_hint")]
-		6: status.text = tx("rune_status").format({"found":save_data.riddle_stones.size(),"inserted":save_data.riddle_inserted.size()}) if not rune_stones.ready() else tx("puzzle_status") % puzzle.size()
+	status.text=""
 	enemy_wave_bar.visible = playing and level==4 and wave>0 and not combat_done and not enemies.is_empty()
 	toast.position.y = 198 if enemy_wave_bar.visible else 146
 	if enemy_wave_bar.visible:
 		enemy_count_progress.max_value = battle.WAVES[clampi(wave-1, 0, battle.WAVE_COUNT-1)].size()
 		enemy_count_progress.value = enemies.size()
 		enemy_count_label.text = str(enemies.size())
-	if level>0 and level<6 and room_letters_complete() and not door_is_open("exit"):
-		status.text+=(" · " if not status.text.is_empty() else "")+tx("gate_key_ready" if level in save_data.gate_keys else "gate_key_ground")
 	action_button.disabled = task_time>0
 	action_button.visible = (nearest>=0 or world_tools.can_bed() or (level==3 and save_data.shovel)) and playing
 	if new_bed_action_ready():action_button.text=tx("new_bed_action")
@@ -1775,7 +1762,7 @@ func update_hud() -> void:
 	fit_button_text(action_button)
 	switch_button.visible = false
 	attack_button.visible = playing and not weapon.is_empty() and ((level==4 and not combat_done) or save_data.finished)
-	hint.text = (tx("hedge_collision_prefix") + str(Vector2i(player/TILE))) if stuck_seconds>.8 else (tx("movement_hint") if not joy_active else "")
+	hint.text = ""
 
 func notify(text: String) -> void:
 	toast.text = text
@@ -2131,6 +2118,11 @@ func _draw_world() -> void:
 	if not drawing_neighbor and playing and save_data.cat_tamed:renderables.append({"kind":"pet_cat","pos":companion.position,"id":"pet_cat"})
 	draw_paths()
 	world_tools.draw_ground()
+	for flower in objects:
+		if flower.kind in ["flowers","blueflowers"] and get_viewport_rect().grow(40).has_point(screen(flower.pos)):
+			var silhouette:=PackedVector2Array()
+			for n in range(16):silhouette.append(screen(flower.pos)+Vector2(cos(n*TAU/16)*19,sin(n*TAU/16)*5))
+			draw_floor_shadow(silhouette,Color(.06,.09,.15,.24))
 	if level==6 and save_data.finished:draw_tool_table()
 	draw_footprints()
 	if not drawing_neighbor:companion.draw_prints()
@@ -2158,7 +2150,7 @@ func _draw_world() -> void:
 			var crown:Dictionary=hedge_field.crowns[index]
 			var r:float=crown.radius
 			var pos:=screen(crown.base+crown.offset)
-			draw_texture_rect(glow,Rect2(pos-Vector2(r+8,r*.85),Vector2(r*2+16,r*1.8+8)),false,Color(0,0,0,.65))
+			draw_texture_rect(glow,Rect2(pos-Vector2(r+11,r*.95),Vector2(r*2+22,r*2+12)),false,Color(0,0,0,.7))
 		draw_hedge_body(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
 		# Each tree has one visible crown/trunk layer, sorted with the heroine below.
 		draw_hedge_canopy(visible_crowns,-1)
@@ -2217,7 +2209,7 @@ func _draw_world() -> void:
 					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p,1.0)
 				else:draw_pickup_outline(highlight,screen(item_display_position(item)),3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
-			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false):
+			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false) and kind not in ["flowers","blueflowers"]:
 				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
 				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
 			if item.get("ground_tool",false):
@@ -2373,8 +2365,7 @@ func travel(destination: int) -> void:
 	transition=true
 	var previous:=level;var old_height:float=grid.size()*TILE
 	var old_player:=player;var old_camera:=camera;var old_invincible:=invincible;var old_health:=health
-	var return_torch:=held_item=="flashlight" and previous==1 and destination==0
-	var carry_torch_in:=held_item=="flashlight" and previous==0 and destination==1
+	if held_item=="flashlight":torch.drop_at_exit()
 	var carried_weapon:Dictionary={}
 	var carried_shots:Array=[]
 	if save_data.finished and held_item in ["sword","rifle","rpg"]:
@@ -2383,7 +2374,7 @@ func travel(destination: int) -> void:
 		shots.assign(shots.filter(func(shot):return shot.pos.distance_to(old_player)>=650))
 	var north:float=(15.5 if level==0 else 13.5)*TILE
 	var old_center:float=north if destination>level else 13.5*TILE
-	if not return_torch and not carry_torch_in and held_item not in ["axe","shears","drill"] and not (save_data.finished and held_item in ["sword","rifle","rpg"]):return_held_tool()
+	if held_item not in ["axe","shears","drill"] and not (save_data.finished and held_item in ["sword","rifle","rpg"]):return_held_tool()
 	persist()
 	var carried_prints:Array=footprints.filter(func(item):return item.pos.distance_to(old_player)<650).duplicate(true)
 	var carried_particles:Array=particles.filter(func(item):return item.pos.distance_to(old_player)<650).duplicate(true)
@@ -2394,7 +2385,6 @@ func travel(destination: int) -> void:
 	var delta:=Vector2(new_center-old_center,grid.size()*TILE+HALL_SEAM*2 if destination>previous else -old_height-HALL_SEAM*2)
 	player=old_player+delta;camera=old_camera+delta;invincible=old_invincible;health=old_health
 	companion.handoff(delta)
-	if return_torch:torch.drop(player+Vector2(0,-18))
 	for field in carried_weapon:set(field,carried_weapon[field])
 	for shot in carried_shots:shot.pos+=delta;shots.append(shot)
 	for item in carried_prints:item.pos+=delta;footprints.append(item)
@@ -3230,10 +3220,12 @@ func prepare_grass_details() -> void:
 
 	grass_texture=null
 	if level in [4,6]:return
-	var base := ground.get_image();base.convert(Image.FORMAT_RGBA8)
+	var base := grass_variants.get_image();base.convert(Image.FORMAT_RGBA8)
 	var image := Image.create(grid[0].length()*24,grid.size()*24,false,Image.FORMAT_RGBA8)
 	for y in range(grid.size()):
-		for x in range(grid[0].length()):image.blit_rect(base,Rect2i(72 if level==0 else 0,0,24,24),Vector2i(x*24,y*24))
+		for x in range(grid[0].length()):
+			var variant:=rng.randi_range(0,15)
+			image.blit_rect(base,Rect2i(variant%4*24,(96 if level==0 else 0)+variant/4*24,24,24),Vector2i(x*24,y*24))
 	var sheet := atlas.get_image();sheet.convert(Image.FORMAT_RGBA8)
 	for detail in grass_details:
 		var id: int = sprites[detail.kind]
@@ -3581,6 +3573,14 @@ func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 		var behind:bool=not hedge_field.front_crowns.has(index)
 		if (side<0 and not behind) or (side>0 and behind):continue
 		draw_leaf_crown(index)
+	# The stone lip sits on the hedge surface, after neighbouring leaf crowns.
+	# A single stored index avoids another full canopy scan every frame.
+	var marker:int=hedge_field.stone_marker_index
+	if marker>=0 and hedge_field.draw_poses.has(marker) and not hedge_field.crowns[marker].get("hidden",false):
+		var behind:bool=not hedge_field.front_crowns.has(marker)
+		if not ((side<0 and not behind) or (side>0 and behind)):
+			var pose:Vector3=hedge_field.draw_poses[marker]
+			draw_texture_rect(stone_peek,Rect2(Vector2(pose.x,pose.y)-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2),false)
 	draw_set_transform(Vector2.ZERO)
 
 func draw_leaf_crown(index: int) -> void:

@@ -374,7 +374,6 @@ for name,color in [('flowers','#e99bb6'),('blueflowers','#b6b3ed')]:
      d.polygon([(x,41),(lx-side*2,ly-2),(lx+side*3,ly),(lx,ly+2)],fill='#608d60')
      d.line((x,41,lx,ly),fill='#b1c88a')
     shadow='#8b6076' if name=='flowers' else '#777599'
-    d.ellipse((head-4,y,head+4,y+2),fill='#28433a')
     for dx,dy in [(-3,0),(3,0),(0,-1),(0,1)]:
      d.ellipse((head+dx-2,y+dy-1,head+dx+2,y+dy+1),fill=shadow)
      d.line((head+dx-1,y+dy-1,head+dx+1,y+dy-1),fill=c)
@@ -760,3 +759,6 @@ runpy.run_path(str(R/"tools/create_archive_art.py"))
 runpy.run_path(str(R/"tools/redraw_rpg_head.py"))
 # Small original contact leaves and petals use one shared sprite strip.
 runpy.run_path(str(R/"tools/create_leaf_bits.py"))
+
+# Reproducible relief ground, trimmed foliage and a hidden stone lip.
+runpy.run_path(str(R/"tools/create_quest_refinements.py"))

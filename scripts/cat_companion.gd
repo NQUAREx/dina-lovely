@@ -59,9 +59,15 @@ func restore()->void:
   if saved.distance_to(g.player)<100 and not g.blocked(saved) and clear_segment(saved,g.player):position=saved
  trail.append({"pos":g.player,"time":clock})
 func record()->void:
- if not g.save_data.cat_tamed:return
+ if not g.save_data.cat_tamed or not g.resting.is_empty() or g.blocked(g.player):return
  if last_player==Vector2.INF or last_player.distance_to(g.player)>3:
   trail.append({"pos":g.player,"time":clock});last_player=g.player
+func resume_after_rest()->void:
+ rest_goal=Vector2.INF;rest_retry=0;repath_wait=0
+ trail.assign(trail.filter(func(p):return not g.blocked(p.pos)))
+ last_player=Vector2.INF
+ record()
+
 func interact(obj:Dictionary)->bool:
  if obj.kind=="cat_fish":g.save_data.cat_fish=true;g.persist();g.sfx("chime");g.notify(g.tx("cat_fish_found"));return true
  if obj.kind=="cat_hut":
@@ -99,14 +105,15 @@ func update(delta:float)->void:
   prints[n].life-=delta
   if prints[n].life<=0:prints.remove_at(n)
  if not g.save_data.cat_tamed:return
- if last_player==Vector2.INF or last_player.distance_to(g.player)>3:
-  trail.append({"pos":g.player,"time":clock});last_player=g.player
+ record()
  if g.blocked(position):
   var safe:=bridge_start(position)
   if safe!=Vector2.INF:position=safe
  var before:=position;var budget:float=g.SPEED*1.18*delta
  while not trail.is_empty() and trail[0].time<=clock-.55 and budget>0:
-  var point:Vector2=trail[0].pos;var distance:=position.distance_to(point)
+  var point:Vector2=trail[0].pos
+  if g.blocked(point):trail.pop_front();continue
+  var distance:=position.distance_to(point)
   if distance<.1:trail.pop_front();continue
   var amount:=minf(budget,distance)
   var route_left:=distance

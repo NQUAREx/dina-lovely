@@ -2,6 +2,8 @@ extends RefCounted
 ## Seven room-bound stones. Inventory and socket states survive every room rebuild.
 var seed_value:=-1
 var flights:Array[Dictionary]=[]
+var marker_field:RefCounted
+var marker_index:=-1
 var g:Node2D
 func _init(game:Node2D):g=game
 func ensure()->void:
@@ -18,6 +20,7 @@ func ensure()->void:
   if not g.save_data.finished:g.save_data.riddle_input=[]
 func install()->void:
  ensure()
+ if g.level==0:clear_marker()
  g.objects.assign(g.objects.filter(func(o):return o.kind!="riddle_stone"))
  var id:String=g.save_data.riddle_stone_order[g.level]
  if id in g.save_data.riddle_stones:return
@@ -46,6 +49,7 @@ func install()->void:
  var obj:={"kind":"riddle_stone","id":id,"pos":pos,"solid":false,"hidden_hedge":g.level==0,"buried_stone":g.level==3}
  if g.level==3 and not g.save_data.riddle_stone_exposed:return
  g.objects.append(obj)
+ if g.level==0:mark_bush(pos)
 func excavate(pos:Vector2)->void:
  if g.level!=3:return
  ensure()
@@ -54,7 +58,7 @@ func excavate(pos:Vector2)->void:
  var point:Array=g.save_data.riddle_stone_positions.get("3",[])
  if point.size()!=2:return
  var hidden:=Vector2(point[0],point[1]);var distance:=pos.distance_to(hidden)
- if distance<38:
+ if distance<56:
   g.save_data.riddle_stone_exposed=true;g.save_data.riddle_stone_positions["3"]=[pos.x,pos.y];install()
   g.burst(pos,12,Color("e6c592"));g.notify(g.tx("stone_unearthed"))
  elif distance<170:g.notify(g.tx("stone_dig_near"))
@@ -68,6 +72,7 @@ func name_for(obj:Dictionary)->String:
  return g.tx("rune_stone_name").format({"symbol":g.tx("symbol_"+str(obj.id))}) if obj.kind=="riddle_stone" else g.tx("rune_socket_name").format({"symbol":g.tx("symbol_"+str(obj.id))})
 func collect(obj:Dictionary)->void:
  if obj.id in g.save_data.riddle_stones:return
+ if g.level==0:clear_marker()
  g.save_data.riddle_stones.append(str(obj.id));g.objects.erase(obj)
  g.sfx("chime");g.burst(obj.pos,16,Color("f4ce96"));g.notify(g.tx("rune_found").format({"count":g.save_data.riddle_stones.size()}));g.persist();g.find_nearest()
 func use_socket(id:String,pos:Vector2)->void:
@@ -100,3 +105,18 @@ func draw_insertions()->void:
   var point:Vector2=Vector2(flight.origin).lerp(target+Vector2(0,-14),smoothstep(0,1,t))+Vector2(0,-sin(t*PI)*35)
   if age>.5:point=target+Vector2(0,-14*(1-smoothstep(0,1,(age-.5)/.25)))
   g.draw_sprite("rune_"+str(flight.id),g.screen(point),Color.WHITE,1-.15*t)
+
+func clear_marker()->void:
+ if marker_field!=null and marker_index>=0 and marker_index<marker_field.crowns.size():
+  marker_field.crowns[marker_index].erase("stone_marker");marker_field.stone_marker_index=-1
+ marker_index=-1;marker_field=null
+func mark_bush(point:Vector2)->void:
+ if g.hedge_field==null:return
+ var nearest:=INF
+ for index in g.hedge_field.near_ids(point,48):
+  var node:Dictionary=g.hedge_field.crowns[index]
+  if node.get("hidden",false):continue
+  var distance:float=node.base.distance_squared_to(point)
+  if distance<nearest:nearest=distance;marker_index=index
+ if marker_index>=0:
+  marker_field=g.hedge_field;marker_field.crowns[marker_index].stone_marker=true;marker_field.stone_marker_index=marker_index
