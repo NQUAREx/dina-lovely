@@ -160,11 +160,11 @@ func update(delta: float, player: Vector2) -> void:
 		var candidates:=near_ids(player,380)
 		if not candidates.is_empty():
 			var chosen:int=candidates[wind_rng.randi_range(0,candidates.size()-1)]
-			var gust:=wind_rng.randf_range(8,13)*(1 if wind_rng.randf()>.5 else -1)
+			var gust:=wind_rng.randf_range(7,12)*(1 if wind_rng.randf()>.5 else -1)
 			var gust_count:=0
 			for index in near_ids(crowns[chosen].base,42):
 				if crowns[index].get("hidden",false):continue
-				crowns[index].sway_velocity+=gust*1.7;active[index]=true;gust_count+=1
+				crowns[index].sway_velocity+=gust*1.5;active[index]=true;gust_count+=1
 				if gust_count>=8:break
 	for index in near_ids(player,38):
 		if not crowns[index].get("hidden",false) and crowns[index].base.distance_squared_to(player)<36*36:active[index]=true
@@ -179,10 +179,11 @@ func update(delta: float, player: Vector2) -> void:
 		var required_drop:=maxf(0,ceilf(player.y-28+roundf(node.radius*1.48))-((node.base+node.offset).round().y-16))
 		node.released=pressure>0 and required_drop>22
 		if pressure>.005 and node.last_pressure<=.005:
-			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(64+pressure*20)
+			node.sway_velocity+=(1.0 if away.x>=0 else -1.0)*(48+pressure*16)
 		node.last_pressure=pressure
-		node.sway_velocity+=(-node.sway*45-node.sway_velocity*3.4)*delta
-		node.sway=clampf(node.sway+node.sway_velocity*delta,-8.0,8.0)
+		# Keep original contact impulse; softer return damping preserves several visible swings.
+		node.sway_velocity+=(-node.sway*30-node.sway_velocity*1.7)*delta
+		node.sway=clampf(node.sway+node.sway_velocity*delta,-12.0,12.0)
 		if absf(node.sway)<.025 and absf(node.sway_velocity)<.1:node.sway=0.0;node.sway_velocity=0.0
 		contact_strength=maxf(contact_strength,pressure)
 		if pressure==0 and node.press==0 and node.offset==Vector2.ZERO and node.velocity==Vector2.ZERO and node.depression==0:
