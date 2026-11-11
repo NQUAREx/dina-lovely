@@ -26,9 +26,39 @@ var visible_first:=Vector2i(-9999,-9999)
 var visible_last:=Vector2i(-9999,-9999)
 var visible_candidates:Array[int]=[]
 var rng := RandomNumberGenerator.new()
+var layer_routes: Dictionary = {}
+var route_tick := 0
+var collision_candidates: Dictionary = {}
+
+# Local route state never changes the rest positions or neighbouring crowns.
+func route_pose(index: int, pose: Vector3, front: bool, player: Vector2, delta: float) -> Vector3:
+	var centre := Vector2(pose.x, pose.y)
+	if crowns[index].base.distance_squared_to(player)>=64*64 and (not layer_routes.has(index) or not layer_routes[index].routing):
+		layer_routes.erase(index)
+		return pose
+	if not layer_routes.has(index):
+		layer_routes[index] = {"front":front,"position":centre,"side":1.0 if centre.x>=player.x else -1.0,"routing":false}
+	var state: Dictionary = layer_routes[index]
+	var current:Vector2=state.position
+	var overlaps := (absf(centre.x-player.x)<pose.z+18 and centre.y+pose.z>player.y-64 and centre.y-pose.z<player.y+4) or (absf(current.x-player.x)<pose.z+18 and current.y+pose.z>player.y-64 and current.y-pose.z<player.y+4)
+	if state.front!=front and overlaps:
+		if not state.routing:
+			state.side=1.0 if state.position.x>=player.x else -1.0
+			state.routing=true
+		# Move the whole crown around the silhouette before changing painter pass.
+		var edge:float = player.x+state.side*(pose.z+22)
+		var waypoint := Vector2(edge,centre.y)
+		state.position=state.position.move_toward(waypoint,delta*155)
+		if absf(state.position.x-player.x)>=pose.z+19:state.front=front
+	else:
+		state.front=front
+		state.position=state.position.move_toward(centre,delta*155) if state.routing else centre
+		if state.position.distance_squared_to(centre)<.01:state.routing=false
+	return Vector3(roundf(state.position.x),roundf(state.position.y),pose.z)
+
 
 func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dictionary, material: Image = null) -> void:
-	removed_cells.clear();crowns.clear();chains.clear();segments.clear();segment_cells.clear();bins.clear();active.clear();draw_order.clear();trunks.clear();body_tiles.clear();body_texture=null;last_player=Vector2.INF;contact_strength=0.0;motion_strength=0.0
+	layer_routes.clear();collision_candidates.clear();route_tick=0;removed_cells.clear();crowns.clear();chains.clear();segments.clear();segment_cells.clear();bins.clear();active.clear();draw_order.clear();trunks.clear();body_tiles.clear();body_texture=null;last_player=Vector2.INF;contact_strength=0.0;motion_strength=0.0
 	grid=map.duplicate();rng.seed=seed_value+38911;wind_rng.randomize();wind_clock=wind_rng.randf_range(4,8)
 	visible_first=Vector2i(-9999,-9999);visible_candidates.clear()
 	for tree in trees.values():trunks.append(tree.pos)
@@ -91,7 +121,9 @@ func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dict
 		if crowns[a].base.y==crowns[b].base.y:return crowns[a].base.x<crowns[b].base.x
 		return crowns[a].base.y<crowns[b].base.y)
 	for rank in range(draw_order.size()):crowns[draw_order[rank]].rank=rank
-	for node in crowns:node.neighbours=near_ids(node.base,38)
+	for node in crowns:
+		node.neighbours=near_ids(node.base,38)
+		node.rest_pose=Vector3(roundf(node.base.x),roundf(node.base.y)-16,roundf(node.radius*1.48))
 	build_body(material)
 
 func wall(cell: Vector2i) -> bool:
@@ -243,13 +275,18 @@ func closest_on_segment(point: Vector2, segment: Dictionary) -> Vector2:
 
 func blocks(point: Vector2) -> bool:
 	var cell:=Vector2i(point/TILE)
-	for y in range(cell.y-1,cell.y+2):
-		for x in range(cell.x-1,cell.x+2):
-			for index in segment_cells.get(Vector2i(x,y),[]):
-				var closest:=closest_on_segment(point,segments[index])
-				if not wall(Vector2i(closest/TILE)):continue
-				var offset:Vector2=(point-closest)/Vector2(18,15)
-				if offset.length_squared()<1:return true
+	# Segment membership is static. Cache the unique local candidates once per cell.
+	if not collision_candidates.has(cell):
+		var unique:Dictionary={}
+		for y in range(cell.y-1,cell.y+2):
+			for x in range(cell.x-1,cell.x+2):
+				for index in segment_cells.get(Vector2i(x,y),[]):unique[index]=true
+		collision_candidates[cell]=unique.keys()
+	for index in collision_candidates[cell]:
+		var closest:=closest_on_segment(point,segments[index])
+		if not wall(Vector2i(closest/TILE)):continue
+		var offset:Vector2=(point-closest)/Vector2(18,15)
+		if offset.length_squared()<1:return true
 	return false
 
 func foreground(player: Vector2) -> bool:
@@ -364,21 +401,42 @@ func remove_cell(cell:Vector2i)->void:
 		body_texture.update(image)
 
 func prepare_draw(indices:PackedInt32Array,player:Vector2)->void:
+	var tick:=Time.get_ticks_usec()
+	var delta:=minf(.033333, float(tick-route_tick)/1000000.0) if route_tick>0 else 0.0
+	route_tick=tick
 	front_crowns.clear();draw_poses.clear()
 	# Preserve painter order across the hero split: a later overlapping crown follows
 	# an earlier foreground crown into the same pass. No leaf can jump above its neighbour.
 	var foreground_bins:Dictionary={}
 	for index in indices:
-		var pose:=crown_pose(index,player);draw_poses[index]=pose
+		var moving:bool=active.has(index)
+		var pose:Vector3=crown_pose(index,player) if moving else crowns[index].rest_pose
+		draw_poses[index]=pose
 		var centre:=Vector2(pose.x,pose.y);var bin:=Vector2i((centre/48).floor())
-		var front:=not crown_behind_hero(index,player)
+		var front:bool=not crown_behind_hero(index,player) if moving else crowns[index].base.y>player.y+13
 		if not front:
 			for y in range(bin.y-1,bin.y+2):
+				if front:break
 				for x in range(bin.x-1,bin.x+2):
+					if front:break
 					for other in foreground_bins.get(Vector2i(x,y),[]):
 						var earlier:Vector3=draw_poses[other]
-						if centre.distance_squared_to(Vector2(earlier.x,earlier.y))<pow(pose.z+earlier.z,2):front=true;break
+						var radii:=pose.z+earlier.z
+						if centre.distance_squared_to(Vector2(earlier.x,earlier.y))<radii*radii:front=true;break
 		if front:
 			front_crowns[index]=true
 			if not foreground_bins.has(bin):foreground_bins[bin]=[]
 			foreground_bins[bin].append(index)
+
+	# Resolve routes after painter propagation; offsets cannot drag a whole row along.
+	var local_ids:=near_ids(player,64)
+	for index in layer_routes.keys():
+		if not draw_poses.has(index):
+			layer_routes.erase(index)
+		elif index not in local_ids:local_ids.append(index)
+	for index in local_ids:
+		if not draw_poses.has(index):continue
+		draw_poses[index]=route_pose(index,draw_poses[index],front_crowns.has(index),player,delta)
+		if layer_routes.has(index):
+			if layer_routes[index].front:front_crowns[index]=true
+			else:front_crowns.erase(index)
