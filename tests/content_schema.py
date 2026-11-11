@@ -20,3 +20,9 @@ for name in ["letters.json","letters.backup.json"]:
  data=json.loads((root/"content"/name).read_text())
  assert set(data["ui"])==referenced_ui(data),name
 print("PASS both content variants: no unused UI keys, including dynamic names")
+
+# Save metadata and artwork names must never count as visible translations.
+probe=json.loads((root/"content/letters.backup.json").read_text())
+probe["ui"]["flashlight_location"]={"text":"unused save-field collision"}
+assert "flashlight_location" not in referenced_ui(probe)
+print("PASS save-field name collisions do not retain unused text")

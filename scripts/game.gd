@@ -1327,14 +1327,12 @@ func available(obj: Dictionary) -> bool:
 	if obj.kind=="gate_key":return int(obj.room) not in save_data.gate_keys and int(obj.room) not in save_data.open_gates
 	if obj.kind=="accessory":return obj.accessory not in save_data.wearing and (obj.get("dropped_accessory",false) or obj.accessory not in save_data.accessories)
 	if obj.kind=="doorway":return obj.id=="exit" and not door_is_open("exit")
-	if obj.id in ["rpg","rifle","sword"]: return obj.id not in save_data.weapons_taken
 	if obj.id in ["seat","swing"]:return true
 	if obj.id=="rake": return held_item!="rake"
 	if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>HIDDEN_REACH:return false
 	if obj.kind in ["berries","tree_apples"]: return obj.id not in save_data.eaten
 	if obj.id=="flashlight": return level==1 and held_item!="flashlight"
 	if obj.id=="shovel": return held_item!="shovel"
-	if obj.kind=="mound": return obj.id not in save_data.dug
 	var id: String = obj.id
 	if id.is_empty(): return false
 	if id == "crossing": return id not in save_data.letters
@@ -1511,10 +1509,7 @@ func action_text(obj: Dictionary) -> String:
 	if obj.id=="flashlight": return tx("pickup_flashlight")
 	if obj.id=="shovel": return tx("pickup_shovel")
 	if str(obj.id).begins_with("drop_"):return tx("pickup_prefix")+str({"rpg":tx("weapon_rpg"),"rifle":tx("weapon_rifle"),"sword":tx("weapon_sword")}.get(obj.weapon,obj.weapon))
-	if obj.kind=="mound": return tx("dig_action")
-	if obj.id=="back": return tx("back") if door_is_open("back") else tx("gate_locked_action")
 	if obj.id=="fertilizer": return tx("pickup_fertilizer")
-	if obj.id in ["rpg","rifle","sword"]: return {"rpg":tx("pickup_rpg"),"rifle":tx("pickup_rifle"),"sword":tx("pickup_sword")}[obj.id]
 	if obj.id == "exit": return tx("open_gate") if level in save_data.gate_keys or door_is_open("exit") or not room_letters_complete() else tx("gate_key_action")
 	if obj.id == "well": return tx("fill_water")
 	if obj.id == "can": return tx("pickup_can")
@@ -1576,26 +1571,9 @@ func interact() -> void:
 		save_data.eaten.append(id);health=minf(8,health+2);sfx("eat");persist()
 		food_hearts_left=10;food_heart_clock=.13
 		food_heart_burst()
-	elif obj.kind=="mound":
-		if not save_data.shovel: notify(tx("shovel_required"))
-		else: begin_task("dig:"+id,obj.pos,.25)
 	elif id=="exit":
 		if not door_is_open("exit"):use_exit()
 	elif id=="back":return
-	elif id in ["rpg","rifle","sword"]:
-		return_held_tool()
-		if id in save_data.weapons_taken: return
-		if not weapon.is_empty():
-			var dropped := {"kind":"weapon_"+weapon,"id":"drop_"+weapon+"_"+str(Time.get_ticks_msec()),"weapon":weapon,"room":level,"pos":player+Vector2(0,25),"solid":false}
-			objects.append(dropped)
-			var saved := dropped.duplicate();saved.pos=[dropped.pos.x,dropped.pos.y];save_data.loose_weapons.append(saved)
-		held_item=id
-		weapon = id
-		if id not in save_data.weapons_taken: save_data.weapons_taken.append(id)
-		attack_cd = .3
-		persist()
-		sfx("ui")
-		notify({"rpg":tx("rpg_help"),"rifle":tx("rifle_help"),"sword":tx("sword_help")}[id])
 	elif id.begins_with("drop_"):
 		return_held_tool()
 		var previous := weapon
