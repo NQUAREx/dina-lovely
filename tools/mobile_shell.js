@@ -51,7 +51,7 @@
  // All DOM UI buttons share a small pixel-heart burst. Canvas buttons use Godot's layer.
  document.addEventListener('click',event=>{
   const button=event.target.closest?.('button');if(!button||button.disabled)return;
-  const box=button.getBoundingClientRect(),x=box.left+box.width/2,y=box.top+box.height/2;
+  const box=button.getBoundingClientRect(),x=Number.isFinite(event.clientX)&&event.clientX>0?event.clientX:box.left+box.width/2,y=Number.isFinite(event.clientY)&&event.clientY>0?event.clientY:box.top+box.height/2;
   for(let i=0;i<12;i++){
    const heart=document.createElement('i'),size=8+Math.random()*8,dx=(Math.random()-.5)*140,dy=-35-Math.random()*80;
    heart.style.cssText='position:fixed;pointer-events:none;z-index:10000;left:'+x+'px;top:'+y+'px;width:'+size+'px;height:'+size+'px;background:'+['#e4a0b7','#efb5c7','#d889a8'][i%3]+';clip-path:polygon(0% 20%,20% 0%,40% 0%,50% 20%,60% 0%,80% 0%,100% 20%,100% 50%,50% 100%,0% 50%)';

@@ -369,13 +369,28 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	b.add_theme_stylebox_override("hover", panel_style(Color("70536e"), PINK))
 	b.add_theme_stylebox_override("pressed", panel_style(Color("97677d"), CREAM))
 	b.resized.connect(fit_button_text.bind(b))
+	b.gui_input.connect(track_ui_button_pointer.bind(b))
 	b.pressed.connect(ui_button_hearts.bind(b))
 	b.pressed.connect(callback)
 	return b
 
+func track_ui_button_pointer(event:InputEvent,control:Button)->void:
+	var pressed:=false
+	var point:=Vector2.ZERO
+	if event is InputEventMouseButton and event.pressed:
+		pressed=true;point=event.position
+	elif event is InputEventScreenTouch and event.pressed:
+		pressed=true;point=event.position
+	if pressed:
+		control.set_meta("heart_click_position",control.get_global_transform_with_canvas()*point)
+		control.set_meta("heart_click_time",Time.get_ticks_msec())
+
 func ui_button_hearts(control:Button)->void:
 	if control==action_button or not is_instance_valid(ui_hearts):return
-	ui_hearts.emit_at(control.get_global_rect().get_center())
+	var point:=control.get_global_rect().get_center()
+	if control.has_meta("heart_click_time") and Time.get_ticks_msec()-int(control.get_meta("heart_click_time"))<1500:
+		point=control.get_meta("heart_click_position")
+	ui_hearts.emit_at(point)
 
 func fit_button_text(control: Button) -> void:
 	var available_width := maxf(1, control.size.x - control.get_theme_stylebox("normal").get_minimum_size().x - 4)
@@ -598,9 +613,7 @@ func show_menu() -> void:
 	elif save_data.started: box.add_child(button(tx("continue_game"), resume_game))
 	box.add_child(button(tx("new_game"), confirm_new if save_data.started else new_game))
 	box.add_child(button(tx("collected_letters_prefix") + tx("journal_count").format({"count":save_data.letters.size(),"total":content.letters.size()}), show_journal))
-	box.add_child(button(tx("sound_settings"), show_settings))
 	if save_data.finished: box.add_child(button(tx("replay_card"), show_card))
-	box.add_child(label(tx("sound_hint"), 18, CREAM))
 	hud.visible = playing
 
 func confirm_new() -> void:
@@ -690,13 +703,6 @@ func show_intro() -> void:
 	box.add_child(label(tx("gate_key_intro"),18,CREAM))
 	box.add_child(label(tx("controls_help"),18,CREAM))
 	box.add_child(button(tx("begin_room"),func():clear_modal();hud.show()))
-
-func show_settings() -> void:
-	var box := modal_box(550, 350)
-	box.add_child(label(tx("sound_settings_title"), 28, CREAM, true))
-	box.add_child(button(tx("effects_prefix") + (tx("sound_on") if sound_on else tx("sound_off")), func(): sound_on = not sound_on; persist(); show_settings()))
-	box.add_child(label(tx("storage_help"), 14, Color("c1bdce")))
-	box.add_child(button(tx("back"), show_menu))
 
 func show_journal() -> void:
 	var box := modal_box(670, 460)
@@ -1918,7 +1924,7 @@ func attack(launch_ready: bool = false) -> void:
 		for i in range(enemies.size()-1,-1,-1):
 			var diff:Vector2=enemies[i].pos-player
 			if enemies[i].state!="spawn" and diff.length()<67 and aim.dot(diff.normalized())>.05:
-				damage_enemy(i,12,diff.normalized()*12);hit=true
+				damage_enemy(i,8,diff.normalized()*12);hit=true
 		if hit:sfx("punch_hit")
 	elif weapon=="sword":
 		var contact:=false
