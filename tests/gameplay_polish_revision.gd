@@ -26,17 +26,20 @@ func run():
  g.nearest=g.objects.find(loose[0]);g.interact();assert(g.save_data.world_kit.size()==3)
  g.update_hud();assert(g.drop_button.text.is_empty() and g.switch_button.text.is_empty() and g.drop_button.visible and g.switch_button.visible)
  print("PASS three-tool kit, normal-item swaps, drop/re-pick, icon controls, hold-to-drill and pit-safe shorter footprints")
- g.equip_tool("shovel");g.player=Vector2(648,(g.grid.size()-7)*48+4);g.walk_facing=Vector2.DOWN;g.release_at_gate()
+ g.save_data.open_gates.append(2);g.equip_tool("shovel");g.player=Vector2(648,(g.grid.size()-7)*48+4);g.walk_facing=Vector2.DOWN;g.release_at_gate()
  assert(g.held_item.is_empty() and g.save_data.tool_positions["3:shovel"][1]<(g.grid.size()-6.5)*48)
  g.activate_cached_room(5)
+ g.save_data.open_gates.append(5)
+ for door in g.objects:
+  if door.kind=="doorway" and door.id=="exit":door.gate_amount=1.0
  for item in ["can","rake","fertilizer"]:
-  g.equip_tool(item);g.player=Vector2(648,6.9*48);g.walk_facing=Vector2.UP;g.release_at_gate()
+  g.equip_tool(item);g.player=Vector2(688,6.9*48);g.walk_facing=Vector2.UP;g.release_at_gate()
   assert(g.held_item.is_empty() and g.save_data.tool_positions["5:"+item][1]>6.5*48)
  var bench=g.objects.filter(func(o):return o.id=="seat")[0]
  g.player=bench.pos+Vector2(0,45);g.moving=true;g.attack_flash=.1;g.nearest=g.objects.find(bench);g.interact()
  assert(g.resting=="seat" and not g.moving and g.attack_flash==0)
  g.stand_up();assert(not g.available({"kind":"fallen_tree","id":"tree_test","pos":g.player,"solid":false}))
- g.activate_cached_room(1);g.equip_tool("flashlight");g.player=Vector2(648,(g.grid.size()-7)*48+4);g.walk_facing=Vector2.DOWN;g.release_at_gate()
+ g.activate_cached_room(1);g.save_data.open_gates.append(0);g.equip_tool("flashlight");g.player=Vector2(648,(g.grid.size()-7)*48+4);g.walk_facing=Vector2.DOWN;g.release_at_gate()
  assert(g.held_item.is_empty() and int(g.save_data.flashlight_location.room)==1 and g.save_data.flashlight_location.pos[1]<(g.grid.size()-6.5)*48)
  print("PASS gate-side drops for shovel, garden tools and torch; bench animation reset and noninteractive fallen trees")
  g.save_data.finished=false;g.held_item="";g.sync_hands();g.build_level(4);g.player=Vector2(648,900);g.wave=1;g.wave_timer=1.2

@@ -1220,6 +1220,38 @@
     "drill_action": {
       "_comment": "Кнопка управления: drill_action",
       "text": "Бурить"
+    },
+    "ammo_counter": {
+      "text": "{current}/{capacity}",
+      "_comment": "Счётчик боезапаса над оружием. Сохранить {current} и {capacity}."
+    },
+    "letter_stack_counter": {
+      "text": "{first}–{last} / {total}",
+      "_comment": "Диапазон записок в стопке. Сохранить {first}, {last}, {total}."
+    },
+    "journal_count": {
+      "text": "{count}/{total}",
+      "_comment": "Число найденных записок в меню после collected_letters_prefix. Сохранить {count}, {total}."
+    },
+    "card_signature_format": {
+      "text": "♡  {signature}",
+      "_comment": "Подпись открытки. Значение {signature} берётся из поля signature."
+    },
+    "card_recipient_format": {
+      "text": "{recipient},",
+      "_comment": "Обращение на открытке. Значение {recipient} берётся из поля recipient."
+    },
+    "enemy_attack_alert": {
+      "text": "!",
+      "_comment": "Знак предупреждения над врагом перед атакой."
+    },
+    "loading_symbol": {
+      "text": "✦",
+      "_comment": "Декоративный символ на экране загрузки."
+    },
+    "loading_progress_label": {
+      "text": "Загрузка игры",
+      "_comment": "Доступное название полосы загрузки для экранного диктора."
     }
   },
   "schema_version": 2,

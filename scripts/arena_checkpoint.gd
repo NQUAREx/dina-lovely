@@ -54,6 +54,7 @@ func restore_room()->void:
  if int(state.get("balance",0))!=g.battle.BALANCE_VERSION and g.wave>0 and not g.combat_done:
   g.wave=clampi(g.wave,1,g.battle.WAVE_COUNT)
   g.enemies.clear();g.shots.clear();g.poison_zones.clear();g.battle.spawn(false,false)
+ if g.arena_exit_sealed() and g.player.y>(g.grid.size()-7)*48:g.player=Vector2(13.5*48,(g.grid.size()-7)*48-24)
  g.battle.restore_medkit_limit(int(state.get("medkit_schema",0))==0)
 func restore_hands()->void:
  if g.level!=4 or not valid():return

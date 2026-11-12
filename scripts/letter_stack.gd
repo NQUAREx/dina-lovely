@@ -94,7 +94,7 @@ func _process(delta: float) -> void:
     exit_button.disabled = not ready
     var first := mini(letters.size(), floori(cursor) + 1)
     var last := mini(letters.size(), floori(cursor) + VISIBLE_COUNT)
-    counter.text = "%d–%d / %d" % [first, last, letters.size()] if not letters.is_empty() else ""
+    counter.text = game.tx("letter_stack_counter").format({"first":first,"last":last,"total":letters.size()}) if not letters.is_empty() else ""
     for node in [heading, counter, scroll_bar, exit_button]:
         node.modulate.a = smoothstep(.75, 1.2, age)
     queue_redraw()

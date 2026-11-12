@@ -7,3 +7,7 @@ test-results/
 
 __pycache__/
 *.pyc
+
+# Content is edited on GitHub. Existing tracked copies are protected by
+# tools/sync_letters.py --setup (ignore rules alone do not affect tracked files).
+/content/letters*.json

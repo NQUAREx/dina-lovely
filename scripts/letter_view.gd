@@ -90,6 +90,7 @@ func _ready() -> void:
     close_button.flat = true
     close_button.position = Vector2(400, 8)
     close_button.size = Vector2(60, 60)
+    close_button.pressed.connect(game.ui_button_hearts.bind(close_button))
     close_button.pressed.connect(close)
     paper.add_child(close_button)
     if journal and not is_instance_valid(stack_view):

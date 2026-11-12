@@ -23,12 +23,17 @@ if marker not in s:
 })();
 </script>
 </body>''')
- p.write_text(s)
+
+# Engine diagnostics belong in the console; visible failure copy comes from letters.
+import re
+s=re.sub(r'function displayFailureNotice\(err\) \{.*?\n\t\}', "function displayFailureNotice(err) {\n\t\tconsole.error(err);\n\t\twindow.dispatchEvent(new Event('garden-asset-error'));\n\t}",s,flags=re.S)
+p.write_text(s)
 
 import json, shutil
 root=p.parent.parent
 content=json.loads((root/'content/letters.json').read_text())
 import hashlib
+from audit_content import required_ui
 frame_hash=hashlib.sha256(b''.join((root/'assets'/f'frame_{part}_{room}.png').read_bytes() for room in range(7) for part in ['field','top','bottom'])).hexdigest()[:12]
 from PIL import Image, ImageStat
 # Sample the actual decorative field, rather than maintaining a separate palette.
@@ -36,7 +41,7 @@ frame_colors=[]
 for room in range(7):
  with Image.open(root/'assets'/f'frame_field_{room}.png') as field:
   frame_colors.append([round(c) for c in ImageStat.Stat(field.convert('RGB')).mean])
-(p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__FONT_HASH__',hashlib.sha256((root/'assets/body.ttf').read_bytes()+(root/'assets/title.ttf').read_bytes()).hexdigest()[:12]).replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)))
+(p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__FONT_HASH__',hashlib.sha256((root/'assets/body.ttf').read_bytes()+(root/'assets/title.ttf').read_bytes()).hexdigest()[:12]).replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)).replace('__REQUIRED_UI__',json.dumps(sorted(required_ui(content)))))
 shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
 shutil.copyfile(root/'assets/title.ttf',p.parent/'letter-title.ttf')
 (p.parent/'font-licenses.txt').write_text((root/'assets/FONT-LICENSE.txt').read_text()+'\n'+(root/'assets/PIXELIFY-OFL.txt').read_text())

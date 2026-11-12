@@ -18,18 +18,21 @@ def calls(text):
    elif text[i]==')':depth-=1
    i+=1
   yield text[start:i-1]
-def referenced_ui(data):
- keys=set(data['ui']);used=set()
+def required_ui(data):
+ used=set()
  for path in RUNTIME:
   text=path.read_text()
   if path.suffix=='.gd':
    # Property access such as save_data.flashlight_location is not UI usage.
-   for expression in calls(text):used.update(literals(expression)&keys)
-   for titles in re.findall(r'const TITLES\s*:?=\s*(\[[^\]]*\])',text):used.update(literals(titles)&keys)
+   for expression in calls(text):used.update(key for key in literals(expression) if re.fullmatch(r"[a-z][a-z0-9_]*",key) and not key.endswith("_"))
+   for titles in re.findall(r'const TITLES\s*:?=\s*(\[[^\]]*\])',text):used.update(literals(titles))
   else:
    # Browser copy includes t/copy/add, loading arrays, recovery callbacks and credits HTML.
-   used.update(key for key in keys if re.search(r'''(["'])'''+re.escape(key)+r'''\1''',text))
+   used.update(re.findall(r"\b(?:t|copy|recover)\(\s*['\"]([a-z][a-z0-9_]+)['\"]",text))
+   used.update(re.findall(r"\badd\(\s*['\"][a-z0-9]+['\"]\s*,\s*['\"]([a-z][a-z0-9_]+)['\"]",text))
+   for values in re.findall(r'for\(const key of (\[[^\]]*\])\)add',text):used.update(literals(values))
    used.update(re.findall(r'\.ui\?\.([a-z_]+)',text))
+   used.update(re.findall(r"content\[['\"]ui['\"]\]\[['\"]([a-z_]+)['\"]\]",text))
  # Enumerate the actual domains of dynamic lookups, not every literal in the codebase.
  domains={
   'item_':['can','rake','fertilizer','shovel','flashlight','well','axe','shears','drill','cat_hut','cat_fish','pet_cat','stats_stone'],
@@ -42,9 +45,12 @@ def referenced_ui(data):
  domains['accessory_']=re.findall(r'"([a-z_]+)"\s*:',slots.group(1))
  for prefix,values in domains.items():used.update(prefix+value for value in values)
  used.update(data.get('loading_phrases',[]))
- return used&keys
+ return used
+
+def referenced_ui(data):return required_ui(data)&set(data["ui"])
 if __name__=='__main__':
  for name in ['letters.json','letters.backup.json']:
   data=json.loads((ROOT/'content'/name).read_text())
   unused=set(data['ui'])-referenced_ui(data)
-  print(name,'unused:',len(unused),', '.join(sorted(unused)))
+  missing=required_ui(data)-set(data['ui'])
+  print(name,'unused:',len(unused),', '.join(sorted(unused)),'missing:',sorted(missing))

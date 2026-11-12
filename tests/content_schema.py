@@ -15,14 +15,34 @@ print('PASS JSON schema, semantic keys, comments, no embedded Cyrillic and seven
 
 import sys
 sys.path.insert(0,str(root/"tools"))
-from audit_content import referenced_ui
+from audit_content import referenced_ui,required_ui,RUNTIME
 for name in ["letters.json","letters.backup.json"]:
  data=json.loads((root/"content"/name).read_text())
- assert set(data["ui"])==referenced_ui(data),name
-print("PASS both content variants: no unused UI keys, including dynamic names")
+ assert all(isinstance(entry.get("text"),str) and entry.get("_comment") for entry in data["ui"].values()),name
+print("PASS both content variants: used UI keys resolve; cloud-owned extra fields are retained")
 
 # Save metadata and artwork names must never count as visible translations.
 probe=json.loads((root/"content/letters.backup.json").read_text())
 probe["ui"]["flashlight_location"]={"text":"unused save-field collision"}
 assert "flashlight_location" not in referenced_ui(probe)
 print("PASS save-field name collisions do not retain unused text")
+
+for name in ["letters.json","letters.backup.json"]:
+ data=json.loads((root/"content"/name).read_text())
+ missing=required_ui(data)-set(data["ui"])
+ assert not missing,(name,sorted(missing))
+ for key in required_ui(data):assert isinstance(data["ui"][key].get("text"),str) and data["ui"][key].get("_comment"),(name,key)
+ # Prove the reverse audit finds omissions even in dynamically built names.
+ for key in ["start_intro","begin_room","item_flashlight","accessory_white_dress","loading_progress_label"]:
+  probe=json.loads(json.dumps(data));del probe["ui"][key]
+  assert key in required_ui(probe)-set(probe["ui"]),key
+for path in RUNTIME:
+ assert not re.search('[А-Яа-яЁё]',path.read_text()),str(path)
+print("PASS reverse audit: all direct/browser/dynamic UI keys exist in both JSON variants, no Russian in runtime source")
+
+for name in ["letters.json","letters.backup.json"]:
+ data=json.loads((root/"content"/name).read_text())
+ for key in ["game_title","recipient","signature","card_title","card_text","photo_caption","app_short_name"]:assert isinstance(data.get(key),str),(name,key)
+ for letter in data["letters"]:
+  for key in ["id","title","text"]:assert isinstance(letter.get(key),str),(name,letter.get("id"),key)
+print("PASS root screen/card text and every letter title/body exist in both JSON variants")

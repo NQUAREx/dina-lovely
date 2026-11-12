@@ -145,6 +145,7 @@ var joy_vector := Vector2.ZERO
 var attack_held := false
 var drill_touch_id := -1
 var neighbor_return_gate := false
+var ui_hearts:Control
 var ui: CanvasLayer
 var root: Control
 var hud: Control
@@ -368,8 +369,13 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	b.add_theme_stylebox_override("hover", panel_style(Color("70536e"), PINK))
 	b.add_theme_stylebox_override("pressed", panel_style(Color("97677d"), CREAM))
 	b.resized.connect(fit_button_text.bind(b))
+	b.pressed.connect(ui_button_hearts.bind(b))
 	b.pressed.connect(callback)
 	return b
+
+func ui_button_hearts(control:Button)->void:
+	if control==action_button or not is_instance_valid(ui_hearts):return
+	ui_hearts.emit_at(control.get_global_rect().get_center())
 
 func fit_button_text(control: Button) -> void:
 	var available_width := maxf(1, control.size.x - control.get_theme_stylebox("normal").get_minimum_size().x - 4)
@@ -379,6 +385,8 @@ func fit_button_text(control: Button) -> void:
 	control.add_theme_font_size_override("font_size", font_size)
 
 func setup_ui() -> void:
+	var effect_layer:=CanvasLayer.new();effect_layer.layer=80;add_child(effect_layer)
+	ui_hearts=Control.new();ui_hearts.set_script(preload("res://scripts/ui_hearts.gd"));effect_layer.add_child(ui_hearts)
 	ui = CanvasLayer.new()
 	ui.layer = 2
 	add_child(ui)
@@ -589,7 +597,7 @@ func show_menu() -> void:
 		clear_modal()))
 	elif save_data.started: box.add_child(button(tx("continue_game"), resume_game))
 	box.add_child(button(tx("new_game"), confirm_new if save_data.started else new_game))
-	box.add_child(button(tx("collected_letters_prefix") + str(save_data.letters.size()) + "/" + str(content.letters.size()), show_journal))
+	box.add_child(button(tx("collected_letters_prefix") + tx("journal_count").format({"count":save_data.letters.size(),"total":content.letters.size()}), show_journal))
 	box.add_child(button(tx("sound_settings"), show_settings))
 	if save_data.finished: box.add_child(button(tx("replay_card"), show_card))
 	box.add_child(label(tx("sound_hint"), 18, CREAM))
@@ -828,11 +836,11 @@ func show_card() -> void:
 	picture.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	left.add_child(picture)
 	left.add_child(label(content.photo_caption, 13, Color("a26c7e"), true))
-	left.add_child(label("♡  " + content.signature, 21, INK, true))
+	left.add_child(label(tx("card_signature_format").format({"signature":content.signature}), 21, INK, true))
 	var right := VBoxContainer.new()
 	right.custom_minimum_size.x = 420
 	row.add_child(right)
-	right.add_child(label(content.recipient + ",", 19, Color("a26c7e"), true))
+	right.add_child(label(tx("card_recipient_format").format({"recipient":content.recipient}), 19, Color("a26c7e"), true))
 	right.add_child(label(content.card_title, 28, INK, true))
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(420, 210)
@@ -1066,7 +1074,11 @@ func camera_target() -> Vector2:
 	var y:=player.y if not inside_main_room() else clampf(player.y,half.y-220,grid.size()*TILE-half.y+64)
 	return Vector2(clampf(player.x,half.x-48,grid[0].length()*TILE-half.x+48),y)
 
+func arena_exit_sealed()->bool:
+	return level==4 and wave>0 and not combat_done
+
 func blocked(pos: Vector2) -> bool:
+	if arena_exit_sealed() and pos.y>(grid.size()-7)*TILE and absf(pos.x-13.5*TILE)<82:return true
 	if level==6 and save_data.finished and Rect2(Vector2(21.75*48,12.9*48),Vector2(1.5*48,4.0*48)).grow(8).has_point(pos):return true
 	if pos.y<0 or pos.y>=grid.size()*TILE:
 		for offset in [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]:
@@ -1664,8 +1676,12 @@ func room_drop_point(north:bool)->Vector2:
 	return accessory_drop_position(Vector2(player.x,gate_y+(54 if north else -54)))
 func release_at_gate()->void:
 	if not room_bound_item():return
-	var north:bool=player.y<7*TILE and walk_facing.y<-.05
-	var south:bool=player.y>(grid.size()-7)*TILE and walk_facing.y>.05
+	var north_center:float=(15.5 if level==0 else 13.5)*TILE
+	var north:bool=level<6 and door_is_open("exit") and player.y<7*TILE and walk_facing.y<-.05 and player.x>north_center+10 and player.x<north_center+72
+	if north:
+		var doors:=objects.filter(func(obj):return obj.kind=="doorway" and obj.id=="exit")
+		north=not doors.is_empty() and float(doors[0].get("gate_amount",0))>=.25
+	var south:bool=level>0 and level-1 in save_data.open_gates and door_is_open("back") and not arena_exit_sealed() and player.y>(grid.size()-7)*TILE and walk_facing.y>.05 and absf(player.x-13.5*TILE)<72
 	if north or south:
 		return_held_tool(false,room_drop_point(north));persist();find_nearest()
 
@@ -2278,7 +2294,7 @@ func _draw_world() -> void:
 			if enemy.state=="warn":
 				draw_circle(p,125 if enemy.get("boss",false) else 70,Color(.91,.43,.58,.19))
 				draw_arc(p,125 if enemy.get("boss",false) else 70,0,TAU,32,PINK,2)
-				draw_string(body_font,p+Vector2(-5,-69),"!",HORIZONTAL_ALIGNMENT_LEFT,-1,24,CREAM)
+				draw_string(body_font,p+Vector2(-5,-69),tx("enemy_attack_alert"),HORIZONTAL_ALIGNMENT_LEFT,-1,24,CREAM)
 			draw_cast_shadow(kind,p,1.8 if enemy.get("boss",false) else 1.0)
 			draw_shadow(p,20)
 			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,.2,.25) if time<float(enemy.get("hit_until",0)) else Color(1,.65,.75,.45 if enemy.state=="spawn" else 1) if enemy.get("boss",false) else (Color(.65,1,.85) if enemy.type==3 else Color(.75,.8,1) if enemy.type==4 else Color.WHITE),1.8 if enemy.get("boss",false) else 1.2 if enemy.type==4 else .72 if enemy.type==5 else .85 if enemy.type==3 else 1.0)
@@ -2685,7 +2701,7 @@ func draw_extra_effects() -> void:
 			var insertion := screen(player)+Vector2(14,-28)-aim*(rpg_reload/.3)*26
 			draw_set_transform(insertion,aim.angle());draw_sprite("rocket_item",Vector2(0,16),Color.WHITE,.45);draw_set_transform(Vector2.ZERO)
 	if weapon=="rifle" and (level==4 or save_data.finished):
-		draw_string(body_font,screen(player)+Vector2(6,-55),str(magazine)+"/30",HORIZONTAL_ALIGNMENT_LEFT,-1,13,CREAM)
+		draw_string(body_font,screen(player)+Vector2(6,-55),tx("ammo_counter").format({"current":magazine,"capacity":30}),HORIZONTAL_ALIGNMENT_LEFT,-1,13,CREAM)
 		if reload_time>0:
 			var bar := screen(player)+Vector2(-28,-102)
 			draw_rect(Rect2(bar,Vector2(56,6)),INK);draw_rect(Rect2(bar,Vector2(56*(1-reload_time/1.8),6)),CREAM)
