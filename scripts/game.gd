@@ -349,11 +349,14 @@ func panel_style(color: Color, border: Color = Color("a07890"), radius: int = 12
 	return style
 
 func decorate_panel(panel:Control)->void:
+	# A Node2D keeps decoration out of Container minimum-size calculations.
+	var decoration:=Node2D.new()
+	panel.add_child(decoration)
+	panel.move_child(decoration,0)
 	var pattern:=Control.new()
 	pattern.set_script(preload("res://scripts/ui_pattern.gd"))
-	panel.add_child(pattern)
-	pattern.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	panel.move_child(pattern,0)
+	pattern.panel=panel
+	decoration.add_child(pattern)
 
 func label(text: String, size: int, color: Color = CREAM, fancy: bool = false) -> Label:
 	var l := Label.new()
@@ -697,7 +700,7 @@ func prepare_rooms_web(target: int, hide_after: bool = true) -> void:
 	if hide_after:JavaScriptBridge.eval("window.gardenHideLoading?.()")
 
 func show_intro() -> void:
-	var box:=modal_box(650,410)
+	var box:=modal_box(650,0)
 	box.add_child(label(str(content.game_title),30,CREAM,true))
 	box.add_child(label(tx("start_intro"),18))
 	box.add_child(label(tx("gate_key_intro"),18,CREAM))
