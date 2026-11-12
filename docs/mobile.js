@@ -1,6 +1,6 @@
 (()=>{
  const motifStyle=document.createElement('style');
- const motifSvg='<svg xmlns="http://www.w3.org/2000/svg" width="96" height="72" viewBox="0 0 96 72"><path fill="#efb5c7" fill-opacity=".045" d="M16 18v-4h4l2 2 2-2h4v4l-6 6zM66 48v-4h4l2 2 2-2h4v4l-6 6z"/><path fill="#efb5c7" fill-opacity=".055" d="M69 12h2v4h4v2h-4v4h-2v-4h-4v-2h4zM20 51h2v3h3v2h-3v3h-2v-3h-3v-2h3z"/></svg>';
+ const motifSvg='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="96" viewBox="0 0 120 96"><g fill="none" stroke="#efb5c7" stroke-opacity=".055" stroke-width="2" shape-rendering="crispEdges"><path d="M18 25v-9h6v3h6v-3h6v9h-3v6h-3v3h-3v3h-3v-3h-3v-6h-3z"/><path d="M84 55h3v6h3v3h6v3h-6v3h-3v6h-3v-6h-3v-3h-6v-3h6v-3h3z"/></g></svg>';
  motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:10px;pointer-events:none;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}';document.head.append(motifStyle);
  const frameArtVersion='c57621a051f2';
  // The same room palette also colors browser-owned areas where textures cannot render.
@@ -77,6 +77,9 @@
    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));
    selected=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')==='80a4109778cf5389682009f04031d6624b8298f150397196e4ffd4c1cab4c58d';
   }
+  const ipad=/iPad/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(ipad)selected=false;
+  if(ipad&&location.pathname.endsWith('/play.html')){location.replace(new URL('./'+location.search,location.href));await new Promise(()=>{});}
   const file=selected?'letters.backup.json':'letters.json';
   if(selected&&!location.pathname.endsWith('/play.html')){location.replace(new URL('play.html'+location.search,location.href));await new Promise(()=>{});}
   const response=await fetch('https://raw.githubusercontent.com/NQUAREx/dina-lovely/main/content/'+file+'?fresh='+Date.now(),{cache:'no-store',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(8000)});

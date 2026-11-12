@@ -4,15 +4,12 @@ func _ready()->void:
  mouse_filter=Control.MOUSE_FILTER_IGNORE
  resized.connect(queue_redraw)
 func _draw()->void:
- var heart:=PackedVector2Array([Vector2(-4,-1),Vector2(-4,-3),Vector2(-2,-4),Vector2(0,-2),Vector2(2,-4),Vector2(4,-3),Vector2(4,-1),Vector2(0,3)])
- for row in range(ceili(size.y/48.0)):
-  for column in range(ceili(size.x/64.0)):
-   var p:=Vector2(26+column*64+(16 if row%2 else 0),23+row*48)
-   if p.x>size.x-12 or p.y>size.y-10:continue
-   if (row+column)%3==0:
-    draw_rect(Rect2(p-Vector2(1,4),Vector2(2,8)),Color(1,.82,.9,.055))
-    draw_rect(Rect2(p-Vector2(4,1),Vector2(8,2)),Color(1,.82,.9,.055))
-   else:
-    var shape:=PackedVector2Array()
-    for point in heart:shape.append(point+p)
-    draw_colored_polygon(shape,Color(1,.75,.84,.045))
+ var heart:=PackedVector2Array([Vector2(-9,-12),Vector2(-3,-12),Vector2(-3,-9),Vector2(3,-9),Vector2(3,-12),Vector2(9,-12),Vector2(9,-9),Vector2(12,-9),Vector2(12,0),Vector2(9,0),Vector2(9,3),Vector2(6,3),Vector2(6,6),Vector2(3,6),Vector2(3,9),Vector2(-3,9),Vector2(-3,6),Vector2(-6,6),Vector2(-6,3),Vector2(-9,3),Vector2(-9,0),Vector2(-12,0),Vector2(-12,-9),Vector2(-9,-9),Vector2(-9,-12)])
+ var star:=PackedVector2Array([Vector2(0,-12),Vector2(3,-12),Vector2(3,-6),Vector2(6,-6),Vector2(6,-3),Vector2(12,-3),Vector2(12,0),Vector2(6,0),Vector2(6,3),Vector2(3,3),Vector2(3,9),Vector2(0,9),Vector2(0,3),Vector2(-3,3),Vector2(-3,0),Vector2(-9,0),Vector2(-9,-3),Vector2(-3,-3),Vector2(-3,-6),Vector2(0,-6),Vector2(0,-12)])
+ for row in range(ceili(size.y/64.0)):
+  for column in range(ceili(size.x/88.0)):
+   var p:=Vector2(33+column*88+(24 if row%2 else 0),30+row*64)
+   if p.x>size.x-18 or p.y>size.y-14:continue
+   var shape:=PackedVector2Array()
+   for point in (star if (row+column)%3==0 else heart):shape.append(point+p)
+   draw_polyline(shape,Color(1,.78,.87,.055),2.0,false)
