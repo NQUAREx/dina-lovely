@@ -20,8 +20,11 @@ func run():
  g.combat_done=true;assert(not g.arena_exit_sealed() and not g.blocked(g.player))
  var before:int=g.ui_hearts.bursts
  var b=g.button("",func():pass);g.root.add_child(b);b.position=Vector2(200,300);b.size=Vector2(80,60);b.pressed.emit()
- assert(g.ui_hearts.bursts==before+1 and g.ui_hearts.motes.size()==14)
- g.ui_button_hearts(g.action_button);assert(g.ui_hearts.bursts==before+1)
+ var click:Vector2=b.get_global_rect().position+Vector2(11,9)
+ g.last_ui_pointer_position=click;g.last_ui_pointer_time=Time.get_ticks_msec();b.pressed.emit()
+ assert(g.ui_hearts.bursts==before+2 and g.ui_hearts.motes.size()==28)
+ for i in range(14,28):assert(g.ui_hearts.motes[i].pos==click)
+ g.ui_button_hearts(g.action_button);assert(g.ui_hearts.bursts==before+2)
  g.ui_hearts._process(.1);assert(not g.ui_hearts.motes.is_empty())
  print("PASS gate-open and passage-only tool drops, no drops on room edges/closed leaf, sealed arena return during waves, UI hearts excluding action")
  quit()

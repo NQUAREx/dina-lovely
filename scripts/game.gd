@@ -137,6 +137,8 @@ var chest_open := false
 var playing := false
 var paused := true
 var touch_mode := false
+var last_ui_pointer_position := Vector2(-10000,-10000)
+var last_ui_pointer_time := -10000
 var touch_buttons: Dictionary = {}
 var joy_active := false
 var joy_id := 0
@@ -369,27 +371,15 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	b.add_theme_stylebox_override("hover", panel_style(Color("70536e"), PINK))
 	b.add_theme_stylebox_override("pressed", panel_style(Color("97677d"), CREAM))
 	b.resized.connect(fit_button_text.bind(b))
-	b.gui_input.connect(track_ui_button_pointer.bind(b))
 	b.pressed.connect(ui_button_hearts.bind(b))
 	b.pressed.connect(callback)
 	return b
 
-func track_ui_button_pointer(event:InputEvent,control:Button)->void:
-	var pressed:=false
-	var point:=Vector2.ZERO
-	if event is InputEventMouseButton and event.pressed:
-		pressed=true;point=event.position
-	elif event is InputEventScreenTouch and event.pressed:
-		pressed=true;point=event.position
-	if pressed:
-		control.set_meta("heart_click_position",control.get_global_transform_with_canvas()*point)
-		control.set_meta("heart_click_time",Time.get_ticks_msec())
-
 func ui_button_hearts(control:Button)->void:
 	if control==action_button or not is_instance_valid(ui_hearts):return
 	var point:=control.get_global_rect().get_center()
-	if control.has_meta("heart_click_time") and Time.get_ticks_msec()-int(control.get_meta("heart_click_time"))<1500:
-		point=control.get_meta("heart_click_position")
+	if Time.get_ticks_msec()-last_ui_pointer_time<1500 and control.get_global_rect().has_point(last_ui_pointer_position):
+		point=last_ui_pointer_position
 	ui_hearts.emit_at(point)
 
 func fit_button_text(control: Button) -> void:
@@ -1254,6 +1244,9 @@ func touch_button_at(node: Node, pos: Vector2) -> Button:
 	return null
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventScreenTouch or event is InputEventScreenDrag:
+		last_ui_pointer_position=event.position
+		last_ui_pointer_time=Time.get_ticks_msec()
 	# Handle the active finger before GUI Controls consume iOS drag events.
 	if playing and not paused and not transition and not rotate_overlay.visible:
 		if event is InputEventScreenDrag and joy_active and event.index==joy_id:
