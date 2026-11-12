@@ -1,4 +1,7 @@
 (()=>{
+ const motifStyle=document.createElement('style');
+ const motifSvg='<svg xmlns="http://www.w3.org/2000/svg" width="96" height="72" viewBox="0 0 96 72"><path fill="#efb5c7" fill-opacity=".045" d="M16 18v-4h4l2 2 2-2h4v4l-6 6zM66 48v-4h4l2 2 2-2h4v4l-6 6z"/><path fill="#efb5c7" fill-opacity=".055" d="M69 12h2v4h4v2h-4v4h-2v-4h-4v-2h4zM20 51h2v3h3v2h-3v3h-2v-3h-3v-2h3z"/></svg>';
+ motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:10px;pointer-events:none;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}';document.head.append(motifStyle);
  const frameArtVersion='__FRAME_ART_HASH__';
  // The same room palette also colors browser-owned areas where textures cannot render.
  const roomChromeColors=__FRAME_COLORS__;

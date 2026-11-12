@@ -348,6 +348,13 @@ func panel_style(color: Color, border: Color = Color("a07890"), radius: int = 12
 	style.content_margin_bottom = 8
 	return style
 
+func decorate_panel(panel:Control)->void:
+	var pattern:=Control.new()
+	pattern.set_script(preload("res://scripts/ui_pattern.gd"))
+	panel.add_child(pattern)
+	pattern.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.move_child(pattern,0)
+
 func label(text: String, size: int, color: Color = CREAM, fancy: bool = false) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -411,6 +418,7 @@ func setup_ui() -> void:
 	top.add_theme_stylebox_override("panel", panel_style(Color(0.12,0.14,0.22,0.92)))
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(top)
+	decorate_panel(top)
 	objective = label("", 22)
 	objective.add_theme_font_override("font", title_font)
 	objective.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -496,6 +504,7 @@ func setup_enemy_progress() -> void:
 	enemy_wave_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	enemy_wave_bar.add_theme_stylebox_override("panel", panel_style(Color(.12, .14, .22, .94), Color("8d718c"), 8))
 	hud.add_child(enemy_wave_bar)
+	decorate_panel(enemy_wave_bar)
 	var icon := TextureRect.new()
 	var icon_texture := AtlasTexture.new()
 	icon_texture.atlas = atlas
@@ -582,6 +591,7 @@ func modal_box(width: float = 610, height: float = 430, paper: bool = false) -> 
 	panel.custom_minimum_size = Vector2(500, minf(height, 740))
 	panel.add_theme_stylebox_override("panel", panel_style(CREAM if paper else Color("292c42"), Color("c899a4"), 16))
 	center.add_child(panel)
+	decorate_panel(panel)
 	var margin := MarginContainer.new()
 	for key in ["margin_left","margin_right","margin_top","margin_bottom"]: margin.add_theme_constant_override(key, 22)
 	panel.add_child(margin)
