@@ -64,9 +64,11 @@ manifest={"name":content["game_title"],"short_name":content["app_short_name"],"i
 (p.parent/'manifest.webmanifest').write_text(json.dumps(manifest,ensure_ascii=False))
 s=p.read_text()
 if 'mobile.js' not in s:
- s=s.replace('</head>','<link rel="manifest" href="manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><script src="mobile.js"></script></head>')
+ s=s.replace('</head>','<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><script src="mobile.js"></script></head>')
  s=s.replace('engine.startGame({','window.gardenLaunch.then(() => engine.startGame({').replace('}).then(() => {\n\t\t\tsetStatusMode', '})).then(() => {\n\t\t\tsetStatusMode')
  p.write_text(s)
+s=re.sub(r'<link rel="manifest"[^>]*>','',s)
+p.write_text(s)
 
 import html
 credits=(root/'assets/SFX-CREDITS.md').read_text()
