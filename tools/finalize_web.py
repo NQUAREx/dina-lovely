@@ -138,3 +138,13 @@ engine_version=hashlib.sha256((p.parent/'index.js').read_bytes()).hexdigest()[:1
 s=re.sub(r'<script src="index.js(?:\?[^"]*)?"', '<script src="index.js?v='+engine_version+'"',s)
 p.write_text(s)
 print('WASM transport:',wasm.stat().st_size,'->',len(compressed),'bytes')
+
+# Native install sheets can read the navigation response instead of updated DOM metadata.
+# Give each content variant its own document with server-delivered install metadata.
+main_content=json.loads((root/'content/letters.backup.json').read_text())
+base_document=p.read_text()
+for target,variant in [(p,content),(p.parent/'play.html',main_content)]:
+ document=re.sub(r'<title>.*?</title>','<title>'+html.escape(variant['game_title'])+'</title>',base_document,flags=re.S)
+ document=re.sub(r'<meta name="apple-mobile-web-app-title"[^>]*>','',document)
+ document=document.replace('</head>','<meta name="apple-mobile-web-app-title" content="'+html.escape(variant['app_short_name'],quote=True)+'"></head>')
+ target.write_text(document)

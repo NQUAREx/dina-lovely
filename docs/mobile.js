@@ -75,6 +75,7 @@
    selected=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')==='80a4109778cf5389682009f04031d6624b8298f150397196e4ffd4c1cab4c58d';
   }
   const file=selected?'letters.backup.json':'letters.json';
+  if(selected&&!location.pathname.endsWith('/play.html')){location.replace(new URL('play.html'+location.search,location.href));await new Promise(()=>{});}
   const response=await fetch('https://raw.githubusercontent.com/NQUAREx/dina-lovely/main/content/'+file+'?fresh='+Date.now(),{cache:'no-store',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(8000)});
   if(!response.ok)throw Error(response.status);
   const data=await response.json();
