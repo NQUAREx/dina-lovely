@@ -98,6 +98,9 @@
    }
   }
   window.gardenContent=data;
+  let appleTitle=document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if(!appleTitle){appleTitle=document.createElement('meta');appleTitle.name='apple-mobile-web-app-title';document.head.append(appleTitle);}
+  appleTitle.content=data.game_title;
   return data;
  })().catch(()=>null);
  let launch;window.gardenLaunch=new Promise(r=>launch=r);
