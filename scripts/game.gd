@@ -1088,18 +1088,21 @@ func camera_target() -> Vector2:
 func arena_exit_sealed()->bool:
 	return level==4 and wave>0 and not combat_done
 
-func blocked(pos: Vector2) -> bool:
+func projectile_blocked(pos:Vector2)->bool:
+	return blocked(pos+Vector2(0,26),true)
+
+func blocked(pos: Vector2,projectile:bool=false) -> bool:
 	if dig_quest.blocks(pos):return true
-	if arena_exit_sealed() and pos.y>(grid.size()-7)*TILE and absf(pos.x-13.5*TILE)<82:return true
+	if not projectile and arena_exit_sealed() and pos.y>(grid.size()-7)*TILE and absf(pos.x-13.5*TILE)<82:return true
 	if level==6 and save_data.finished and Rect2(Vector2(21.75*48,12.9*48),Vector2(1.5*48,4.0*48)).grow(8).has_point(pos):return true
 	if pos.y<0 or pos.y>=grid.size()*TILE:
-		for offset in [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]:
+		for offset in ([Vector2.ZERO] if projectile else [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]):
 			var point:Vector2=pos+offset
 			if point.y>=0 and point.y<grid.size()*TILE:continue
 			if not corridor_floor_point(point):return true
 		return false
-	if level<6 and not door_is_open("exit") and pos.y<7*TILE and absf(pos.x-(15.5 if level==0 else 13.5)*TILE)<75:return true
-	for offset in [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]:
+	if not projectile and level<6 and not door_is_open("exit") and pos.y<7*TILE and absf(pos.x-(15.5 if level==0 else 13.5)*TILE)<75:return true
+	for offset in ([Vector2.ZERO] if projectile else [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]):
 		var c := Vector2i((pos+offset)/TILE)
 		if c.y<0 or c.y>=grid.size():
 			if corridor_floor_point(pos+offset):continue
@@ -1108,6 +1111,10 @@ func blocked(pos: Vector2) -> bool:
 		if grid[c.y][c.x]=="#" and (hedge_field==null or corridor_row(c.y)):return true
 	if hedge_field!=null and hedge_field.blocks(pos):return true
 	for obj in objects:
+		if obj.kind=="doorway":
+			for side in [-100,68]:
+				if Rect2(obj.pos+Vector2(side,-24),Vector2(32,48)).has_point(pos):return true
+		if projectile and obj.kind=="doorway" and not door_is_open(str(obj.id)) and Rect2(obj.pos-Vector2(82,12),Vector2(164,24)).has_point(pos):return true
 		if obj.kind=="doorway" and obj.id=="exit" and door_is_open("exit"):
 			var p: Vector2=pos-obj.pos
 			if float(obj.get("gate_amount",0))<.25 and absf(p.x)<82 and absf(p.y)<12:return true
@@ -1660,7 +1667,7 @@ func sync_hands() -> void:
 
 func return_held_tool(force_drop:bool=false,drop_at:Vector2=Vector2.INF) -> void:
 	world_tools.stop_drill()
-	var point:=item_drop_spot(player+Vector2(0,26) if drop_at==Vector2.INF else drop_at)
+	var point:=item_drop_spot(player+Vector2(0,26)) if drop_at==Vector2.INF else drop_at
 	if held_item=="flashlight":torch.drop(point);return
 	world_tools.drop_held(force_drop,point)
 	if held_item in ["sword","rifle","rpg"]:
@@ -1695,21 +1702,17 @@ func drop_current_item()->void:
 func room_bound_item()->bool:
 	return held_item in ["can","rake","fertilizer","shovel","flashlight","quest_axe","pickaxe"] or (held_item in ["sword","rifle","rpg"] and not save_data.finished)
 func room_drop_point(north:bool)->Vector2:
-	var gate_y:=6.5*TILE if north else (grid.size()-6.5)*TILE
-	return accessory_drop_position(Vector2(player.x,gate_y+(54 if north else -54)))
+	return player
 func release_at_gate()->void:
 	if not room_bound_item():return
 	var north_center:float=(15.5 if level==0 else 13.5)*TILE
-	var north:bool=level<6 and door_is_open("exit") and player.y<7*TILE and walk_facing.y<-.05 and player.x>north_center+10 and player.x<north_center+72
+	var north:bool=level<6 and door_is_open("exit") and player.y<5.3*TILE and walk_facing.y<-.05 and player.x>north_center+10 and player.x<north_center+72
 	if north:
 		var doors:=objects.filter(func(obj):return obj.kind=="doorway" and obj.id=="exit")
 		north=not doors.is_empty() and float(doors[0].get("gate_amount",0))>=.25
-	var south:bool=level>0 and level-1 in save_data.open_gates and door_is_open("back") and not arena_exit_sealed() and player.y>(grid.size()-7)*TILE and walk_facing.y>.05 and absf(player.x-13.5*TILE)<72
-	if held_item=="flashlight":
-		north=north and player.y<5.1*TILE
-		south=south and player.y>(grid.size()-5.1)*TILE
+	var south:bool=level>0 and level-1 in save_data.open_gates and door_is_open("back") and not arena_exit_sealed() and player.y>(grid.size()-5.3)*TILE and walk_facing.y>.05 and absf(player.x-13.5*TILE)<72
 	if north or south:
-		return_held_tool(false,player if held_item=="flashlight" else room_drop_point(north));persist();find_nearest()
+		return_held_tool(false,player);persist();find_nearest()
 
 func equip_tool(id: String) -> void:
 	if id=="flashlight" and level!=1:return
@@ -1914,7 +1917,7 @@ func rifle_muzzle() -> Vector2:
 	# Atlas barrel tip (31,25), sprite anchor (16,43), rendered at 1.2x.
 	var left := aim.x<0
 	var angle := atan2(-aim.y,-aim.x) if left else aim.angle()
-	return player+Vector2(14,-28)+Vector2(-18.0 if left else 18.0,-1.6).rotated(angle)
+	return right_hand_position()+Vector2(-21.6 if left else 21.6,-6.0).rotated(angle)
 
 func attack(launch_ready: bool = false) -> void:
 	var fists:=weapon.is_empty() and level==4 and wave>0 and not combat_done
@@ -2318,7 +2321,7 @@ func _draw_world() -> void:
 			if not resting.is_empty():p+=Vector2(0,-18+sin(time*2.4)*12 if resting=="swing" else -18)
 			var color := Color(1,.65,.73) if invincible>0 and int(time*12)%2==0 else Color.WHITE
 			var hero_pos:=p+body_motion()
-			if walk_facing.x<-.2:draw_hand_items()
+			if hand_is_behind():draw_hand_items()
 			draw_player_outfit(hero_pos,frame,color)
 			if attack_flash>0 and weapon=="sword":
 				var angle := aim.angle()
@@ -2501,6 +2504,9 @@ func add_corridors() -> void:
 			for x in range(south-1,south+2):set_cell(x,y,".")
 			if y>=grid.size()-5:
 				set_cell(south-2,y,"#");set_cell(south+2,y,"#")
+	for side in [-2,2]:
+		set_cell(north+side,5,".")
+		if level>0:set_cell(south+side,grid.size()-6,".")
 	for obj in objects:
 		if obj.id=="exit":
 			obj.kind="doorway"
@@ -2648,7 +2654,7 @@ func update_shots(delta: float) -> void:
 		var wall_t := 1.1
 		for step in range(1,maxi(2,ceili(distance/8.0)+1)):
 			var t := minf(1.0,float(step)*8.0/maxf(distance,.001))
-			if blocked(start.lerp(end,t)):wall_t=t;break
+			if projectile_blocked(start.lerp(end,t)):wall_t=t;break
 		if shot.kind in ["enemy_bullet","enemy_rocket"]:
 			var t:=clampf((player+Vector2(0,-26)-start).dot(segment)/maxf(.001,segment.length_squared()),0,1)
 			var contact:=start.lerp(end,t).distance_to(player+Vector2(0,-26))<18 and t<=wall_t
@@ -2691,13 +2697,16 @@ func update_shots(delta: float) -> void:
 
 func draw_hand_items() -> void:
 	if (level==4 or save_data.finished) and not weapon.is_empty():
-		var p := screen(player+body_motion())+Vector2(14,-28)-aim*(attack_flash/.22)*(14.0 if weapon=="rpg" else 11.5)
+		var p := screen(right_hand_position())-aim*(attack_flash/.22)*(14.0 if weapon=="rpg" else 11.5)
 		var swing := sin((1-attack_flash/.22)*PI)*1.5 if weapon=="sword" and attack_flash>0 else 0.0
 		var left := aim.x<0
 		var rotation := (aim.angle()+PI/2) if weapon=="sword" else (atan2(-aim.y,-aim.x) if left else aim.angle())
 		draw_set_transform(p,rotation+swing,Vector2(-1 if left and weapon!="sword" else 1,1))
-		if weapon=="rpg":draw_texture_rect(rpg_textures["empty" if rpg_reload>0 else "loaded"],Rect2(Vector2(-32,-18),Vector2(76.8,38.4)),false)
-		else:draw_sprite("weapon_"+weapon,Vector2(0,0 if weapon=="sword" else 20),Color.WHITE,.6)
+		if weapon=="rpg":draw_texture_rect(rpg_textures["empty" if rpg_reload>0 else "loaded"],Rect2(Vector2(-32,-25.6),Vector2(76.8,38.4)),false)
+		else:
+			var grip:=Vector2(15,38) if weapon=="sword" else Vector2(13,30)
+			var id:int=sprites["weapon_"+weapon]
+			draw_texture_rect_region(atlas,Rect2(-grip*1.2,Vector2(32,48)*1.2),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)))
 		draw_set_transform(Vector2.ZERO)
 		if attack_flash>0 and weapon=="sword":
 			var angle := aim.angle()
@@ -2763,7 +2772,7 @@ func draw_extra_effects() -> void:
 			scene_fx.draw_jet(p,shot.vel.normalized(),shot.age)
 		elif shot.kind=="enemy_bullet":battle.draw_bullet(shot,p)
 		else:battle.draw_bullet(shot,p)
-	if walk_facing.x>=-.2:draw_hand_items()
+	if not hand_is_behind():draw_hand_items()
 	if task_time>0 and (task_kind=="fill" or task_kind.begins_with("water:") or task_kind.begins_with("rake:") or task_kind.begins_with("fertilize:")):
 		var pose:=held_tool_pose()
 		var origin:=screen(pose.tip)
@@ -3621,15 +3630,30 @@ func resolve_gate_overlap(door: Dictionary) -> void:
 func body_motion()->Vector2:
 	return -rifle_kick_dir*rifle_kick+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
 
+func hand_is_behind()->bool:
+	return visual_facing() in [0,1,4,5]
+
+func right_hand_position()->Vector2:
+	var face:=visual_facing();var frame:=player_walk_frame()
+	var pixel:=Vector2(24.5 if face==0 else 7.5,34+frame%2)
+	if face in [1,3]:
+		var stride:=roundf(sin(frame*TAU/8)*3)
+		var bob:=1 if frame in [1,2,5,6] else 0
+		pixel=Vector2(16+stride,35+bob)
+	elif face in [4,5,6,7]:
+		var bob:=frame%2;var step:float=[0,2,0,-2][frame%4]
+		if face==4:pixel=Vector2(24,32+bob-step/2)
+		elif face==5:pixel=Vector2(8,32+bob-step/2)
+		elif face==6:pixel=Vector2(7.5,34+bob+step/2)
+		else:pixel=Vector2(24.5,34+bob+step/2)
+	return player+body_motion()+(pixel-Vector2(16,43))*2
+
 func held_tool_pose() -> Dictionary:
 	var toward:Vector2=walk_facing.normalized()
 	if toward.length()<.1:toward=[Vector2.UP,Vector2.LEFT,Vector2.DOWN,Vector2.RIGHT][direction]
 	var using:=task_time>0
 	if using:toward=(task_target-player).normalized()
-	var hand:=player+body_motion()+Vector2(-12 if toward.x<-.2 else 16 if toward.x>.2 else 12,-21+toward.y*3)
-	if moving and not using:
-		var step:=float(player_walk_frame())
-		hand+=Vector2(toward.x*(step-1)*2,[0.0,-2.0,0.0,2.0][int(step)%4])
+	var hand:=right_hand_position()
 	if using:toward=(task_target+Vector2(0,-55 if task_kind=="fill" else -10)-hand).normalized()
 	var anchors:Dictionary={"can":Vector2(14,24),"rake":Vector2(16,31),"fertilizer":Vector2(16,32),"shovel":Vector2(16,29),"flashlight":Vector2(16,32),"axe":Vector2(15,34),"quest_axe":Vector2(15,34),"pickaxe":Vector2(16,32),"shears":Vector2(16,35),"drill":Vector2(16,28)}
 	var tips:Dictionary={"can":Vector2(30,28),"rake":Vector2(19,14),"fertilizer":Vector2(16,23),"shovel":Vector2(16,45),"flashlight":Vector2(16,21),"axe":Vector2(24,19),"quest_axe":Vector2(24,19),"pickaxe":Vector2(22,20),"shears":Vector2(18,19),"drill":Vector2(16,45)}
@@ -3879,7 +3903,7 @@ func restore_weapon_drops() -> void:
 func rpg_muzzle() -> Vector2:
 	var left:=aim.x<0
 	var angle:=atan2(-aim.y,-aim.x) if left else aim.angle()
-	return player+Vector2(14,-28)+Vector2(-42 if left else 42,-2).rotated(angle)
+	return right_hand_position()+Vector2(-44 if left else 44,-5.6).rotated(angle)
 
 func update_gunner(enemy: Dictionary, delta: float) -> void:
 	battle.gunner(enemy,delta)
