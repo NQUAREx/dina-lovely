@@ -7,6 +7,23 @@ func run():
  var q=g.dig_quest;var d=q.state()
  assert(g.objects.filter(func(o):return o.id=="shovel").is_empty())
  assert(q.point("tree")==Vector2(13.5,11.5)*48)
+ assert(d.durability>=9 and d.durability<=18)
+ g.save_data.dig_target=[q.point("bench").x,q.point("bench").y]
+ g.save_data.riddle_stone_positions["3"]=[q.point("tree").x,q.point("tree").y]
+ q.repair_burials()
+ assert(q.burial_clear(Vector2(g.save_data.dig_target[0],g.save_data.dig_target[1])))
+ var stone_position=g.save_data.riddle_stone_positions["3"]
+ assert(q.burial_clear(Vector2(stone_position[0],stone_position[1])))
+ g.world_tools.ensure_dirt()
+ var mask:Image=g.world_tools.masks["3"];mask.fill(Color.BLACK)
+ g.save_data.buried_exposed=true
+ g.world_tools.stamp(Vector2(g.save_data.dig_target[0],g.save_data.dig_target[1]))
+ var centre:=Vector2i(Vector2(g.save_data.dig_target[0],g.save_data.dig_target[1])/2)
+ assert(mask.get_pixelv(centre+Vector2i(18,0)).r>.5)
+ assert(mask.get_pixelv(centre+Vector2i(0,12)).r>.5)
+ assert(mask.get_pixelv(centre+Vector2i(20,0)).r<.5)
+ g.save_data.buried_exposed=false
+ print("PASS longer shovel life, blocked burial migration and fixed full-size letter pit")
  var layout=d.layout.duplicate(true)
  q.install();assert(d.layout==layout)
  var axe=g.objects.filter(func(o):return o.kind=="quest_axe")[0]

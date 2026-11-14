@@ -4,8 +4,11 @@ var g:Node2D
 func _init(game:Node2D):g=game
 func state()->Dictionary:
  if not g.save_data.has("dig_quest") or g.save_data.dig_quest.is_empty():
-  g.save_data.dig_quest={"layout":{},"hits":0,"tree_hits":randi_range(5,7),"tree_down":false,"branches":0,"pebbles":0,"gathered":[],"pickaxe":false,"rock_hits":0,"rock_broken":false,"rock_taken":false,"shovel":false,"broken":false,"uses":0,"durability":randi_range(3,6)}
- return g.save_data.dig_quest
+  g.save_data.dig_quest={"layout":{},"hits":0,"tree_hits":randi_range(5,7),"tree_down":false,"branches":0,"pebbles":0,"gathered":[],"pickaxe":false,"rock_hits":0,"rock_broken":false,"rock_taken":false,"shovel":false,"broken":false,"uses":0,"durability":randi_range(9,18),"durability_version":2}
+ var saved:Dictionary=g.save_data.dig_quest
+ if int(saved.get("durability_version",1))<2:
+  saved.durability=int(saved.durability)*3;saved.uses=int(saved.uses)*3;saved.durability_version=2
+ return saved
 func owns(obj:Dictionary)->bool:return obj.kind.begins_with("quest_") or obj.kind=="pickaxe" or (g.level==3 and obj.id=="shovel")
 func point(id:String)->Vector2:
  var a:Array=state().layout[id];return Vector2(a[0],a[1])
@@ -37,6 +40,24 @@ func install()->void:
   var key:String="3:"+str(tool)
   var a:Array=g.save_data.tool_positions.get(key,d.layout.axe if tool=="quest_axe" else [point("bench").x+40,point("bench").y+30])
   add(tool,tool,Vector2(a[0],a[1]))
+ repair_burials()
+func burial_clear(p:Vector2)->bool:
+ return p.distance_to(point("bench"))>=100 and p.distance_to(point("tree"))>=85 and p.distance_to(point("rock"))>=80
+func safe_burial(old:Vector2)->Vector2:
+ if burial_clear(old):return old
+ var candidates:Array[Vector2]=[]
+ for y in range(7,g.grid.size()-7):
+  for x in range(2,g.grid[0].length()-2):
+   var p:=Vector2(x+.5,y+.5)*48
+   if burial_clear(p) and g.valid_ground(p) and not g.blocked(p) and p.distance_to(old)>40:candidates.append(p)
+ candidates.sort_custom(func(a,b):return a.distance_squared_to(old)<b.distance_squared_to(old))
+ return candidates[0] if not candidates.is_empty() else old
+func repair_burials()->void:
+ if not g.save_data.buried_exposed and g.save_data.dig_target.size()==2:
+  var p:=safe_burial(Vector2(g.save_data.dig_target[0],g.save_data.dig_target[1]));g.save_data.dig_target=[p.x,p.y]
+ if not g.save_data.riddle_stone_exposed and g.save_data.riddle_stone_positions.has("3"):
+  var old:Array=g.save_data.riddle_stone_positions["3"]
+  var p:=safe_burial(Vector2(old[0],old[1]));g.save_data.riddle_stone_positions["3"]=[p.x,p.y]
 func scatter(origin:String,n:int)->Vector2:
  var rng:=RandomNumberGenerator.new();rng.seed=int(g.save_data.seed)^hash(origin)^((n+1)*7169)
  var angle:=rng.randf_range(0,TAU)
@@ -107,7 +128,7 @@ func complete(kind:String,pos:Vector2)->bool:
    if d.rock_hits>=4:d.rock_broken=true;install()
   "quest_pickaxe":d.pickaxe=true;toss("pickaxe")
   "quest_shovel":d.shovel=true;toss("shovel")
-  "quest_repair":d.broken=false;d.uses=0;d.durability=randi_range(3,6);equip("shovel")
+  "quest_repair":d.broken=false;d.uses=0;d.durability=randi_range(9,18);equip("shovel")
  return true
 func equip(tool:String)->void:
  g.equip_tool(tool);g.persist()
