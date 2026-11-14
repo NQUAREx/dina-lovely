@@ -2034,6 +2034,13 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	var world:=pos+camera-get_viewport_rect().size/2
 	var variant:=posmod(floori(world.x/48)*17+floori(world.y/48)*7,6) if color.a>.9 else 0
 	if color.a>.9 and name in ["tree","tree_apples"]:name+="_variant"+str(variant)
+	if name=="stone":
+		var cell:=Vector2i(world/TILE)
+		var stacked:=cell.y>=0 and cell.y+1<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#" and grid[cell.y+1][cell.x]=="#"
+		var texture_name:="wall_stacked" if stacked else "wall_exposed"
+		if not hedge_tree_textures.has(texture_name):hedge_tree_textures[texture_name]=load("res://assets/"+texture_name+".png")
+		draw_texture_rect(hedge_tree_textures[texture_name],Rect2(pos-Vector2(32,86)*scale_factor,Vector2(64,96)*scale_factor),false,color)
+		return
 	var id := int(sprites.get(name,0))
 	if name in ["hedge_tree","hedge_tree_apples"]:
 		if not hedge_tree_textures.has(name+str(variant)):hedge_tree_textures[name+str(variant)]=load("res://assets/"+name+"_variant"+str(variant)+".png")
@@ -3484,7 +3491,7 @@ func bake_hedge_shadow(image:Image)->void:
 			if grid[y][x]=="#":shadow.blend_rect(stamp,Rect2i(0,0,40,32),Vector2i(x*24-8,y*24+3))
 	for y in range(5,grid.size()-5):
 		for x in range(grid[0].length()):
-			if grid[y][x]==".":image.blend_rect(shadow,Rect2i(x*24,y*24,24,24),Vector2i(x*24,y*24))
+			if grid[y][x] in [".","#"]:image.blend_rect(shadow,Rect2i(x*24,y*24,24,24),Vector2i(x*24,y*24))
 
 func draw_grass_details() -> void:
 	var viewport := get_viewport_rect().grow(55)
