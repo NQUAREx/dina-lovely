@@ -37,7 +37,11 @@ func run():
   for obj in items:q.use(obj);q.install()
  assert(d.branches==3 and d.pebbles==3)
  assert(g.objects.filter(func(o):return o.kind in ["quest_branch","quest_pebble"]).is_empty())
- q.complete("quest_pickaxe",q.point("bench"));g.equip_tool("pickaxe");assert(g.held_item=="pickaxe")
+ q.complete("quest_pickaxe",q.point("bench"))
+ var flight=g.objects.filter(func(o):return o.id=="pickaxe")[0]
+ assert(not g.available(flight))
+ g.time+=1;assert(g.available(flight))
+ g.equip_tool("pickaxe");assert(g.held_item=="pickaxe")
  assert(g.objects.any(func(o):return o.kind=="quest_axe"))
  g.equip_tool("quest_axe");g.equip_tool("pickaxe");assert(g.objects.any(func(o):return o.kind=="quest_axe"))
  for n in range(4):q.complete("quest_mine",q.point("rock"))

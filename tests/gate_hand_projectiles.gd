@@ -10,7 +10,7 @@ func run():
    for side in [-2,2]:
     assert(g.grid[cell.y][cell.x+side]==".")
     assert(g.grid[cell.y+inside][cell.x+side]==".")
-    assert(g.grid[cell.y-inside][cell.x+side]==(" " if gate.id=="exit" else "#"))
+    assert(g.grid[cell.y-inside][cell.x+side]=="#")
    for side in [-160,-120,120,160]:assert(g.blocked(gate.pos+Vector2(side,0)))
    assert(g.gate_blocks(gate,gate.pos+Vector2(90,0)))
    if gate.id=="exit":

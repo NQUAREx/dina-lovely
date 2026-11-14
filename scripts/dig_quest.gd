@@ -33,7 +33,7 @@ func install()->void:
  if not d.rock_taken:add("quest_rock_fragments" if d.rock_broken else "quest_rock","rock",point("rock"),not d.rock_broken)
  for n in range(3):
   if d.tree_down and "branch"+str(n) not in d.gathered:add("quest_branch","branch"+str(n),scatter("tree",n))
-  if "pebble"+str(n) not in d.gathered:add("quest_pebble","pebble"+str(n),scatter("rock",n))
+  if "pebble"+str(n) not in d.gathered:add("quest_pebble","pebble"+str(n),scatter("rock",n));g.objects[-1].stone_variant=n
  for tool in ["quest_axe","pickaxe","shovel"]:
   if tool=="pickaxe" and not d.pickaxe:continue
   if tool=="shovel" and not d.shovel:continue

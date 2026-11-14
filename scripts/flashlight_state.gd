@@ -25,3 +25,8 @@ func drop_at_exit()->void:
   drop(g.room_drop_point(g.player.y<g.grid.size()*24))
  else:
   g.held_item="";g.sync_hands();g.save_data.flashlight_location={};install()
+
+func neighbor_overlay(obj:Dictionary)->bool:
+ # The neighbouring world pass already draws props inside the room. Only shared
+ # corridor rows are omitted there and need a single final foreground pass.
+ return obj.kind in ["flashlight_pedestal","stand_flashlight"] and g.corridor_row(floori(obj.pos.y/48))

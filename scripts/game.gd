@@ -26,6 +26,7 @@ var torch:=preload("res://scripts/flashlight_state.gd").new(self)
 var companion:=preload("res://scripts/cat_companion.gd").new(self)
 var weapon_crates:=preload("res://scripts/weapon_crates.gd").new(self)
 var scene_fx:=preload("res://scripts/scene_fx.gd").new(self)
+var gate_junctions:=preload("res://scripts/gate_junctions.gd").new(self)
 var dig_quest := preload("res://scripts/dig_quest.gd").new(self)
 var note_flowers := preload("res://scripts/note_flowers.gd").new(self)
 var world_tools := preload("res://scripts/world_tools.gd").new(self)
@@ -47,6 +48,7 @@ var grass_variants:Texture2D=preload("res://assets/grass_variants.png")
 var stone_peek:Texture2D=preload("res://assets/stone_peek.png")
 var ground: Texture2D = preload("res://assets/ground.png")
 var glow: Texture2D = preload("res://assets/glow.png")
+var hand_grips:Dictionary=JSON.parse_string(FileAccess.get_file_as_string("res://assets/hand_grips.json"))
 var body_font: Font = preload("res://assets/body.ttf")
 var label_atlas_pixels:Image
 var label_sprite_bounds:Dictionary={}
@@ -1129,9 +1131,9 @@ func blocked(pos: Vector2,projectile:bool=false) -> bool:
 func gate_blocks(door:Dictionary,point:Vector2,projectile:bool=false)->bool:
 	var local:Vector2=point-door.pos
 	var pad:=Vector2.ZERO if projectile else Vector2(10,7)
-	for side in [-90.0,90.0]:
+	for side in [-96.0,96.0]:
 		if Rect2(Vector2(side-32,-4)-pad,Vector2(64,10)+pad*2).has_point(local):return true
-	for x in [-104.0,76.0]:
+	for x in [-110.0,82.0]:
 		if Rect2(Vector2(x,-10)-pad,Vector2(32,16)+pad*2).has_point(local):return true
 	if door.id!="exit":return false
 	var opened:bool=door_is_open("exit") and float(door.get("gate_amount",0))>.25
@@ -1139,14 +1141,7 @@ func gate_blocks(door:Dictionary,point:Vector2,projectile:bool=false)->bool:
 	return leaf.has_point(local)
 
 func prepare_gate_jambs()->void:
-	for door in objects:
-		if door.kind!="doorway":continue
-		var cell:=Vector2i(door.pos/TILE)
-		var inside:=1 if door.id=="exit" else -1
-		for side in [-2,2]:
-			set_cell(cell.x+side,cell.y,".")
-			set_cell(cell.x+side,cell.y+inside,".")
-			set_cell(cell.x+side,cell.y-inside," " if door.id=="exit" else "#")
+	gate_junctions.prepare()
 	for cell in hedge_trees.keys():
 		if grid[cell.y][cell.x]!="#":hedge_trees.erase(cell)
 	objects.assign(objects.filter(func(obj):
@@ -1370,6 +1365,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if obj.has("flight_start") and time<float(obj.flight_start)+float(obj.flight_duration):return false
 	if dig_quest.owns(obj):return dig_quest.available(obj)
 	if obj.kind=="fallen_tree":return false
 	if obj.kind=="weapon_crate":return false
@@ -1515,6 +1511,7 @@ func item_visual_bounds(obj: Dictionary) -> Rect2:
 	if obj.kind=="quest_tree":return Rect2(position+Vector2(-64,-172),Vector2(128,192))
 	var name:String=rune_stones.texture(obj) if obj.kind=="riddle_stone" or (level==6 and obj.kind=="stone") else "house_door_open" if obj.kind=="house_door" and obj.get("opened",false) else "accessory_"+str(obj.accessory) if obj.kind=="accessory" else ("flashlight" if obj.get("ground_tool",false) else "flashlight_rest") if obj.kind=="stand_flashlight" else obj.kind
 	if name=="quest_axe":name="axe"
+	if name=="quest_pebble":name+="%d"%int(obj.get("stone_variant",0))
 	if not sprites.has(name):return Rect2(position-Vector2(24,32),Vector2(48,32))
 	if not label_sprite_bounds.has(name):
 		var id:int=sprites[name]
@@ -1525,7 +1522,7 @@ func item_visual_bounds(obj: Dictionary) -> Rect2:
 		var result:=Rect2(position+local.position.rotated(float(obj.get("ground_angle",PI/2))),Vector2.ZERO)
 		for corner in [local.position,local.position+Vector2(local.size.x,0),local.end,local.position+Vector2(0,local.size.y)]:result=result.expand(position+corner.rotated(float(obj.get("ground_angle",PI/2))))
 		return result
-	var scale_factor:=.65 if obj.get("on_table",false) else 3.0 if obj.kind=="chest" and obj.id=="final" else .5 if obj.kind=="gate_key" else .7 if obj.kind=="skull_relic" else 2.0 if obj.kind=="house_door" else 1.0
+	var scale_factor:=.65 if obj.get("on_table",false) or obj.kind in ["quest_axe","pickaxe","shovel"] else 3.0 if obj.kind=="chest" and obj.id=="final" else .5 if obj.kind=="gate_key" else .7 if obj.kind=="skull_relic" else 2.0 if obj.kind=="house_door" else 1.0
 	var bounds:=Rect2(position+(source.position*2-Vector2(32,86))*scale_factor,source.size*2*scale_factor)
 	if level==6 and obj.kind=="stone":bounds=bounds.expand(position+Vector2(0,-60))
 	return bounds
@@ -2043,9 +2040,8 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
 
 func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> void:
-	if name=="quest_tree":name="quest_tree_outline";scale_factor*=2.0
+	if name=="quest_tree":name=dig_quest.damage_texture(name)+"_outline";scale_factor*=2.0
 	if name=="quest_axe":name="axe"
-	if name=="quest_tree" or name.begins_with("quest_tree_damage"):scale_factor*=2.0
 	if name=="shovel" and level==3 and dig_quest.state().broken:name="shovel_broken"
 	if hedge_tree_textures.has(name):
 		if not outlines.has(name):
@@ -2118,6 +2114,7 @@ func _draw() -> void:
 	var corridor_pedestal:=Vector2.INF
 	var corridor_torch:=Vector2.INF
 	var corridor_torch_ground:=false
+	var corridor_torch_angle:=PI/2
 	var destination:=-1
 	if level<6 and camera.y<get_viewport_rect().size.y/2+100:destination=level+1
 	elif level>0 and camera.y>grid.size()*TILE-get_viewport_rect().size.y/2-100:destination=level-1
@@ -2137,8 +2134,9 @@ func _draw() -> void:
 		if level==1:
 			night_band=Rect2(screen(Vector2(0,5*TILE)),Vector2(grid[0].length()*TILE,(grid.size()-10)*TILE))
 			for obj in objects:
+				if not torch.neighbor_overlay(obj):continue
 				if obj.kind=="flashlight_pedestal":corridor_pedestal=screen(obj.pos)
-				if obj.kind=="stand_flashlight" and held_item!="flashlight" and int(save_data.flashlight_location.get("room",1))==1:corridor_torch=screen(obj.pos);corridor_torch_ground=obj.get("ground_tool",false)
+				if obj.kind=="stand_flashlight" and held_item!="flashlight" and int(save_data.flashlight_location.get("room",1))==1:corridor_torch=screen(obj.pos);corridor_torch_ground=obj.get("ground_tool",false);corridor_torch_angle=float(obj.get("ground_angle",PI/2))
 		drawing_neighbor=false;neighbor_return_gate=false;level=old_level;camera=old_camera
 		for field in ROOM_FIELDS:set(field,old_state[field])
 	if destination>level:_draw_world()
@@ -2147,7 +2145,7 @@ func _draw() -> void:
 		draw_sprite("pedestal",corridor_pedestal)
 	if corridor_torch!=Vector2.INF:
 		if corridor_torch_ground:
-			draw_set_transform(corridor_torch,PI/2);draw_sprite("flashlight",Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
+			draw_set_transform(corridor_torch,corridor_torch_angle);draw_sprite("flashlight",Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 		else:draw_sprite("flashlight_rest",corridor_torch)
 	var view:=get_viewport_rect().size
 	for i in range(8):
@@ -2242,6 +2240,7 @@ func _draw_world() -> void:
 	for y in range(maxi(0,from.y),mini(grid.size(),to.y)):
 		for x in range(maxi(0,from.x),mini(grid[0].length(),to.x)):
 			if grid[y][x]==" " or (drawing_neighbor and corridor_row(y)): continue
+			if gate_junctions.skip_wall(Vector2i(x,y)):continue
 			var p := screen(Vector2(x,y)*TILE)
 			var tile := 0
 			if level==4 or level==6: tile=2 if (x+y)%3 else 1
@@ -2249,7 +2248,7 @@ func _draw_world() -> void:
 			elif level==0: tile=3
 			if corridor_row(y):
 				var north:int=15 if level==0 else 13
-				var height:=34.0 if level<6 and y==3 and x in [north-2,north+2] else TILE
+				var height:=TILE
 				draw_texture_rect_region(ground,Rect2(p,Vector2(TILE,height)),Rect2(Vector2(24,0),Vector2(24,height/2)))
 			elif grass_texture!=null and level not in [4,6]:draw_texture_rect_region(grass_texture,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(x,y)*24,Vector2(24,24)))
 			else:draw_texture_rect_region(romance_ground if level==6 else ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
@@ -2380,19 +2379,21 @@ func _draw_world() -> void:
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width,5)),INK)
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width*float(enemy.hp)/float(enemy.get("max_hp",enemy.hp)),5)),PINK)
 		else:
-			if not drawing_neighbor and task_time<=0 and not item.has("wall") and item.pos.distance_squared_to(player)<9025 and available(item) and interaction_reachable(item) and kind not in ["doorway","arch"]:
-				var highlight := rune_stones.texture(item) if kind=="riddle_stone" or (level==6 and kind=="stone") else "house_door" if kind=="house_door" else "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else ("flashlight" if item.get("ground_tool",false) else "flashlight_rest") if kind=="stand_flashlight" else kind
+			if not drawing_neighbor and available(item) and task_time<=0 and not item.has("wall") and item.pos.distance_squared_to(player)<9025 and available(item) and interaction_reachable(item) and kind not in ["doorway","arch"]:
+				var highlight := "quest_pebble"+str(item.get("stone_variant",0)) if kind=="quest_pebble" else rune_stones.texture(item) if kind=="riddle_stone" or (level==6 and kind=="stone") else "house_door" if kind=="house_door" else "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else ("flashlight" if item.get("ground_tool",false) else "flashlight_rest") if kind=="stand_flashlight" else kind
 				if kind=="sprout":draw_pickup_outline("bed_border"+str(world_tools.variant(item.id)),p,.9+float(world_tools.variant(item.id))*.035)
 				elif item.get("ground_tool",false):
 					draw_set_transform(p,float(item.get("ground_angle",PI/2)));draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p,1.0)
-				else:draw_pickup_outline(highlight,screen(item_display_position(item)),.65 if item.get("on_table",false) else 3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
+				else:draw_pickup_outline(highlight,screen(item_display_position(item)),.65 if item.get("on_table",false) or kind in ["quest_axe","pickaxe","shovel"] else 3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
 			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false) and kind not in ["flowers","blueflowers"]:
 				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
 				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
 			if item.get("ground_tool",false):
 				draw_set_transform(p,float(item.get("ground_angle",PI/2)));draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 			elif item.get("on_table",false):draw_sprite(kind,p,Color.WHITE,.65)
+			elif kind in ["quest_axe","pickaxe","shovel"]:draw_sprite(kind,screen(item_display_position(item)),Color.WHITE,.65)
+			elif kind=="quest_pebble":draw_sprite("quest_pebble"+str(item.get("stone_variant",0)),p)
 			elif kind=="quest_falling":dig_quest.draw_falling(item,p)
 			elif kind=="cat_hut":
 				draw_sprite(kind,p)
@@ -2426,7 +2427,7 @@ func _draw_world() -> void:
 			elif kind=="letter_box":draw_sprite("letter_box_open" if item.get("archive_open",false) else "letter_box",p)
 			elif kind=="skull_stand":draw_sprite("skull_stand_full" if save_data.get("skull_inserted",false) else "skull_stand",p)
 			elif kind=="doorway":
-				draw_sprite("gate_post",p+Vector2(-90,0));draw_sprite("gate_post",p+Vector2(90,0))
+				gate_junctions.draw(item,p)
 				if item.id=="exit":draw_gate(p,1.0 if drawing_neighbor and (neighbor_return_gate or door_is_open("exit")) else float(item.get("gate_amount",0.0)))
 			elif kind=="flashlight_pedestal":draw_sprite("pedestal",p)
 			elif kind=="stand_flashlight":draw_sprite("flashlight_rest",p)
@@ -2966,7 +2967,6 @@ func draw_corridor_extensions() -> Array[Dictionary]:
 	return walls
 
 func corridor_wall_kind(row: int) -> String:
-	if level==6 and row==grid.size()-5:return "stone"
 	# The shared garden/final passage has one material in both coordinate spaces.
 	if (level==5 and row<5) or (level==6 and row>=grid.size()-5):return "tree"
 	return "stone"
@@ -3684,18 +3684,8 @@ func hand_is_behind()->bool:
 
 func right_hand_position()->Vector2:
 	var face:=visual_facing();var frame:=player_walk_frame()
-	var pixel:=Vector2(24.5 if face==0 else 7.5,34+frame%2)
-	if face in [1,3]:
-		var stride:=roundf(sin(frame*TAU/8)*3)
-		var bob:=1 if frame in [1,2,5,6] else 0
-		pixel=Vector2(16+stride,35+bob)
-	elif face in [4,5,6,7]:
-		var bob:=frame%2;var step:float=[0,2,0,-2][frame%4]
-		if face==4:pixel=Vector2(24,32+bob-step/2)
-		elif face==5:pixel=Vector2(8,32+bob-step/2)
-		elif face==6:pixel=Vector2(7.5,34+bob+step/2)
-		else:pixel=Vector2(24.5,34+bob+step/2)
-	return player+body_motion()+(pixel-Vector2(16,43))*2
+	var grip:Array=hand_grips[str(face)+":"+str(frame)]
+	return player+body_motion()+(Vector2(grip[0],grip[1])-Vector2(16,43))*2
 
 func held_tool_pose() -> Dictionary:
 	var toward:Vector2=walk_facing.normalized()
