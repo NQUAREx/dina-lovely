@@ -9,6 +9,7 @@ func run():
    var cell=Vector2i(gate.pos/48);var inside=1 if gate.id=="exit" else -1
    for side in [-2,2]:
     assert(g.grid[cell.y][cell.x+side]=="#")
+    if g.hedge_field!=null:assert(not g.hedge_field.wall(Vector2i(cell.x+side,cell.y)))
     assert(g.grid[cell.y-inside][cell.x+side]=="#")
    for side in [-160,-120,120,160]:assert(g.blocked(gate.pos+Vector2(side,0)))
    assert(g.gate_blocks(gate,gate.pos+Vector2(90,0)))

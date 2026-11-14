@@ -12,6 +12,8 @@ for room in ['hedge','stone']:
    # Same ground footprint and perspective as the ordinary wall tile. The
    # taller post overlaps it, rather than replacing a hole in the wall.
    im.alpha_composite(sprite('stone'),(8,37))
-   im.alpha_composite(sprite('gate_post'),(8,37))
+   # The shaft enters the wall's top face. No separate plinth underneath.
+   shaft=sprite('gate_post').crop((0,0,32,24))
+   im.alpha_composite(shaft,(8,37))
    for side,s in [('left',im),('right',ImageOps.mirror(im))]:s.save(A/f'junction_{room}_{corridor}_{end}_{side}.png')
 print('Generated 16 material-aware gate junction sprites')

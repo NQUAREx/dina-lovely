@@ -1057,6 +1057,9 @@ func build_level(index: int) -> void:
 		var foliage_grid:Array[String]=grid.duplicate()
 		for row in range(grid.size()):
 			if corridor_row(row):foliage_grid[row]=foliage_grid[row].replace("#"," ")
+			else:
+				for column in range(foliage_grid[row].length()):
+					if gate_junctions.pillar_cell(Vector2i(column,row)):foliage_grid[row][column]=" "
 		hedge_field=HedgeField.new();hedge_field.build(foliage_grid,int(save_data.seed)+level*16427,hedge_trees,berry_cells,hedge_material.get_image())
 	if level==6:
 		objects.assign(objects.filter(func(obj):return obj.kind not in ["crate","column","column_wreath","lamp","candle","candle_heart","heart_stand"] or not Rect2(Vector2(20.8*48,8.8*48),Vector2(3.4*48,9.7*48)).has_point(obj.pos)))
@@ -1115,7 +1118,7 @@ func blocked(pos: Vector2,projectile:bool=false) -> bool:
 			if corridor_floor_point(pos+offset):continue
 			return true
 		if c.x<0 or c.x>=grid[0].length() or grid[c.y][c.x]==" ": return true
-		if grid[c.y][c.x]=="#" and (hedge_field==null or corridor_row(c.y)):return true
+		if grid[c.y][c.x]=="#" and (hedge_field==null or corridor_row(c.y) or gate_junctions.pillar_cell(c)):return true
 	if hedge_field!=null and hedge_field.blocks(pos):return true
 	for obj in objects:
 		if obj.kind=="doorway" and gate_blocks(obj,pos,projectile):return true
@@ -1143,13 +1146,13 @@ func gate_blocks(door:Dictionary,point:Vector2,projectile:bool=false)->bool:
 func prepare_gate_jambs()->void:
 	gate_junctions.prepare()
 	for cell in hedge_trees.keys():
-		if grid[cell.y][cell.x]!="#":hedge_trees.erase(cell)
+		if grid[cell.y][cell.x]!="#" or gate_junctions.pillar_cell(cell):hedge_trees.erase(cell)
 	objects.assign(objects.filter(func(obj):
 		if not obj.get("integrated_hedge",false):return true
 		var cell:=Vector2i(obj.pos/TILE)
-		return grid[cell.y][cell.x]=="#"))
+		return grid[cell.y][cell.x]=="#" and not gate_junctions.pillar_cell(cell)))
 	for cell in berry_cells.keys():
-		if grid[cell.y][cell.x]!="#":
+		if grid[cell.y][cell.x]!="#" or gate_junctions.pillar_cell(cell):
 			var id:String=berry_cells[cell];berry_cells.erase(cell)
 			objects.assign(objects.filter(func(obj):return obj.kind!="berries" or obj.id!=id))
 
@@ -2240,7 +2243,6 @@ func _draw_world() -> void:
 	for y in range(maxi(0,from.y),mini(grid.size(),to.y)):
 		for x in range(maxi(0,from.x),mini(grid[0].length(),to.x)):
 			if grid[y][x]==" " or (drawing_neighbor and corridor_row(y)): continue
-			if gate_junctions.skip_wall(Vector2i(x,y)):continue
 			var p := screen(Vector2(x,y)*TILE)
 			var tile := 0
 			if level==4 or level==6: tile=2 if (x+y)%3 else 1
@@ -2255,6 +2257,7 @@ func _draw_world() -> void:
 			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
+			if gate_junctions.skip_wall(Vector2i(x,y)):continue
 			if grid[y][x]=="#" and (level in [1,2,4] or corridor_row(y)):
 				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
