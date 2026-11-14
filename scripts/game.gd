@@ -2427,6 +2427,7 @@ func _draw_world() -> void:
 			elif kind=="skull_relic":draw_sprite(kind,screen(item_display_position(item)),Color.WHITE,.7)
 			elif kind=="letter_box":draw_sprite("letter_box_open" if item.get("archive_open",false) else "letter_box",p)
 			elif kind=="skull_stand":draw_sprite("skull_stand_full" if save_data.get("skull_inserted",false) else "skull_stand",p)
+			elif kind=="stone" and level!=6:masonry.draw_wall(item,p)
 			elif kind=="reference_wall":masonry.draw_wall(item,p)
 			elif item.has("wall"):masonry.draw_wall(item,p)
 			elif kind=="doorway":
