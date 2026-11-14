@@ -2335,6 +2335,8 @@ func _draw_world() -> void:
 	scene_fx.draw(true)
 	renderables.sort_custom(func(a,b):
 		if a.pos.y==b.pos.y:
+			# Wall blocks support taller gate pillars at the same ground depth.
+			if a.get("wall",false)!=b.get("wall",false):return a.get("wall",false)
 			if a.kind=="dug" and b.kind!="dug":return true
 			if b.kind=="dug" and a.kind!="dug":return false
 			return a.pos.x<b.pos.x
@@ -2539,8 +2541,8 @@ func add_corridors() -> void:
 			if y>=grid.size()-5:
 				set_cell(south-2,y,"#");set_cell(south+2,y,"#")
 	for side in [-2,2]:
-		set_cell(north+side,5,".")
-		if level>0:set_cell(south+side,grid.size()-6,".")
+		set_cell(north+side,5,"#")
+		if level>0:set_cell(south+side,grid.size()-6,"#")
 	for obj in objects:
 		if obj.id=="exit":
 			obj.kind="doorway"

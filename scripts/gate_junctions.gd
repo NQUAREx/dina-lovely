@@ -1,5 +1,5 @@
 extends RefCounted
-## Junction art and the cell reservation use the same orthogonal wall footprint.
+## A solid wall cell supports each tall pillar; neighbouring walls remain behind it.
 var g:Node2D
 var textures:Dictionary={}
 func _init(game:Node2D):g=game
@@ -11,13 +11,10 @@ func prepare()->void:
   if door.kind!="doorway":continue
   var cell:=Vector2i(door.pos/48);var inside:=1 if door.id=="exit" else -1
   for side in [-2,2]:
-   g.set_cell(cell.x+side,cell.y,".")
-   g.set_cell(cell.x+side,cell.y+inside,".")
+   g.set_cell(cell.x+side,cell.y,"#")
    g.set_cell(cell.x+side,cell.y-inside,"#")
 func skip_wall(cell:Vector2i)->bool:
- var north:=15 if g.level==0 else 13
- if g.level<6 and cell.y in [3,4] and absi(cell.x-north)==2:return true
- return g.level>0 and cell.y==g.grid.size()-5 and absi(cell.x-13)==2
+ return false
 func draw(door:Dictionary,pos:Vector2)->void:
  var room:=room_material();var corridor:=corridor_material(door);var end:="top" if door.id=="exit" else "bottom"
  for side in ["left","right"]:

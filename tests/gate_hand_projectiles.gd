@@ -8,8 +8,7 @@ func run():
   for gate in g.objects.filter(func(o):return o.kind=="doorway"):
    var cell=Vector2i(gate.pos/48);var inside=1 if gate.id=="exit" else -1
    for side in [-2,2]:
-    assert(g.grid[cell.y][cell.x+side]==".")
-    assert(g.grid[cell.y+inside][cell.x+side]==".")
+    assert(g.grid[cell.y][cell.x+side]=="#")
     assert(g.grid[cell.y-inside][cell.x+side]=="#")
    for side in [-160,-120,120,160]:assert(g.blocked(gate.pos+Vector2(side,0)))
    assert(g.gate_blocks(gate,gate.pos+Vector2(90,0)))
@@ -22,7 +21,7 @@ func run():
  g.build_level(3)
  for gate in g.objects.filter(func(o):return o.kind=="doorway"):
   var row=floori(gate.pos.y/48);var x=floori(gate.pos.x/48)
-  for side in [-2,2]:assert(g.grid[row][x+side]==".")
+  for side in [-2,2]:assert(g.grid[row][x+side]=="#")
   assert(g.blocked(gate.pos+Vector2(84,0)),"gate post lost its collision")
  g.save_data.open_gates.append(3)
  var exit=g.objects.filter(func(o):return o.id=="exit")[0];exit.gate_amount=1.0
