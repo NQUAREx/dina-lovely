@@ -3,6 +3,22 @@ func _initialize():call_deferred("run")
 func run():
  var g=load("res://main.tscn").instantiate();root.add_child(g);await process_frame
  g.new_game();g.clear_modal();g.set_process(false);g.set_physics_process(false);g.sound_on=false
+ for room in range(7):
+  g.activate_cached_room(room)
+  for gate in g.objects.filter(func(o):return o.kind=="doorway"):
+   var cell=Vector2i(gate.pos/48);var inside=1 if gate.id=="exit" else -1
+   for side in [-2,2]:
+    assert(g.grid[cell.y][cell.x+side]==".")
+    assert(g.grid[cell.y+inside][cell.x+side]==".")
+    assert(g.grid[cell.y-inside][cell.x+side]==(" " if gate.id=="exit" else "#"))
+   for side in [-160,-120,120,160]:assert(g.blocked(gate.pos+Vector2(side,0)))
+   assert(g.gate_blocks(gate,gate.pos+Vector2(90,0)))
+   if gate.id=="exit":
+    g.save_data.open_gates.append(room);gate.gate_amount=1.0
+    assert(not g.gate_blocks(gate,gate.pos+Vector2(36,0)))
+    assert(g.gate_blocks(gate,gate.pos+Vector2(-36,0)))
+    g.save_data.open_gates.erase(room);gate.gate_amount=0.0
+    assert(g.gate_blocks(gate,gate.pos+Vector2(36,0)))
  g.build_level(3)
  for gate in g.objects.filter(func(o):return o.kind=="doorway"):
   var row=floori(gate.pos.y/48);var x=floori(gate.pos.x/48)
@@ -16,7 +32,7 @@ func run():
  assert(g.objects.filter(func(o):return o.id=="shovel")[0].pos==foot)
  g.build_level(4);g.wave=1;g.combat_done=false
  var top=Vector2(13.5*48,6.85*48)
- assert(g.blocked(top) and not g.projectile_blocked(top))
+ assert(not g.projectile_blocked(top))
  var bottom=Vector2(13.5*48,(g.grid.size()-6.85)*48)
  assert(g.blocked(bottom) and not g.projectile_blocked(bottom))
  g.objects.clear();g.enemies.clear();g.shots.clear()
