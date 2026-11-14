@@ -25,7 +25,3 @@ func draw(door:Dictionary,pos:Vector2)->void:
   if not textures.has(key):textures[key]=load("res://assets/"+key+".png")
   var x:=-96.0 if side=="left" else 96.0
   g.draw_texture_rect(textures[key],Rect2(pos+Vector2(x-48,-160),Vector2(96,224)),false)
-
-func draw_lintel(door:Dictionary,pos:Vector2)->void:
- if not textures.has("lintel"):textures["lintel"]=load("res://assets/gate_lintel.png")
- g.draw_texture_rect(textures.lintel,Rect2(pos+Vector2(-128,-174),Vector2(256,96)),false)
