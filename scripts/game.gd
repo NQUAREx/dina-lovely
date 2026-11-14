@@ -3631,7 +3631,7 @@ func body_motion()->Vector2:
 	return -rifle_kick_dir*rifle_kick+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
 
 func hand_is_behind()->bool:
-	return visual_facing() in [0,1,4,5]
+	return visual_facing() in [0,1,4,5,6]
 
 func right_hand_position()->Vector2:
 	var face:=visual_facing();var frame:=player_walk_frame()

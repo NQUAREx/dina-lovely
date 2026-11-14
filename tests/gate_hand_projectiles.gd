@@ -31,6 +31,6 @@ func run():
    for frame in range(8):
     g.time=frame/16.0;var pose=g.held_tool_pose()
     assert(pose.hand==g.right_hand_position())
-   if direction==Vector2(-1,1):assert(not g.hand_is_behind())
+   if direction==Vector2(-1,1):assert(g.hand_is_behind())
  print("PASS gate jambs, exact-foot drops, arena-edge projectiles and eight-direction grips")
  quit()
