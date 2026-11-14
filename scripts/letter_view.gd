@@ -97,6 +97,7 @@ func _ready() -> void:
         age = 1.5
 
 func close() -> void:
+    game.note_flowers.closed[str(letter.get("id",""))] = true
     if returning:
         return
     if is_instance_valid(stack_view):

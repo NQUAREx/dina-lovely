@@ -1,6 +1,7 @@
 extends RefCounted
 ## Ground-only flowers. Growth is sampled at 20 Hz, independent of rendering FPS.
 var g:Node2D
+var closed:Dictionary={}
 var plots:Dictionary={}
 var grounds:Dictionary={}
 var flowers:Dictionary={}
@@ -17,6 +18,7 @@ func update(delta:float)->void:
  clock=0.0
  for obj in g.objects:
   if obj.kind!="note" or obj.id not in g.save_data.letters:continue
+  if not closed.has(str(obj.id)) and str(g.level)+":"+str(obj.id) not in g.save_data.flower_notes:continue
   var key:=str(g.level)+":"+str(obj.id)
   if not plots.has(key):
    plots[key]=make_plot(obj)
@@ -28,9 +30,9 @@ func update(delta:float)->void:
 func make_plot(note:Dictionary)->Dictionary:
  var rng:=RandomNumberGenerator.new();rng.seed=seed_value^hash(str(note.id))
  var points:Array[Dictionary]=[]
- for n in range(52):
+ for n in range(42):
   var angle:=n*2.399963+ rng.randf_range(-.2,.2)
-  var radius:=24+sqrt((n+.5)/52.0)*70
+  var radius:=20+sqrt((n+.5)/42.0)*60
   var p:Vector2=(note.pos+Vector2(cos(angle),sin(angle))*radius).snapped(Vector2(2,2))
   var cell:=Vector2i(p/48)
   if not g.valid_ground(p) or g.corridor_row(cell.y) or g.grid[cell.y][cell.x]!="." or g.blocked(p):continue

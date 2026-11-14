@@ -170,12 +170,13 @@ func stamp(pos:Vector2)->void:
  var key:=str(g.level);var mask:Image=masks[key];var image:Image=images[key];var centre:=Vector2i(pos/2)
  var shape_rng:=RandomNumberGenerator.new()
  shape_rng.seed=int(g.save_data.seed)^(int(pos.x)*73856093)^(int(pos.y)*19349663)^(g.level*4177)
+ var shrink:=Vector2(shape_rng.randf_range(.4,1.0),shape_rng.randf_range(.4,1.0))
  var variant:=shape_rng.randi_range(0,7);var mirror:=shape_rng.randf()>.5
  for y in range(28):
   for x in range(40):
    var target:=centre+Vector2i(x-20,y-14)
    if target.x<1 or target.y<1 or target.x>=mask.get_width()-1 or target.y>=mask.get_height()-1:continue
-   if dig_shapes.get_pixel(variant*40+(39-x if mirror else x),y).a>.5:mask.set_pixelv(target,Color.WHITE)
+   if absf((x-20)/shrink.x)<20 and absf((y-14)/shrink.y)<14 and dig_shapes.get_pixel(variant*40+int(20+(19-x if mirror else x-20)/shrink.x),int(14+(y-14)/shrink.y)).a>.5:mask.set_pixelv(target,Color.WHITE)
  # The union mask owns the rim. Running depth down each column avoids the old
  # twenty-pixel upward search at every pixel and leaves no seams between stamps.
  var first_y:=maxi(1,centre.y-16);var last_y:=mini(mask.get_height()-1,centre.y+36)

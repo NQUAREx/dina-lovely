@@ -26,17 +26,27 @@ func install()->void:
    choices=choices.filter(func(q):return q.distance_to(p)>120)
  g.objects.assign(g.objects.filter(func(o):return not owns(o)))
  add("quest_bench","bench",point("bench"),true)
- add("quest_stump" if d.tree_down else "quest_tree","tree",point("tree"),not d.tree_down)
+ add("quest_stump" if d.tree_down else "quest_tree","tree",point("tree"),true)
  if not d.rock_taken:add("quest_rock_fragments" if d.rock_broken else "quest_rock","rock",point("rock"),not d.rock_broken)
  for n in range(3):
-  if d.tree_down and "branch"+str(n) not in d.gathered:add("quest_branch","branch"+str(n),point("tree")+Vector2(-48+n*48,38))
-  if "pebble"+str(n) not in d.gathered:add("quest_pebble","pebble"+str(n),point("rock")+Vector2(-44+n*44,48))
+  if d.tree_down and "branch"+str(n) not in d.gathered:add("quest_branch","branch"+str(n),scatter("tree",n))
+  if "pebble"+str(n) not in d.gathered:add("quest_pebble","pebble"+str(n),scatter("rock",n))
  for tool in ["quest_axe","pickaxe","shovel"]:
   if tool=="pickaxe" and not d.pickaxe:continue
   if tool=="shovel" and not d.shovel:continue
   var key:String="3:"+str(tool)
   var a:Array=g.save_data.tool_positions.get(key,d.layout.axe if tool=="quest_axe" else [point("bench").x+40,point("bench").y+30])
   add(tool,tool,Vector2(a[0],a[1]))
+func scatter(origin:String,n:int)->Vector2:
+ var rng:=RandomNumberGenerator.new();rng.seed=int(g.save_data.seed)^hash(origin)^((n+1)*7169)
+ var angle:=rng.randf_range(0,TAU)
+ return point(origin)+Vector2(cos(angle),sin(angle))*rng.randf_range(48,78)
+func toss(tool:String)->void:
+ var p:Vector2=g.item_drop_spot(point("bench")+Vector2.from_angle(randf_range(0,TAU))*randf_range(40,65))
+ g.save_data.tool_positions["3:"+tool]=[p.x,p.y]
+ install()
+ for obj in g.objects:
+  if obj.id==tool:obj.flight_start=g.time;obj.flight_duration=.65;obj.flight_from=point("bench")
 func add(kind:String,id:String,pos:Vector2,solid:bool=false)->void:g.objects.append({"kind":kind,"id":id,"pos":pos,"solid":solid})
 func available(obj:Dictionary)->bool:
  if obj.kind in ["quest_axe","pickaxe","shovel"]:return g.held_item!=obj.id
@@ -95,8 +105,8 @@ func complete(kind:String,pos:Vector2)->bool:
   "quest_mine":
    d.rock_hits+=1;g.burst(pos,12,Color("a8a7a6"))
    if d.rock_hits>=4:d.rock_broken=true;install()
-  "quest_pickaxe":d.pickaxe=true;install();equip("pickaxe")
-  "quest_shovel":d.shovel=true;install();equip("shovel")
+  "quest_pickaxe":d.pickaxe=true;toss("pickaxe")
+  "quest_shovel":d.shovel=true;toss("shovel")
   "quest_repair":d.broken=false;d.uses=0;d.durability=randi_range(3,6);equip("shovel")
  g.sfx("chime");return true
 func equip(tool:String)->void:
@@ -108,6 +118,7 @@ func wear_shovel()->void:
 func blocks(pos:Vector2)->bool:
  if g.level!=3:return false
  for obj in g.objects:
+  if obj.kind=="quest_stump" and (pos-obj.pos).length()<22:return true
   if obj.kind=="quest_tree" and (pos-obj.pos).length()<35:return true
   if obj.kind=="quest_bench" and Rect2(obj.pos-Vector2(39,23),Vector2(78,40)).has_point(pos):return true
  return false
@@ -121,3 +132,9 @@ func draw_falling(obj:Dictionary,p:Vector2)->void:
  g.draw_set_transform(p,t*t*1.35)
  g.draw_sprite("quest_tree",Vector2.ZERO,Color(1,1,1,1-smoothstep(.45,1.0,t)))
  g.draw_set_transform(Vector2.ZERO)
+
+func damage_texture(name:String)->String:
+ if g.level!=3:return name
+ if name=="quest_tree" and state().hits>0:return "quest_tree_damage"+str(clampi(int(state().hits),1,6))
+ if name=="quest_rock" and state().rock_hits>0:return "quest_rock_damage"+str(clampi(int(state().rock_hits),1,3))
+ return name

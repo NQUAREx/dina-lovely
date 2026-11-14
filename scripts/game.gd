@@ -1992,8 +1992,9 @@ func screen(pos: Vector2) -> Vector2:
 
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
 	if name=="quest_axe":name="axe"
-	if name=="quest_tree":scale_factor*=2.0
+	if name=="quest_tree" or name.begins_with("quest_tree_damage"):scale_factor*=2.0
 	if name=="shovel" and level==3 and dig_quest.state().get("broken",false):name="shovel_broken"
+	name=dig_quest.damage_texture(name)
 	var id := int(sprites.get(name,0))
 	if name in ["hedge_tree","hedge_tree_apples"]:
 		draw_texture_rect(hedge_tree_textures[name],Rect2(pos+Vector2(-32,-96)*scale_factor,Vector2(64,96)*scale_factor),false,color)
@@ -2002,8 +2003,9 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
 
 func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> void:
+	if name=="quest_tree":name="quest_tree_outline";scale_factor*=2.0
 	if name=="quest_axe":name="axe"
-	if name=="quest_tree":scale_factor*=2.0
+	if name=="quest_tree" or name.begins_with("quest_tree_damage"):scale_factor*=2.0
 	if name=="shovel" and level==3 and dig_quest.state().broken:name="shovel_broken"
 	if hedge_tree_textures.has(name):
 		if not outlines.has(name):
@@ -2747,6 +2749,10 @@ func draw_extra_effects() -> void:
 		var id:int=sprites[texture]
 		draw_texture_rect_region(atlas,Rect2(-pose.anchor*pose.scale,Vector2(32,48)*pose.scale),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)))
 		draw_set_transform(Vector2.ZERO)
+	if level==3 and task_kind=="quest_chop" and task_time>0:
+		var bar:=screen(dig_quest.point("tree"))+Vector2(-35,-185)
+		draw_rect(Rect2(bar,Vector2(70,6)),INK)
+		draw_rect(Rect2(bar,Vector2(70*(1-float(dig_quest.state().hits)/float(dig_quest.state().tree_hits)),6)),Color("a8c394"))
 	if task_time>0 and (task_kind=="fill" or task_kind.begins_with("water:") or task_kind.begins_with("rake:") or task_kind.begins_with("fertilize:")):
 		var pose:=held_tool_pose()
 		var origin:=screen(pose.tip)
@@ -3607,7 +3613,9 @@ func held_tool_pose() -> Dictionary:
 	var using:=task_time>0
 	if using:toward=(task_target-player).normalized()
 	var hand:=player+Vector2(toward.x*16 if absf(toward.x)>.2 else 12,-21+toward.y*3)
-	if moving and not using:hand.y+=sin(time*12)*1.2
+	if moving and not using:
+		var step:=float(player_walk_frame())
+		hand+=Vector2(toward.x*(step-1)*2,[0.0,-2.0,0.0,2.0][int(step)%4])
 	if using:toward=(task_target+Vector2(0,-55 if task_kind=="fill" else -10)-hand).normalized()
 	var anchors:Dictionary={"can":Vector2(14,24),"rake":Vector2(16,31),"fertilizer":Vector2(16,32),"shovel":Vector2(16,29),"flashlight":Vector2(16,32),"axe":Vector2(15,34),"quest_axe":Vector2(15,34),"pickaxe":Vector2(16,32),"shears":Vector2(16,35),"drill":Vector2(16,28)}
 	var tips:Dictionary={"can":Vector2(30,28),"rake":Vector2(19,14),"fertilizer":Vector2(16,23),"shovel":Vector2(16,45),"flashlight":Vector2(16,21),"axe":Vector2(24,19),"quest_axe":Vector2(24,19),"pickaxe":Vector2(22,20),"shears":Vector2(18,19),"drill":Vector2(16,45)}

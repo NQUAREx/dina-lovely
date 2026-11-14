@@ -45,3 +45,30 @@ for name,s in new.items():
   bigger=Image.new('RGBA',(512,height));bigger.paste(im,(0,0));im=bigger
  im.paste(s,(idx%16*32,idx//16*48))
 im.save(a/'atlas.png');(a/'atlas.json').write_text(json.dumps(ids)+'\n')
+# Damage stages and a thicker carved stump, each a standalone atlas sprite.
+im=Image.open(a/'atlas.png').convert('RGBA')
+def get(name):
+ i=ids[name];return im.crop((i%16*32,i//16*48,i%16*32+32,i//16*48+48))
+def put(name,s):
+ global im
+ if name not in ids:ids[name]=max(ids.values())+1
+ i=ids[name]
+ if (i//16+1)*48>im.height:
+  b=Image.new('RGBA',(512,(i//16+1)*48));b.paste(im,(0,0));im=b
+ im.paste(s,(i%16*32,i//16*48))
+s=get('quest_stump');d=ImageDraw.Draw(s);d.rectangle((8,35,25,43),fill='#98785e');d.ellipse((7,29,26,38),fill='#d6b994',outline='#896c58')
+d.polygon([(11,31),(14,30),(17,32),(20,30),(23,31),(23,34),(17,38),(11,34)],fill='#c18d94');d.line((19,32,16,32,15,33,19,34,19,35,16,36),fill='#70565a');put('quest_stump',s)
+for base,count in [('quest_tree',6),('quest_rock',3)]:
+ for stage in range(1,count+1):
+  s=get(base);d=ImageDraw.Draw(s)
+  for n in range(stage):
+   x=13+n%5;y=29+n*2 if base=='quest_tree' else 21+n*5
+   d.line((x,y,x+3,y+2,x+1,y+4,x+4,y+5),fill='#655d59');d.point((x+1,y),fill='#c2ac8f')
+  put(base+'_damage'+str(stage),s)
+# Tree outline excludes the baked ground shadow.
+s=get('quest_tree')
+for y in range(48):
+ for x in range(32):
+  if s.getpixel((x,y))[:3]==(48,79,72):s.putpixel((x,y),(0,0,0,0))
+put('quest_tree_outline',s)
+im.save(a/'atlas.png');(a/'atlas.json').write_text(json.dumps(ids)+'\n')
