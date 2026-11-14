@@ -1,0 +1,6 @@
+Kenney Impact Sounds — Creative Commons Zero (CC0).
+https://kenney.nl/assets/impact-sounds
+Source copies: https://github.com/shoemoney/commander-in-chief/tree/main/assets/cc0_extra/sfx_impact
+chop_wood.ogg: impactWood_heavy_000.ogg
+pick_stone.ogg: impactMetal_medium_000.ogg
+craft_bench.wav: three timed metal impacts mixed locally.

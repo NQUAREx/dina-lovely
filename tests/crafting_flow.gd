@@ -43,5 +43,12 @@ func run():
  g.player=Vector2(13.5,15.5)*48;g.camera=g.player;g.queue_redraw()
  await process_frame;await process_frame
  if DisplayServer.get_name()!="headless":root.get_texture().get_image().save_png("/tmp/crafting-room.png")
+ var gates=g.objects.filter(func(o):return o.kind=="doorway")
+ for gate in gates:assert(is_equal_approx(gate.pos.y,(5.5 if gate.id=="exit" else g.grid.size()-5.5)*48))
+ g.build_level(1);g.held_item="flashlight";g.walk_facing=Vector2.LEFT;g.sync_hands();g.torch.drop(g.player)
+ var lamp=g.objects.filter(func(o):return o.id=="flashlight")[0]
+ assert(is_equal_approx(float(lamp.beam_angle),PI))
+ assert(g.held_item.is_empty())
+ print("PASS gate boundaries and saved flashlight orientation")
  print("PASS crafting chain, reverse-order resource persistence, break/repair, centered tree, ground flowers and room reentry")
  quit()

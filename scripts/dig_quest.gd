@@ -108,7 +108,7 @@ func complete(kind:String,pos:Vector2)->bool:
   "quest_pickaxe":d.pickaxe=true;toss("pickaxe")
   "quest_shovel":d.shovel=true;toss("shovel")
   "quest_repair":d.broken=false;d.uses=0;d.durability=randi_range(3,6);equip("shovel")
- g.sfx("chime");return true
+ return true
 func equip(tool:String)->void:
  g.equip_tool(tool);g.persist()
 func wear_shovel()->void:

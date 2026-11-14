@@ -1485,8 +1485,8 @@ func item_visual_bounds(obj: Dictionary) -> Rect2:
 	var source:Rect2=label_sprite_bounds[name]
 	if obj.get("ground_tool",false):
 		var local:=Rect2((source.position*2-Vector2(32,86))*.65+Vector2(0,20),source.size*1.3)
-		var result:=Rect2(position+local.position.rotated(PI/2),Vector2.ZERO)
-		for corner in [local.position,local.position+Vector2(local.size.x,0),local.end,local.position+Vector2(0,local.size.y)]:result=result.expand(position+corner.rotated(PI/2))
+		var result:=Rect2(position+local.position.rotated(float(obj.get("ground_angle",PI/2))),Vector2.ZERO)
+		for corner in [local.position,local.position+Vector2(local.size.x,0),local.end,local.position+Vector2(0,local.size.y)]:result=result.expand(position+corner.rotated(float(obj.get("ground_angle",PI/2))))
 		return result
 	var scale_factor:=.65 if obj.get("on_table",false) else 3.0 if obj.kind=="chest" and obj.id=="final" else .5 if obj.kind=="gate_key" else .7 if obj.kind=="skull_relic" else 2.0 if obj.kind=="house_door" else 1.0
 	var bounds:=Rect2(position+(source.position*2-Vector2(32,86))*scale_factor,source.size*2*scale_factor)
@@ -1705,8 +1705,11 @@ func release_at_gate()->void:
 		var doors:=objects.filter(func(obj):return obj.kind=="doorway" and obj.id=="exit")
 		north=not doors.is_empty() and float(doors[0].get("gate_amount",0))>=.25
 	var south:bool=level>0 and level-1 in save_data.open_gates and door_is_open("back") and not arena_exit_sealed() and player.y>(grid.size()-7)*TILE and walk_facing.y>.05 and absf(player.x-13.5*TILE)<72
+	if held_item=="flashlight":
+		north=north and player.y<5.1*TILE
+		south=south and player.y>(grid.size()-5.1)*TILE
 	if north or south:
-		return_held_tool(false,room_drop_point(north));persist();find_nearest()
+		return_held_tool(false,player if held_item=="flashlight" else room_drop_point(north));persist();find_nearest()
 
 func equip_tool(id: String) -> void:
 	if id=="flashlight" and level!=1:return
@@ -1995,9 +1998,13 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	if name=="quest_tree" or name.begins_with("quest_tree_damage"):scale_factor*=2.0
 	if name=="shovel" and level==3 and dig_quest.state().get("broken",false):name="shovel_broken"
 	name=dig_quest.damage_texture(name)
+	var world:=pos+camera-get_viewport_rect().size/2
+	var variant:=posmod(floori(world.x/48)*17+floori(world.y/48)*7,3) if color.a>.9 else 0
+	if color.a>.9 and name in ["tree","tree_apples"]:name+="_variant"+str(variant)
 	var id := int(sprites.get(name,0))
 	if name in ["hedge_tree","hedge_tree_apples"]:
-		draw_texture_rect(hedge_tree_textures[name],Rect2(pos+Vector2(-32,-96)*scale_factor,Vector2(64,96)*scale_factor),false,color)
+		if not hedge_tree_textures.has(name+str(variant)):hedge_tree_textures[name+str(variant)]=load("res://assets/"+name+"_variant"+str(variant)+".png")
+		draw_texture_rect(hedge_tree_textures[name+str(variant)],Rect2(pos+Vector2(-32,-96)*scale_factor,Vector2(64,96)*scale_factor),false,color)
 		return
 	var size := Vector2(64,96)*scale_factor
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
@@ -2310,7 +2317,8 @@ func _draw_world() -> void:
 			var frame := player_walk_frame()
 			if not resting.is_empty():p+=Vector2(0,-18+sin(time*2.4)*12 if resting=="swing" else -18)
 			var color := Color(1,.65,.73) if invincible>0 and int(time*12)%2==0 else Color.WHITE
-			var hero_pos:=p-rifle_kick_dir*rifle_kick+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
+			var hero_pos:=p+body_motion()
+			if walk_facing.x<-.2:draw_hand_items()
 			draw_player_outfit(hero_pos,frame,color)
 			if attack_flash>0 and weapon=="sword":
 				var angle := aim.angle()
@@ -2340,14 +2348,14 @@ func _draw_world() -> void:
 				var highlight := rune_stones.texture(item) if kind=="riddle_stone" or (level==6 and kind=="stone") else "house_door" if kind=="house_door" else "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else ("flashlight" if item.get("ground_tool",false) else "flashlight_rest") if kind=="stand_flashlight" else kind
 				if kind=="sprout":draw_pickup_outline("bed_border"+str(world_tools.variant(item.id)),p,.9+float(world_tools.variant(item.id))*.035)
 				elif item.get("ground_tool",false):
-					draw_set_transform(p,PI/2);draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
+					draw_set_transform(p,float(item.get("ground_angle",PI/2)));draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p,1.0)
 				else:draw_pickup_outline(highlight,screen(item_display_position(item)),.65 if item.get("on_table",false) else 3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
 			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false) and kind not in ["flowers","blueflowers"]:
 				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
 				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
 			if item.get("ground_tool",false):
-				draw_set_transform(p,PI/2);draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
+				draw_set_transform(p,float(item.get("ground_angle",PI/2)));draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 			elif item.get("on_table",false):draw_sprite(kind,p,Color.WHITE,.65)
 			elif kind=="quest_falling":dig_quest.draw_falling(item,p)
 			elif kind=="cat_hut":
@@ -2496,8 +2504,8 @@ func add_corridors() -> void:
 	for obj in objects:
 		if obj.id=="exit":
 			obj.kind="doorway"
-			obj.pos=Vector2(north+.5,6.5)*TILE
-	if level>0: put_object("doorway",Vector2i(south,grid.size()-7),"back")
+			obj.pos=Vector2(north+.5,5.5)*TILE
+	if level>0: put_object("doorway",Vector2i(south,grid.size()-6),"back")
 
 func travel(destination: int) -> void:
 	if transition or destination<0 or destination>6:return
@@ -2554,7 +2562,7 @@ func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	walk_facing=toward.normalized()
 	if absf(toward.x)>absf(toward.y):direction=1 if toward.x<0 else 3
 	else:direction=0 if toward.y<0 else 2
-	sfx("axe" if kind in ["quest_chop","quest_mine"] or kind.begins_with("axe:") else "shears" if kind.begins_with("snip") else "rake" if kind in ["new_bed"] or kind.begins_with("uproot:") else "rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "dig" if kind.begins_with("dig:") else "paper" if kind.begins_with("fertilize:") else "paper" if kind.begins_with("quest_") else "water")
+	sfx("chop_wood" if kind=="quest_chop" else "pick_stone" if kind=="quest_mine" else "craft_bench" if kind.begins_with("quest_") else "axe" if kind.begins_with("axe:") else "shears" if kind.begins_with("snip") else "rake" if kind in ["new_bed"] or kind.begins_with("uproot:") else "rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "dig" if kind.begins_with("dig:") else "paper" if kind.begins_with("fertilize:") else "paper" if kind.begins_with("quest_") else "water")
 
 func update_tasks(delta: float) -> void:
 	if task_time<=0: return
@@ -2681,38 +2689,9 @@ func update_shots(delta: float) -> void:
 		if hit_index>=0:damage_enemy(hit_index,99.0 if shot.kind=="rpg" else 8.5,shot.vel.normalized()*9)
 		shots.remove_at(i)
 
-func draw_extra_effects() -> void:
-	if playing and held_item=="can":
-		var water_position := screen(player) + Vector2(-26, -134 if level==4 and wave>0 and not combat_done else -120)
-		var display_water := float(water)
-		if task_time>0 and task_duration>0:
-			var progress := clampf(1-task_time/task_duration, 0, 1)
-			if task_kind=="fill":display_water = lerpf(water, 6, progress)
-			elif task_kind.begins_with("water:"):display_water = maxf(0, water-progress)
-		draw_rect(Rect2(water_position-Vector2.ONE, Vector2(54, 8)), Color("232d43"))
-		draw_rect(Rect2(water_position, Vector2(52, 6)), Color("36536e"))
-		var fill_width := roundf(52 * clampf(display_water/6.0, 0, 1))
-		if fill_width>0:
-			draw_rect(Rect2(water_position, Vector2(fill_width, 6)), Color("73cdef"))
-	if level==4 and inside_main_room() and wave>0 and not combat_done and playing:
-		var p:=screen(player)+Vector2(-27,-104)
-		draw_rect(Rect2(p-Vector2.ONE,Vector2(56,9)),Color("292735"));draw_rect(Rect2(p,Vector2(54,7)),Color("574153"))
-		draw_rect(Rect2(p,Vector2(54*clampf(health/8.0,0,1),7)),Color("d38fa8") if invincible>0 else Color("99b990"))
-	for shot in shots:
-		var p := screen(shot.pos)
-		if shot.kind=="rpg":
-			scene_fx.draw_jet(p,shot.vel.normalized(),shot.age)
-			draw_set_transform(p,shot.vel.angle())
-			draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55)
-			draw_set_transform(Vector2.ZERO)
-			draw_texture_rect(glow,Rect2(p-Vector2(25,25),Vector2(50,50)),false,Color(1,.7,.35,.6))
-		elif shot.kind=="enemy_rocket":
-			draw_set_transform(p,shot.vel.angle());draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55);draw_set_transform(Vector2.ZERO)
-			scene_fx.draw_jet(p,shot.vel.normalized(),shot.age)
-		elif shot.kind=="enemy_bullet":battle.draw_bullet(shot,p)
-		else:battle.draw_bullet(shot,p)
+func draw_hand_items() -> void:
 	if (level==4 or save_data.finished) and not weapon.is_empty():
-		var p := screen(player)+Vector2(14,-28)-aim*(attack_flash/.22)*(14.0 if weapon=="rpg" else 11.5)
+		var p := screen(player+body_motion())+Vector2(14,-28)-aim*(attack_flash/.22)*(14.0 if weapon=="rpg" else 11.5)
 		var swing := sin((1-attack_flash/.22)*PI)*1.5 if weapon=="sword" and attack_flash>0 else 0.0
 		var left := aim.x<0
 		var rotation := (aim.angle()+PI/2) if weapon=="sword" else (atan2(-aim.y,-aim.x) if left else aim.angle())
@@ -2753,6 +2732,38 @@ func draw_extra_effects() -> void:
 		var bar:=screen(dig_quest.point("tree"))+Vector2(-35,-185)
 		draw_rect(Rect2(bar,Vector2(70,6)),INK)
 		draw_rect(Rect2(bar,Vector2(70*(1-float(dig_quest.state().hits)/float(dig_quest.state().tree_hits)),6)),Color("a8c394"))
+
+func draw_extra_effects() -> void:
+	if playing and held_item=="can":
+		var water_position := screen(player) + Vector2(-26, -134 if level==4 and wave>0 and not combat_done else -120)
+		var display_water := float(water)
+		if task_time>0 and task_duration>0:
+			var progress := clampf(1-task_time/task_duration, 0, 1)
+			if task_kind=="fill":display_water = lerpf(water, 6, progress)
+			elif task_kind.begins_with("water:"):display_water = maxf(0, water-progress)
+		draw_rect(Rect2(water_position-Vector2.ONE, Vector2(54, 8)), Color("232d43"))
+		draw_rect(Rect2(water_position, Vector2(52, 6)), Color("36536e"))
+		var fill_width := roundf(52 * clampf(display_water/6.0, 0, 1))
+		if fill_width>0:
+			draw_rect(Rect2(water_position, Vector2(fill_width, 6)), Color("73cdef"))
+	if level==4 and inside_main_room() and wave>0 and not combat_done and playing:
+		var p:=screen(player)+Vector2(-27,-104)
+		draw_rect(Rect2(p-Vector2.ONE,Vector2(56,9)),Color("292735"));draw_rect(Rect2(p,Vector2(54,7)),Color("574153"))
+		draw_rect(Rect2(p,Vector2(54*clampf(health/8.0,0,1),7)),Color("d38fa8") if invincible>0 else Color("99b990"))
+	for shot in shots:
+		var p := screen(shot.pos)
+		if shot.kind=="rpg":
+			scene_fx.draw_jet(p,shot.vel.normalized(),shot.age)
+			draw_set_transform(p,shot.vel.angle())
+			draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55)
+			draw_set_transform(Vector2.ZERO)
+			draw_texture_rect(glow,Rect2(p-Vector2(25,25),Vector2(50,50)),false,Color(1,.7,.35,.6))
+		elif shot.kind=="enemy_rocket":
+			draw_set_transform(p,shot.vel.angle());draw_sprite("rocket_item",Vector2(0,20),Color.WHITE,.55);draw_set_transform(Vector2.ZERO)
+			scene_fx.draw_jet(p,shot.vel.normalized(),shot.age)
+		elif shot.kind=="enemy_bullet":battle.draw_bullet(shot,p)
+		else:battle.draw_bullet(shot,p)
+	if walk_facing.x>=-.2:draw_hand_items()
 	if task_time>0 and (task_kind=="fill" or task_kind.begins_with("water:") or task_kind.begins_with("rake:") or task_kind.begins_with("fertilize:")):
 		var pose:=held_tool_pose()
 		var origin:=screen(pose.tip)
@@ -2821,7 +2832,7 @@ func update_fog() -> void:
 			material.set_shader_parameter("enabled",true)
 			material.set_shader_parameter("ground_light",true)
 			material.set_shader_parameter("light_pos",origin)
-			material.set_shader_parameter("light_dir",Vector2.RIGHT.rotated(sway*.3))
+			material.set_shader_parameter("light_dir",Vector2.RIGHT.rotated(float(obj.get("beam_angle",0))+sway*.3))
 			break
 
 func dark_letter_count() -> int:
@@ -3607,12 +3618,15 @@ func resolve_gate_overlap(door: Dictionary) -> void:
 			var candidate:Vector2=player+normal*radius
 			if not blocked(candidate):player=candidate;return
 
+func body_motion()->Vector2:
+	return -rifle_kick_dir*rifle_kick+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
+
 func held_tool_pose() -> Dictionary:
 	var toward:Vector2=walk_facing.normalized()
 	if toward.length()<.1:toward=[Vector2.UP,Vector2.LEFT,Vector2.DOWN,Vector2.RIGHT][direction]
 	var using:=task_time>0
 	if using:toward=(task_target-player).normalized()
-	var hand:=player+Vector2(toward.x*16 if absf(toward.x)>.2 else 12,-21+toward.y*3)
+	var hand:=player+body_motion()+Vector2(-12 if toward.x<-.2 else 16 if toward.x>.2 else 12,-21+toward.y*3)
 	if moving and not using:
 		var step:=float(player_walk_frame())
 		hand+=Vector2(toward.x*(step-1)*2,[0.0,-2.0,0.0,2.0][int(step)%4])
