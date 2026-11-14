@@ -2038,8 +2038,10 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 		var cell:=Vector2i(world/TILE)
 		var stacked:=cell.y>=0 and cell.y+1<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#" and grid[cell.y+1][cell.x]=="#"
 		var texture_name:="wall_stacked" if stacked else "wall_exposed"
+		var stone_variant:=posmod(cell.x*17+cell.y*7,4)
+		if stone_variant>0:texture_name+=str(stone_variant)
 		if not hedge_tree_textures.has(texture_name):hedge_tree_textures[texture_name]=load("res://assets/"+texture_name+".png")
-		draw_texture_rect(hedge_tree_textures[texture_name],Rect2(pos-Vector2(32,86)*scale_factor,Vector2(64,96)*scale_factor),false,color)
+		draw_texture_rect(hedge_tree_textures[texture_name],Rect2(pos-Vector2(32,86)*scale_factor,Vector2(64,128)*scale_factor),false,color)
 		return
 	var id := int(sprites.get(name,0))
 	if name in ["hedge_tree","hedge_tree_apples"]:
@@ -2303,6 +2305,17 @@ func _draw_world() -> void:
 	if not drawing_neighbor and playing and save_data.cat_tamed:renderables.append({"kind":"pet_cat","pos":companion.position,"id":"pet_cat"})
 	draw_paths()
 	world_tools.draw_ground()
+	# Fixed contact shade ties raised masonry to the ground grid. Only exposed
+	# floor edges receive it; no dynamic light or per-frame shadow projection.
+	for wall in renderables:
+		if wall.kind!="stone" or not wall.get("wall",false) or not wall.has("cell"):continue
+		var cell:Vector2i=wall.cell
+		for side in [-1,1]:
+			var adjacent:=cell+Vector2i(side,0)
+			if adjacent.x<0 or adjacent.x>=grid[0].length() or grid[adjacent.y][adjacent.x]!=".":continue
+			var p:=screen(wall.pos)+Vector2(24 if side==1 else -30,-24)
+			draw_rect(Rect2(p,Vector2(6,48)),Color(.12,.10,.19,.23 if side==1 else .12))
+			if side==1:draw_rect(Rect2(p+Vector2(6,0),Vector2(4,48)),Color(.12,.10,.19,.09))
 	for flower in objects:
 		if flower.kind in ["flowers","blueflowers"] and get_viewport_rect().grow(40).has_point(screen(flower.pos)):
 			var silhouette:=PackedVector2Array()
