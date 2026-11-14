@@ -26,7 +26,6 @@ var torch:=preload("res://scripts/flashlight_state.gd").new(self)
 var companion:=preload("res://scripts/cat_companion.gd").new(self)
 var weapon_crates:=preload("res://scripts/weapon_crates.gd").new(self)
 var scene_fx:=preload("res://scripts/scene_fx.gd").new(self)
-var masonry:=preload("res://scripts/reference_masonry.gd").new(self)
 var gate_junctions:=preload("res://scripts/gate_junctions.gd").new(self)
 var dig_quest := preload("res://scripts/dig_quest.gd").new(self)
 var note_flowers := preload("res://scripts/note_flowers.gd").new(self)
@@ -1109,7 +1108,7 @@ func blocked(pos: Vector2,projectile:bool=false) -> bool:
 		var north_x:float=(15.5 if level==0 else 13.5)*TILE
 		if level<6 and pos.y<5.5*TILE+16 and absf(pos.x-north_x)>62:return true
 		if level>0 and pos.y>(grid.size()-5.5)*TILE-16 and absf(pos.x-13.5*TILE)>62:return true
-		if pos.x<TILE+10 or pos.x>grid[0].length()*TILE-TILE-10:return true
+		if pos.x<.75*TILE or pos.x>(grid[0].length()-.75)*TILE:return true
 	for offset in ([Vector2.ZERO] if projectile else [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]):
 		var c := Vector2i((pos+offset)/TILE)
 		if c.y<0 or c.y>=grid.size():
@@ -2256,8 +2255,8 @@ func _draw_world() -> void:
 			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
-			if masonry.wall_cell(x,y):
-				renderables.append({"kind":"reference_wall","pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
+			if grid[y][x]=="#" and (level in [1,2,4] or corridor_row(y)):
+				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	for obj in objects:
 		if obj.kind in ["quest_axe","pickaxe"] and obj.id==held_item:continue
@@ -2427,10 +2426,8 @@ func _draw_world() -> void:
 			elif kind=="skull_relic":draw_sprite(kind,screen(item_display_position(item)),Color.WHITE,.7)
 			elif kind=="letter_box":draw_sprite("letter_box_open" if item.get("archive_open",false) else "letter_box",p)
 			elif kind=="skull_stand":draw_sprite("skull_stand_full" if save_data.get("skull_inserted",false) else "skull_stand",p)
-			elif kind=="reference_wall":masonry.draw_wall(item,p)
-			elif item.has("wall"):masonry.draw_wall(item,p)
 			elif kind=="doorway":
-				masonry.pillars(item,p)
+				gate_junctions.draw(item,p)
 				if item.id=="exit":draw_gate(p,1.0 if drawing_neighbor and (neighbor_return_gate or door_is_open("exit")) else float(item.get("gate_amount",0.0)))
 			elif kind=="flashlight_pedestal":draw_sprite("pedestal",p)
 			elif kind=="stand_flashlight":draw_sprite("flashlight_rest",p)
@@ -2502,9 +2499,6 @@ func _draw_world() -> void:
 		scene_fx.draw(false)
 		draw_reply_deposit()
 		world_tools.draw_falling()
-
-	for door in objects:
-		if door.kind=="doorway":masonry.lintel(screen(door.pos))
 
 	if level==6 and not drawing_neighbor:
 		for n in range(puzzle.size()):
@@ -3514,7 +3508,8 @@ func draw_gate(pos: Vector2, amount: float) -> void:
 		draw_sprite("lock_open_key",lock_pos,Color.WHITE,.5)
 
 func draw_gate_leaf(name: String, pos: Vector2) -> void:
-	draw_texture_rect(masonry.tex("gate_leaf_open" if name=="gate_ajar" else "gate_leaf_closed"),Rect2(pos,Vector2(72,68)),false)
+	var id: int = sprites[name]
+	draw_texture_rect_region(atlas,Rect2(pos,Vector2(72,68)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
 
 
 func sfx_at(name: String, pos: Vector2) -> void:
