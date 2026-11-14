@@ -2500,6 +2500,12 @@ func _draw_world() -> void:
 		draw_reply_deposit()
 		world_tools.draw_falling()
 
+	# The lintel is overhead geometry: it covers the head while walking under it,
+	# independently of the pillar/actor foot sorting used by the rest of the portal.
+	for door in objects:
+		if door.kind=="doorway" and get_viewport_rect().grow(180).has_point(screen(door.pos)):
+			gate_junctions.draw_lintel(door,screen(door.pos))
+
 	if level==6 and not drawing_neighbor:
 		for n in range(puzzle.size()):
 			var center := Vector2(74+n*65,225)
