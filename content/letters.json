@@ -1252,6 +1252,70 @@
     "loading_progress_label": {
       "text": "Загрузка игры",
       "_comment": "Доступное название полосы загрузки для экранного диктора."
+    },
+    "item_pickaxe": {
+      "text": "Кирка",
+      "_comment": "Name of the crafted pickaxe."
+    },
+    "item_workbench": {
+      "text": "Верстак",
+      "_comment": "Name of the digging-room crafting bench."
+    },
+    "item_branch": {
+      "text": "Ветка",
+      "_comment": "Name of a fallen crafting branch."
+    },
+    "item_pebble": {
+      "text": "Камешек",
+      "_comment": "Name of a hand-gathered stone."
+    },
+    "item_large_rock": {
+      "text": "Большой камень",
+      "_comment": "Name of the mineable rock."
+    },
+    "item_rock_material": {
+      "text": "Камень",
+      "_comment": "Name of mined shovel material."
+    },
+    "item_broken_shovel": {
+      "text": "Сломанная лопата",
+      "_comment": "Name of the broken shovel."
+    },
+    "mine_rock": {
+      "text": "Разбить киркой",
+      "_comment": "Action for mining the large rock."
+    },
+    "craft_pickaxe": {
+      "text": "Сделать кирку",
+      "_comment": "Workbench action before crafting the pickaxe."
+    },
+    "craft_shovel": {
+      "text": "Сделать лопату",
+      "_comment": "Workbench action before crafting the shovel."
+    },
+    "repair_shovel": {
+      "text": "Починить лопату",
+      "_comment": "Workbench repair action."
+    },
+    "pickup_material": {
+      "text": "Подобрать",
+      "_comment": "Pickup action for room crafting resources and tools."
+    },
+    "craft_pickaxe_requirements": {
+      "text": "Нужны 3 ветки и 3 камешка",
+      "_comment": "Missing pickaxe recipe materials."
+    },
+    "craft_shovel_requirements": {
+      "text": "Нужен камень из большого валуна",
+      "_comment": "Missing shovel recipe material."
+    },
+    "workbench_ready": {
+      "text": "Здесь можно починить лопату",
+      "_comment": "Workbench feedback when no repair is needed."
+    },
+    "shovel_needs_repair": {
+      "text": "Лопата сломалась. Почини её на верстаке",
+      "_comment": "Feedback when the shovel breaks or is used broken."
     }
   },
   "schema_version": 2,

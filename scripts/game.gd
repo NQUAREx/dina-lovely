@@ -26,6 +26,8 @@ var torch:=preload("res://scripts/flashlight_state.gd").new(self)
 var companion:=preload("res://scripts/cat_companion.gd").new(self)
 var weapon_crates:=preload("res://scripts/weapon_crates.gd").new(self)
 var scene_fx:=preload("res://scripts/scene_fx.gd").new(self)
+var dig_quest := preload("res://scripts/dig_quest.gd").new(self)
+var note_flowers := preload("res://scripts/note_flowers.gd").new(self)
 var world_tools := preload("res://scripts/world_tools.gd").new(self)
 const SPEED := 150.0
 const SAVE_PATH := "user://garden_save_v1.json"
@@ -238,7 +240,7 @@ func _ready() -> void:
 		JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"world_kit":[],"weapon_crates_opened":[],"arena_medkit_claimed":false,"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_stones":[],"riddle_inserted":[],"riddle_stone_order":[],"riddle_stone_positions":{},"riddle_stone_exposed":false,"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"dig_quest":{},"flower_notes":[],"world_kit":[],"weapon_crates_opened":[],"arena_medkit_claimed":false,"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_stones":[],"riddle_inserted":[],"riddle_stone_order":[],"riddle_stone_positions":{},"riddle_stone_exposed":false,"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -669,10 +671,10 @@ func activate_cached_room(index: int) -> void:
 	plants=save_data.plants.duplicate(true);fertilized=save_data.fertilized.duplicate();watered=save_data.watered.duplicate();water=int(save_data.water)
 	chest_open=save_data.finished
 	if chest_open:puzzle.assign(save_data.riddle_order)
-	if (held_item in ["can","rake","fertilizer"] and index!=5) or (held_item=="shovel" and index!=3):held_item="";sync_hands()
+	if (held_item in ["can","rake","fertilizer"] and index!=5) or (held_item in ["shovel","quest_axe","pickaxe"] and index!=3):held_item="";sync_hands()
 	weapon=held_item if held_item in ["sword","rifle","rpg"] else "";sync_hands()
 	objects.assign(objects.filter(func(obj):return not obj.get("dropped_accessory",false)))
-	restore_accessory_drops();restore_gate_key();normalize_dig_site();world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install()
+	restore_accessory_drops();restore_gate_key();normalize_dig_site();world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install();dig_quest.install()
 	weapon_crates.install()
 	for door in objects:
 		if door.kind=="doorway":door.gate_amount=1.0 if door_is_open(str(door.id)) else 0.0
@@ -959,7 +961,7 @@ func build_level(index: int) -> void:
 			grid.clear()
 			for y in range(13): grid.append("#".repeat(27) if y in [0,12] else "#"+".".repeat(25)+"#")
 			player=Vector2(13.5,10.5)*TILE
-			put_object("shovel",Vector2i(8,8),"shovel")
+
 			if save_data.dig_target.size()!=2 or float(save_data.dig_target[1])>=16*TILE or float(save_data.dig_target[1])<7*TILE:
 				save_data.dig_target=[randf_range(4,22)*TILE,randf_range(7,15)*TILE]
 			for key in save_data.dug:
@@ -1058,9 +1060,9 @@ func build_level(index: int) -> void:
 	prepare_grass_details()
 	restore_accessory_drops()
 	restore_gate_key()
-	world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install()
+	world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install();dig_quest.install()
 	if index==4:
-		arena_save.restore_room();restore_gate_key();rune_stones.install()
+		arena_save.restore_room();restore_gate_key();rune_stones.install();dig_quest.install()
 		weapon_crates.install()
 		battle.navigation_checked=-INF;battle.ensure_navigation()
 	camera = camera_target()
@@ -1087,6 +1089,7 @@ func arena_exit_sealed()->bool:
 	return level==4 and wave>0 and not combat_done
 
 func blocked(pos: Vector2) -> bool:
+	if dig_quest.blocks(pos):return true
 	if arena_exit_sealed() and pos.y>(grid.size()-7)*TILE and absf(pos.x-13.5*TILE)<82:return true
 	if level==6 and save_data.finished and Rect2(Vector2(21.75*48,12.9*48),Vector2(1.5*48,4.0*48)).grow(8).has_point(pos):return true
 	if pos.y<0 or pos.y>=grid.size()*TILE:
@@ -1173,6 +1176,8 @@ func _physics_process(delta: float) -> void:
 		hedge_contact=pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
 
 func _process(delta: float) -> void:
+	dig_quest.update(delta)
+	note_flowers.update(delta)
 	world_tools.update(delta)
 	rune_stones.update()
 	companion.update(delta)
@@ -1328,6 +1333,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if dig_quest.owns(obj):return dig_quest.available(obj)
 	if obj.kind=="fallen_tree":return false
 	if obj.kind=="weapon_crate":return false
 	if obj.has("flight_start") and time<float(obj.flight_start)+float(obj.flight_duration):return false
@@ -1415,6 +1421,7 @@ func find_nearest() -> void:
 			if objects[i].kind=="pet_cat" and available(objects[i]) and player.distance_to(objects[i].pos)<60 and interaction_reachable(objects[i]):nearest=i;break
 
 func item_name(obj: Dictionary) -> String:
+	if dig_quest.owns(obj):return dig_quest.name_for(obj)
 	if obj.kind=="letter_box":return tx("journal_title")
 	if obj.kind=="riddle_stone":return rune_stones.name_for(obj)
 	if obj.kind=="medkit":return tx("item_medkit")
@@ -1468,7 +1475,9 @@ func item_visual_bounds(obj: Dictionary) -> Rect2:
 		if bounds.has_area():return bounds
 	if obj.get("integrated_hedge",false):return Rect2(position+Vector2(-32,-96),Vector2(64,80))
 	if obj.kind in ["doorway","arch"]:return Rect2(position+Vector2(-100,-90),Vector2(200,90))
+	if obj.kind=="quest_tree":return Rect2(position+Vector2(-64,-172),Vector2(128,192))
 	var name:String=rune_stones.texture(obj) if obj.kind=="riddle_stone" or (level==6 and obj.kind=="stone") else "house_door_open" if obj.kind=="house_door" and obj.get("opened",false) else "accessory_"+str(obj.accessory) if obj.kind=="accessory" else ("flashlight" if obj.get("ground_tool",false) else "flashlight_rest") if obj.kind=="stand_flashlight" else obj.kind
+	if name=="quest_axe":name="axe"
 	if not sprites.has(name):return Rect2(position-Vector2(24,32),Vector2(48,32))
 	if not label_sprite_bounds.has(name):
 		var id:int=sprites[name]
@@ -1508,6 +1517,7 @@ func draw_item_names() -> void:
 		draw_string(body_font,p+Vector2(-120,0),text,HORIZONTAL_ALIGNMENT_CENTER,240,16,CREAM)
 
 func action_text(obj: Dictionary) -> String:
+	if dig_quest.owns(obj):return dig_quest.action_for(obj)
 	if obj.kind=="letter_box":return tx("read_letter")
 	if obj.kind=="riddle_stone":return tx("pickup_rune")
 	if obj.kind=="medkit":return tx("use_medkit")
@@ -1550,6 +1560,7 @@ func interact() -> void:
 	if paused or transition: return
 	if not resting.is_empty(): stand_up();return
 	if task_time>0:return
+	if nearest>=0 and dig_quest.use(objects[nearest]):return
 	if nearest>=0 and world_tools.use_object(objects[nearest]):return
 	if new_bed_action_ready():world_tools.make_bed();return
 	if held_item=="drill" and nearest<0:return
@@ -1588,7 +1599,7 @@ func interact() -> void:
 	if id in ["seat","swing"]:
 		resting=id;rest_anchor=obj.pos;player=obj.pos+Vector2(0,8);direction=2;joy_active=false;joy_vector=Vector2.ZERO
 		moving=false;attack_held=false;attack_flash=0;rifle_kick=0;rpg_windup=-1
-	elif id in ["rake","can","fertilizer","shovel","flashlight"]:
+	elif id in ["rake","can","fertilizer","shovel","flashlight","quest_axe","pickaxe"]:
 		equip_tool(id);persist();sfx("ui")
 	elif obj.kind in ["berries","tree_apples"]:
 		stats.add(self,"berries" if obj.kind=="berries" else "apples")
@@ -1661,7 +1672,7 @@ func return_held_tool(force_drop:bool=false,drop_at:Vector2=Vector2.INF) -> void
 		objects.append(dropped)
 		var saved := dropped.duplicate();saved.pos=[dropped.pos.x,dropped.pos.y];save_data.loose_weapons.append(saved)
 		held_item="";weapon="";sync_hands()
-	if held_item in ["rake","can","fertilizer","shovel","flashlight"]:
+	if held_item in ["rake","can","fertilizer","shovel","flashlight","quest_axe","pickaxe"]:
 		for obj in objects:
 			if obj.id==held_item:
 				obj.ground_tool=true
@@ -1682,7 +1693,7 @@ func drop_current_item()->void:
 	attack_held=false;attack_flash=0;rpg_windup=-1
 	return_held_tool(true);persist();find_nearest();update_hud()
 func room_bound_item()->bool:
-	return held_item in ["can","rake","fertilizer","shovel","flashlight"] or (held_item in ["sword","rifle","rpg"] and not save_data.finished)
+	return held_item in ["can","rake","fertilizer","shovel","flashlight","quest_axe","pickaxe"] or (held_item in ["sword","rifle","rpg"] and not save_data.finished)
 func room_drop_point(north:bool)->Vector2:
 	var gate_y:=6.5*TILE if north else (grid.size()-6.5)*TILE
 	return accessory_drop_position(Vector2(player.x,gate_y+(54 if north else -54)))
@@ -1980,6 +1991,9 @@ func screen(pos: Vector2) -> Vector2:
 	return pos+(get_viewport_rect().size/2-camera+shake_offset).round()
 
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
+	if name=="quest_axe":name="axe"
+	if name=="quest_tree":scale_factor*=2.0
+	if name=="shovel" and level==3 and dig_quest.state().get("broken",false):name="shovel_broken"
 	var id := int(sprites.get(name,0))
 	if name in ["hedge_tree","hedge_tree_apples"]:
 		draw_texture_rect(hedge_tree_textures[name],Rect2(pos+Vector2(-32,-96)*scale_factor,Vector2(64,96)*scale_factor),false,color)
@@ -1988,6 +2002,9 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
 
 func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> void:
+	if name=="quest_axe":name="axe"
+	if name=="quest_tree":scale_factor*=2.0
+	if name=="shovel" and level==3 and dig_quest.state().broken:name="shovel_broken"
 	if hedge_tree_textures.has(name):
 		if not outlines.has(name):
 			var source:Image=hedge_tree_textures[name].get_image().get_region(Rect2i(0,0,64,80))
@@ -2198,6 +2215,7 @@ func _draw_world() -> void:
 				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	for obj in objects:
+		if obj.kind in ["quest_axe","pickaxe"] and obj.id==held_item:continue
 		if obj.has("flight_start") and time<float(obj.flight_start):continue
 		if obj.kind in ["axe","shears","drill","tool_table"] and not save_data.finished:continue
 		if obj.kind in ["hedge_target","tool_table","pet_cat"]:continue
@@ -2329,6 +2347,7 @@ func _draw_world() -> void:
 			if item.get("ground_tool",false):
 				draw_set_transform(p,PI/2);draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 			elif item.get("on_table",false):draw_sprite(kind,p,Color.WHITE,.65)
+			elif kind=="quest_falling":dig_quest.draw_falling(item,p)
 			elif kind=="cat_hut":
 				draw_sprite(kind,p)
 				if not save_data.cat_tamed:draw_sprite("cat_sit"+str(1 if fposmod(time,4.7)>4.55 else 0),p,Color.WHITE,.8)
@@ -2533,13 +2552,14 @@ func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	walk_facing=toward.normalized()
 	if absf(toward.x)>absf(toward.y):direction=1 if toward.x<0 else 3
 	else:direction=0 if toward.y<0 else 2
-	sfx("axe" if kind.begins_with("axe:") else "shears" if kind.begins_with("snip") else "rake" if kind in ["new_bed"] or kind.begins_with("uproot:") else "rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "dig" if kind.begins_with("dig:") else "paper" if kind.begins_with("fertilize:") else "water")
+	sfx("axe" if kind in ["quest_chop","quest_mine"] or kind.begins_with("axe:") else "shears" if kind.begins_with("snip") else "rake" if kind in ["new_bed"] or kind.begins_with("uproot:") else "rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "dig" if kind.begins_with("dig:") else "paper" if kind.begins_with("fertilize:") else "paper" if kind.begins_with("quest_") else "water")
 
 func update_tasks(delta: float) -> void:
 	if task_time<=0: return
 	task_time -= delta
 	if task_time>0: return
-	if world_tools.complete(task_kind,task_target):pass
+	if dig_quest.complete(task_kind,task_target):pass
+	elif world_tools.complete(task_kind,task_target):pass
 	elif task_kind=="drill":pass
 	elif task_kind=="fill":
 		water = 6
@@ -2554,6 +2574,7 @@ func update_tasks(delta: float) -> void:
 		burst(task_target,12,Color("9fdce1"))
 	elif task_kind.begins_with("dig:"):
 		world_tools.excavate(task_target)
+		dig_quest.wear_shovel()
 	elif task_kind.begins_with("rake:"):
 		save_data.cleaned.append(task_kind.trim_prefix("rake:"));burst(task_target,8,Color("8ca465"))
 	elif task_kind.begins_with("fertilize:"):
@@ -2717,10 +2738,12 @@ func draw_extra_effects() -> void:
 		if reload_time>0:
 			var bar := screen(player)+Vector2(-28,-102)
 			draw_rect(Rect2(bar,Vector2(56,6)),INK);draw_rect(Rect2(bar,Vector2(56*(1-reload_time/1.8),6)),CREAM)
-	if held_item in ["can","rake","fertilizer","shovel","flashlight","axe","shears","drill"]:
+	if held_item in ["can","rake","fertilizer","shovel","flashlight","axe","shears","drill","quest_axe","pickaxe"]:
 		var pose:=held_tool_pose()
 		var texture:String="fertilizer_open" if task_time>0 and task_kind.begins_with("fertilize:") else "shears_closed" if held_item=="shears" and task_time>0 and task_time<task_duration*.55 else "drill_spin"+str(int(time*22)%2) if held_item=="drill" and world_tools.drilling else held_item
 		draw_set_transform(screen(pose.hand),pose.angle,pose.flip)
+		if texture=="quest_axe":texture="axe"
+		if texture=="shovel" and level==3 and dig_quest.state().broken:texture="shovel_broken"
 		var id:int=sprites[texture]
 		draw_texture_rect_region(atlas,Rect2(-pose.anchor*pose.scale,Vector2(32,48)*pose.scale),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)))
 		draw_set_transform(Vector2.ZERO)
@@ -2859,11 +2882,12 @@ func cycle_weapon() -> void:
 	persist();sfx("ui")
 
 func dig_here() -> void:
+	if level==3 and dig_quest.state().get("broken",false):notify(tx("shovel_needs_repair"));return
 	if task_time>0:return
 	var pos:Vector2=world_tools.ground_point()
 	if not world_tools.soil(pos):notify(tx("digging_bounds"));return
 	if world_tools.has_sample(pos):return
-	begin_task("dig:%d:%d"%[pos.x,pos.y],pos,.25)
+	begin_task("dig:%d:%d"%[pos.x,pos.y],pos,.5)
 
 func draw_corridor_extensions() -> Array[Dictionary]:
 	var walls:Array[Dictionary]=[]
@@ -3585,8 +3609,8 @@ func held_tool_pose() -> Dictionary:
 	var hand:=player+Vector2(toward.x*16 if absf(toward.x)>.2 else 12,-21+toward.y*3)
 	if moving and not using:hand.y+=sin(time*12)*1.2
 	if using:toward=(task_target+Vector2(0,-55 if task_kind=="fill" else -10)-hand).normalized()
-	var anchors:Dictionary={"can":Vector2(14,24),"rake":Vector2(16,31),"fertilizer":Vector2(16,32),"shovel":Vector2(16,29),"flashlight":Vector2(16,32),"axe":Vector2(15,34),"shears":Vector2(16,35),"drill":Vector2(16,28)}
-	var tips:Dictionary={"can":Vector2(30,28),"rake":Vector2(19,14),"fertilizer":Vector2(16,23),"shovel":Vector2(16,45),"flashlight":Vector2(16,21),"axe":Vector2(24,19),"shears":Vector2(18,19),"drill":Vector2(16,45)}
+	var anchors:Dictionary={"can":Vector2(14,24),"rake":Vector2(16,31),"fertilizer":Vector2(16,32),"shovel":Vector2(16,29),"flashlight":Vector2(16,32),"axe":Vector2(15,34),"quest_axe":Vector2(15,34),"pickaxe":Vector2(16,32),"shears":Vector2(16,35),"drill":Vector2(16,28)}
+	var tips:Dictionary={"can":Vector2(30,28),"rake":Vector2(19,14),"fertilizer":Vector2(16,23),"shovel":Vector2(16,45),"flashlight":Vector2(16,21),"axe":Vector2(24,19),"quest_axe":Vector2(24,19),"pickaxe":Vector2(22,20),"shears":Vector2(18,19),"drill":Vector2(16,45)}
 	var anchor:Vector2=anchors.get(held_item,Vector2(16,32));var tip:Vector2=tips.get(held_item,Vector2(25,23))
 	var scale_factor:=1.3 if held_item!="flashlight" else 1.0
 	var local_tip:Vector2=(tip-anchor)*scale_factor
@@ -3595,7 +3619,7 @@ func held_tool_pose() -> Dictionary:
 	if using and task_kind.begins_with("fertilize:"):angle+=sin(time*16)*.07
 	if using and (task_kind.begins_with("rake:") or task_kind=="new_bed" or task_kind.begins_with("uproot:")):hand+=toward*sin(time*13)*9
 	if using and task_kind.begins_with("dig:"):angle+=sin((task_duration-task_time)/task_duration*PI)*.6
-	if using and (task_kind.begins_with("axe:") or task_kind.begins_with("snip")):angle+=sin((task_duration-task_time)/task_duration*PI)*1.1
+	if using and (task_kind in ["quest_chop","quest_mine"] or task_kind.begins_with("axe:") or task_kind.begins_with("snip")):angle+=sin((task_duration-task_time)/task_duration*PI)*1.1
 	if held_item=="drill" and world_tools.drilling:hand+=Vector2(sin(time*70),cos(time*60))*1.2
 	return {"hand":hand,"angle":angle,"flip":flip,"anchor":anchor,"scale":scale_factor,"tip":hand+(local_tip*flip).rotated(angle)}
 
