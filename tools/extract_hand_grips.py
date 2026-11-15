@@ -9,7 +9,7 @@ for face in range(8):
   expected=(24.5 if face==0 else 7.5,34+frame%2)
   if face in [1,3]:expected=(16+round(math.sin(frame*math.tau/8)*3),35+(frame in [1,2,5,6]))
   if face>=4:
-   b=frame%2;step=[0,2,0,-2][frame];expected={4:(24,32+b-step/2),5:(8,32+b-step/2),6:(7.5,34+b+step/2),7:(24.5,34+b+step/2)}[face]
+   b=frame%2;step=[0,2,0,-2][frame];expected={4:(24,32+b-step/2),5:(24,32+b+step/2),6:(7.5,34+b+step/2),7:(24.5,34+b+step/2)}[face]
   groups=[]
   while pixels:
    stack=[pixels.pop()];group=[]

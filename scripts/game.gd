@@ -2110,7 +2110,8 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	if name=="stone":
 		var cell:=Vector2i(world/TILE)
 		var stacked:=cell.y>=0 and cell.y+1<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#" and grid[cell.y+1][cell.x]=="#"
-		var texture_name:="wall_stacked" if stacked else "wall_exposed"
+		var wall_room:=clampi(level-1 if world.y<5*TILE else level,0,6)
+		var texture_name:="wall_room%d_%s"%[wall_room,"stacked" if stacked else "exposed"]
 		var stone_variant:=posmod(cell.x*17+cell.y*7,4)
 		if stone_variant>0:texture_name+=str(stone_variant)
 		if not hedge_tree_textures.has(texture_name):hedge_tree_textures[texture_name]=load("res://assets/"+texture_name+".png")
@@ -2384,7 +2385,8 @@ func _draw_world() -> void:
 				renderables.append(tree)
 			continue
 		var p := screen(obj.pos)
-		if p.x < -100 or p.y < -100 or p.x>view.x+100 or p.y>view.y+150: continue
+		var bounds:=Rect2(p-Vector2(144,160),Vector2(288,224)) if obj.kind=="doorway" else Rect2(p-Vector2(100,150),Vector2(200,250))
+		if not bounds.intersects(Rect2(Vector2.ZERO,view)):continue
 		if obj.kind in ["berries","dug"]:continue
 		if obj.kind=="skull_relic" and (not save_data.get("house_open",false) or save_data.get("skull_taken",false) or save_data.get("skull_inserted",false)):continue
 		if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>HIDDEN_REACH:continue
@@ -3817,7 +3819,7 @@ func body_motion()->Vector2:
 	return -rifle_kick_dir*rifle_kick+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
 
 func hand_is_behind()->bool:
-	return visual_facing() in [0,1,4,5,6]
+	return visual_facing() in [0,1,4,6]
 
 func right_hand_position()->Vector2:
 	var face:=visual_facing();var frame:=player_walk_frame()

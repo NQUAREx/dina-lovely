@@ -771,3 +771,6 @@ runpy.run_path(str(R/"tools/create_diagonal_art.py"))
 
 # Expanded lateral stride with matching clothing, hood and wrist layers.
 runpy.run_path(str(R/"tools/create_side_walk_art.py"))
+
+# Keep separately authored opened-gate perspective after atlas regeneration.
+runpy.run_path(str(R/"tools/create_open_gate.py"))
