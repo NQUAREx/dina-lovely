@@ -2,6 +2,9 @@
  const motifStyle=document.createElement('style');
  const motifSvg='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="96" viewBox="0 0 120 96"><g fill="none" stroke="#efb5c7" stroke-opacity=".055" stroke-width="2" shape-rendering="crispEdges"><path d="M18 25v-9h6v3h6v-3h6v9h-3v6h-3v3h-3v3h-3v-3h-3v-6h-3z"/><path d="M84 55h3v6h3v3h6v3h-6v3h-3v6h-3v-6h-3v-3h-6v-3h6v-3h3z"/></g></svg>';
  motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}';document.head.append(motifStyle);
+ const roseStyle=document.createElement('style');
+ roseStyle.textContent=`#mobile-gate button,#garden-recovery button{border:3px solid #c38b9e!important;border-radius:5px!important;background:linear-gradient(#684a63,#49354f)!important;box-shadow:inset 0 2px #efbfbc,inset 0 -3px #302538,0 0 0 2px #302538!important;color:#fff0d4!important}#mobile-gate button:active,#garden-recovery button:active{background:#382c42!important;box-shadow:inset 0 3px #251f30!important}#mobile-gate button:focus-visible{outline:2px solid #f4d3a8;outline-offset:4px}#mobile-gate button::before{content:'✿';color:#efb5be;margin-right:10px;text-shadow:2px 2px #665640}#mobile-gate h1{color:#f4d3b4!important;text-shadow:2px 2px #49354f}#garden-loading progress{accent-color:#d49aab}`;
+ document.head.append(roseStyle);
  const frameArtVersion='c57621a051f2';
  // The same room palette also colors browser-owned areas where textures cannot render.
  const roomChromeColors=[[56, 32, 84], [12, 28, 47], [115, 72, 31], [111, 90, 65], [87, 22, 45], [34, 79, 86], [215, 188, 157]];

@@ -340,16 +340,17 @@ func haptic(duration: int = 18) -> void:
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval("window.gardenHaptic && window.gardenHaptic(" + str(duration) + ")")
 
-func panel_style(color: Color, border: Color = Color("a07890"), radius: int = 12) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = color
-	style.border_color = border
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(radius)
-	style.content_margin_left = 16
-	style.content_margin_right = 16
-	style.content_margin_top = 8
-	style.content_margin_bottom = 8
+func panel_style(color: Color, border: Color = Color("a07890"), radius: int = 12) -> StyleBoxTexture:
+	var state:="paper" if color.r>.8 else "panel" if color.r<.23 else "normal"
+	if border==PINK:state="hover"
+	if border==CREAM:state="pressed"
+	var style:=StyleBoxTexture.new()
+	style.texture=load("res://assets/ui/frame_"+state+".png")
+	for side in [SIDE_LEFT,SIDE_TOP,SIDE_RIGHT,SIDE_BOTTOM]:style.set_texture_margin(side,12)
+	style.content_margin_left=16
+	style.content_margin_right=16
+	style.content_margin_top=8
+	style.content_margin_bottom=8
 	return style
 
 func decorate_panel(panel:Control)->void:
@@ -384,10 +385,54 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	b.add_theme_stylebox_override("normal", panel_style(Color("51445f")))
 	b.add_theme_stylebox_override("hover", panel_style(Color("70536e"), PINK))
 	b.add_theme_stylebox_override("pressed", panel_style(Color("97677d"), CREAM))
+	var disabled_style:=panel_style(Color("51445f"))
+	disabled_style.texture=preload("res://assets/ui/frame_disabled.png")
+	b.add_theme_stylebox_override("disabled",disabled_style)
+	b.add_theme_color_override("font_disabled_color",Color("9c859b"))
+	b.add_theme_color_override("font_hover_color",Color("fff0d4"))
+	var focus_style:=StyleBoxFlat.new()
+	focus_style.bg_color=Color.TRANSPARENT
+	focus_style.border_color=Color("f5d5a6")
+	focus_style.set_border_width_all(2)
+	focus_style.set_corner_radius_all(4)
+	b.add_theme_stylebox_override("focus",focus_style)
 	b.resized.connect(fit_button_text.bind(b))
 	b.pressed.connect(ui_button_hearts.bind(b))
 	b.pressed.connect(callback)
 	return b
+
+var action_icon_cache:Dictionary={}
+var action_icon_text:=""
+func update_action_icon()->void:
+	if action_button.text==action_icon_text and action_button.icon!=null:return
+	action_icon_text=action_button.text
+	var groups:={
+		"dig":["dig_action","digging_progress","pickup_shovel"],
+		"axe":["chop_tree","pickup_axe"],"pickaxe":["mine_rock"],
+		"craft":["craft_shovel","craft_pickaxe"],"repair":["repair_shovel"],
+		"water":["water_action","pickup_can"],"fill":["fill_water"],
+		"rake":["clean_bed","uproot_flower","pickup_rake"],
+		"fertilizer":["fertilize_bed","pickup_fertilizer"],"grow":["plant_growing"],
+		"seed":["new_bed_action"],"shears":["snip_plant","pickup_shears"],
+		"drill":["drill_action","pickup_drill"],"letter":["read_letter"],
+		"book":["read_book"],"stats":["read_statistics"],
+		"key":["pickup_gate_key","gate_key_action"],"gate":["open_gate","open_house_door"],
+		"chest":["open_chest"],"rune":["pickup_rune","press_rune","insert_rune"],
+		"reset":["puzzle_reset_action"],"wear":["wear_accessory"],
+		"sit":["sit_action"],"stand":["stand_action"],"swing":["swing_action"],
+		"apple":["eat_apple"],"berries":["eat_berries"],"fish":["take_fish"],
+		"feed":["feed_cat"],"cat":["meet_cat"],"pet":["pet_cat_action"],
+		"skull":["take_skull"],"insert_skull":["insert_skull"],"write":["write_reply"],
+		"medkit":["use_medkit"],"material":["pickup_material"],"flashlight":["pickup_flashlight"]}
+	var name:="take"
+	for icon_name in groups:
+		for key in groups[icon_name]:
+			if content.ui.has(key) and action_button.text==tx(key):name=icon_name;break
+	if not action_icon_cache.has(name):action_icon_cache[name]=load("res://assets/ui/action_"+name+".png")
+	action_button.icon=action_icon_cache[name]
+	action_button.expand_icon=true
+	action_button.add_theme_constant_override("icon_max_width",26)
+	action_button.add_theme_constant_override("h_separation",6)
 
 func ui_button_hearts(control:Button)->void:
 	if control==action_button or not is_instance_valid(ui_hearts):return
@@ -398,6 +443,7 @@ func ui_button_hearts(control:Button)->void:
 
 func fit_button_text(control: Button) -> void:
 	var available_width := maxf(1, control.size.x - control.get_theme_stylebox("normal").get_minimum_size().x - 4)
+	if control.icon!=null:available_width-=34
 	var font_size := 30
 	while font_size > 16 and control.get_theme_font("font").get_string_size(control.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > available_width:
 		font_size -= 1
@@ -462,6 +508,9 @@ func setup_ui() -> void:
 	action_button.button_up.connect(world_tools.stop_drill)
 	hud.add_child(action_button)
 	attack_button = button(tx("attack_action"), func(): attack(), 120)
+	attack_button.icon=preload("res://assets/ui/action_attack.png")
+	attack_button.expand_icon=true
+	attack_button.add_theme_constant_override("icon_max_width",26)
 	attack_button.button_down.connect(func(): attack_held = true)
 	attack_button.button_up.connect(func(): attack_held = false)
 	hud.add_child(attack_button)
@@ -532,10 +581,14 @@ func setup_enemy_progress() -> void:
 	enemy_count_progress.show_percentage = false
 	enemy_count_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var background := StyleBoxFlat.new()
-	background.bg_color = Color("252438")
+	background.bg_color = Color("302538")
+	background.border_color=Color("bf8b9e")
+	background.set_border_width_all(2)
 	background.set_corner_radius_all(3)
 	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color("b97591")
+	fill.bg_color = Color("cc95a5")
+	fill.border_color=Color("edc4b2")
+	fill.set_border_width_all(1)
 	fill.set_corner_radius_all(3)
 	enemy_count_progress.add_theme_stylebox_override("background", background)
 	enemy_count_progress.add_theme_stylebox_override("fill", fill)
@@ -1899,6 +1952,7 @@ func update_hud() -> void:
 	elif nearest>=0:action_button.text=action_text(objects[nearest])
 	if level==3 and held_item=="shovel" and nearest<0: action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
 	if held_item=="drill" and nearest<0:action_button.text=tx("drill_action")
+	update_action_icon()
 	fit_button_text(action_button)
 	switch_button.visible = playing and not save_data.get("world_kit",[]).is_empty()
 	drop_button.visible=playing and not held_item.is_empty()
