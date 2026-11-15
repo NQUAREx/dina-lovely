@@ -2133,18 +2133,25 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 	if name in ["hedge_tree","hedge_tree_apples"]:
 		var key:=name+str(variant)
 		if not hedge_tree_textures.has(key):hedge_tree_textures[key]=load("res://assets/"+name+"_variant"+str(variant)+".png")
+		# Atlas sprites display 32 source pixels in 64 world pixels. Their
+		# one-source-pixel ring is therefore two world pixels. Native-size
+		# canopies use the same ring width, not a one-native-pixel outline.
+		var radius:=64/32
 		if not outlines.has(key):
 			var source:Image=hedge_tree_textures[key].get_image().get_region(Rect2i(0,0,64,80))
-			var border:=Image.create(68,84,false,Image.FORMAT_RGBA8)
+			var border:=Image.create(64+radius*2,80+radius*2,false,Image.FORMAT_RGBA8)
 			for y in range(80):
 				for x in range(64):
 					if source.get_pixel(x,y).a<.2:continue
-					for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:border.set_pixel(x+2+d.x,y+2+d.y,Color("fff3a6"))
+					for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
+						for step in range(1,radius+1):border.set_pixel(x+radius+d.x*step,y+radius+d.y*step,Color("fff3a6"))
 			for y in range(80):
 				for x in range(64):
-					if source.get_pixel(x,y).a>.2:border.set_pixel(x+2,y+2,Color.TRANSPARENT)
+					if source.get_pixel(x,y).a>.2:border.set_pixel(x+radius,y+radius,Color.TRANSPARENT)
 			outlines[key]=ImageTexture.create_from_image(border)
-		draw_texture_rect(outlines[key],Rect2(pos-Vector2(34,98),Vector2(68,84)),false);return
+		var box:=Rect2(pos-Vector2(32+radius,96+radius)*scale_factor,Vector2(64+radius*2,80+radius*2)*scale_factor)
+		draw_pickup_outline_border(outlines[key],box)
+		return
 	if not outlines.has(name):
 		var id := int(sprites.get(name,0))
 		var source := atlas.get_image().get_region(Rect2i(id%16*32,id/16*48+(16 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 0),32,32 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 48))
@@ -2159,8 +2166,13 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 				if source.get_pixel(x,y).a>.2:border.set_pixel(x+1,y+1,Color.TRANSPARENT)
 		outlines[name] = ImageTexture.create_from_image(border)
 	var box := Rect2(pos-Vector2(25.5,33.5),Vector2(51,51)) if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else Rect2(pos-Vector2(34,88)*scale_factor,Vector2(68,100)*scale_factor)
-	for offset in [Vector2(-2,0),Vector2(2,0),Vector2(0,-2),Vector2(0,2)]:draw_texture_rect(outlines[name],Rect2(box.position+offset,box.size),false,Color(.2,.13,.25))
-	draw_texture_rect(outlines[name],box,false)
+	draw_pickup_outline_border(outlines[name],box)
+
+func draw_pickup_outline_border(texture:Texture2D,box:Rect2)->void:
+	# Shared final pass gives native canopies the same dark two-world-pixel
+	# backing as every atlas item; the yellow source ring remains on top.
+	for offset in [Vector2(-2,0),Vector2(2,0),Vector2(0,-2),Vector2(0,2)]:draw_texture_rect(texture,Rect2(box.position+offset,box.size),false,Color(.2,.13,.25))
+	draw_texture_rect(texture,box,false)
 
 func draw_shadow(pos: Vector2, width: float = 24) -> void:
 	draw_set_transform(pos,0,Vector2(1,.3))

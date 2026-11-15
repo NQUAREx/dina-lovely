@@ -15,8 +15,8 @@ func _draw()->void:
  var is_button:=panel is Button
  var disabled:bool=is_button and panel.disabled
  var tint:=Color(.65,.58,.66,.7) if disabled else Color.WHITE
- var flower_size:=Vector2(45,33) if is_button else Vector2(60,44)
- var overhang:=14.0 if is_button else 20.0
+ var flower_size:=Vector2(48,36) if is_button else Vector2(72,54)
+ var overhang:=14.0 if is_button else 24.0
  # Short system buttons have a frame, without crowding their icon with flowers.
  if not is_button or size.x>=110:
   draw_texture_rect(FLOWER,Rect2(Vector2(-2,-overhang),flower_size),false,tint)
