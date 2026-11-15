@@ -30,3 +30,7 @@ for f in sorted(SRC.glob('*.png')):
  else:im.save(A/f.name)
 atlas.save(A/'atlas.png')
 print('PASS: recolored standalone/atlas canopies; all source alpha masks preserved')
+
+# Current perspective geometry and crown-only masks supersede source palette snapshots.
+from create_topdown_trees import generate as generate_topdown_trees
+generate_topdown_trees()

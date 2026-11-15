@@ -2138,7 +2138,8 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 		# canopies use the same ring width, not a one-native-pixel outline.
 		var radius:=64/32
 		if not outlines.has(key):
-			var source:Image=hedge_tree_textures[key].get_image().get_region(Rect2i(0,0,64,80))
+			var crown:Texture2D=load("res://assets/"+name+"_variant"+str(variant)+"_crown.png")
+			var source:Image=crown.get_image().get_region(Rect2i(0,0,64,80))
 			var border:=Image.create(64+radius*2,80+radius*2,false,Image.FORMAT_RGBA8)
 			for y in range(80):
 				for x in range(64):
@@ -2155,6 +2156,9 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 	if not outlines.has(name):
 		var id := int(sprites.get(name,0))
 		var source := atlas.get_image().get_region(Rect2i(id%16*32,id/16*48+(16 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 0),32,32 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 48))
+		if name.begins_with("tree") or name.begins_with("quest_tree"):
+			var crown_atlas:Texture2D=load("res://assets/tree_crowns.png")
+			source=crown_atlas.get_image().get_region(Rect2i(id%16*32,id/16*48,32,48))
 		var border := Image.create(34,source.get_height()+2,false,Image.FORMAT_RGBA8)
 		for y in range(source.get_height()):
 			for x in range(32):
