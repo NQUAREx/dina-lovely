@@ -2113,7 +2113,11 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 		var stone_variant:=posmod(cell.x*17+cell.y*7,4)
 		if stone_variant>0:texture_name+=str(stone_variant)
 		if not hedge_tree_textures.has(texture_name):hedge_tree_textures[texture_name]=load("res://assets/"+texture_name+".png")
-		draw_texture_rect(hedge_tree_textures[texture_name],Rect2(pos-Vector2(32,86)*scale_factor,Vector2(64,128)*scale_factor),false,color)
+		# Keep the roof footprint and original stone pixels, reduce only the
+		# vertical extrusion from 20 to 12 source pixels (base stays fixed).
+		var stone_texture:Texture2D=hedge_tree_textures[texture_name]
+		draw_texture_rect_region(stone_texture,Rect2(pos+Vector2(-32,-70)*scale_factor,Vector2(64,68)*scale_factor),Rect2(0,0,32,34),color)
+		draw_texture_rect_region(stone_texture,Rect2(pos+Vector2(-32,-2)*scale_factor,Vector2(64,36)*scale_factor),Rect2(0,34,32,30),color)
 		return
 	var id := int(sprites.get(name,0))
 	if name in ["hedge_tree","hedge_tree_apples"]:

@@ -41,7 +41,16 @@ frame_colors=[]
 for room in range(7):
  with Image.open(root/'assets'/f'frame_field_{room}.png') as field:
   frame_colors.append([round(c) for c in ImageStat.Stat(field.convert('RGB')).mean])
-(p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__FONT_HASH__',hashlib.sha256((root/'assets/body.ttf').read_bytes()+(root/'assets/title.ttf').read_bytes()).hexdigest()[:12]).replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)).replace('__REQUIRED_UI__',json.dumps(sorted(required_ui(content)))))
+# Browser-owned controls use the same clean pixel assets as the game.
+from create_loading_heroine import generate as generate_loading_heroine
+generate_loading_heroine()
+shell_files={"frame_normal.png":"ui-frame-normal.png","frame_hover.png":"ui-frame-hover.png","frame_pressed.png":"ui-frame-pressed.png","flower_corner.png":"ui-flower-left.png","crest_button.png":"ui-crest-button.png"}
+for source,target in shell_files.items():shutil.copyfile(root/'assets/ui'/source,p.parent/target)
+from PIL import ImageOps
+with Image.open(root/'assets/ui/flower_corner.png') as flower:ImageOps.mirror(flower).save(p.parent/'ui-flower-right.png')
+shutil.copyfile(root/'assets/loading_heroine.png',p.parent/'loading-heroine.png')
+shell_hash=hashlib.sha256(b''.join((p.parent/name).read_bytes() for name in [*shell_files.values(),'ui-flower-right.png','loading-heroine.png'])).hexdigest()[:12]
+(p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__SHELL_UI_HASH__',shell_hash).replace('__FONT_HASH__',hashlib.sha256((root/'assets/body.ttf').read_bytes()+(root/'assets/title.ttf').read_bytes()).hexdigest()[:12]).replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)).replace('__REQUIRED_UI__',json.dumps(sorted(required_ui(content)))))
 shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
 shutil.copyfile(root/'assets/title.ttf',p.parent/'letter-title.ttf')
 (p.parent/'font-licenses.txt').write_text((root/'assets/FONT-LICENSE.txt').read_text()+'\n'+(root/'assets/PIXELIFY-OFL.txt').read_text())
