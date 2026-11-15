@@ -53,7 +53,7 @@ func draw(crate:Dictionary,point:Vector2)->void:
  var opened:bool=crate.weapon in g.save_data.weapon_crates_opened
  var age:float=g.time-float(crate.get("opened_at",g.time-1))
  var frame:=0 if not opened else mini(7,int(smoothstep(0,.65,age)*8))
- g.draw_texture_rect_region(ART,Rect2(point-Vector2(32,86),Vector2(64,96)),Rect2(frame*32,0,32,48))
+ g.draw_texture_rect_region(ART,Rect2(point-Vector2(64,86),Vector2(128,96)),Rect2(frame*64,0,64,48))
 func draw_fist()->void:
  if g.level!=4 or not g.weapon.is_empty() or g.attack_flash<=0 or g.combat_done:return
  var t:=clampf(1-g.attack_flash/.22,0,1)

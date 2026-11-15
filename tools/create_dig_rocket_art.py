@@ -55,29 +55,9 @@ for frame in range(8):
  im.alpha_composite(tile,(frame*48,0))
 im.save(A/'rocket_blast.png')
 print('Created 8 excavation silhouettes, earth/fire/smoke sprites and 8 blast frames')
-# Eight independently drawn lid poses, with straight sides and visible hinges.
-im=Image.new('RGBA',(256,48))
-for frame in range(8):
- tile=Image.new('RGBA',(32,48));d=ImageDraw.Draw(tile)
- d.ellipse((1,40,30,46),fill='#353943')
- d.rectangle((2,27,29,42),fill='#485762');d.rectangle((4,29,27,40),fill='#7b8b93')
- d.line((2,27,29,27),fill='#bac3c1');d.rectangle((3,40,28,43),fill='#526673')
- for x in [4,25]:
-  d.rectangle((x,28,x+2,42),fill='#acb7b6');d.line((x,29,x,40),fill='#d0d3c7')
- for x,y in [(6,32),(26,32),(6,40),(26,40)]:d.point((x,y),fill='#ded7bb')
- top=20-round(frame*1.25);bottom=28-round(frame*.7)
- if frame:
-  d.rectangle((3,bottom,28,29),fill='#354852')
-  for x in [3,26]:
-   d.rectangle((x,bottom,x+2,31),fill='#8b9da5');d.line((x,bottom,x,30),fill='#bec8c4')
- d.rectangle((2,top,29,bottom),fill='#637987');d.rectangle((4,top+2,27,max(top+2,bottom-2)),fill='#8d9fa6')
- d.line((2,bottom,2,top,29,top,29,bottom),fill='#c8ceca');d.line((3,bottom,28,bottom),fill='#435761')
- for x in [6,24]:d.line((x,top+1,x,bottom),fill='#c0c8c1',width=2)
- if frame<2:
-  d.rectangle((13,27,18,34),fill='#c4b795');d.arc((13,24,18,29),180,360,fill='#e3d9b8',width=2);d.point((15,31),fill='#4b5154')
- else:d.rectangle((14,30,17,32),fill='#c4b795')
- im.alpha_composite(tile,(frame*32,0))
-im.save(A/'iron_weapon_crates.png')
+# Dedicated generator keeps the split-lid case artwork reproducible.
+from create_weapon_crate_art import generate as generate_weapon_crates
+generate_weapon_crates()
 # Muted warm light, rose embers and lavender-grey smoke match the environment.
 for name in ['physical_particles.png','rocket_blast.png']:
  image=Image.open(A/name).convert('RGBA')
