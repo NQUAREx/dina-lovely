@@ -75,3 +75,6 @@ for name in names:
   if name=='material':d.polygon([(2,17),(6,15),(9,19),(6,22),(2,21)],fill=rose)
  im.save(A/f'action_{name}.png')
 print('Generated pixel UI frames and',len(names),'action icons')
+
+# User-selected reference frames supersede the early procedural placeholders.
+from extract_reference_ui import *

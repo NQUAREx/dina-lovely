@@ -11,11 +11,6 @@ func fit_panel()->void:
  position=Vector2.ZERO
  size=panel.size
 func _draw()->void:
- var x:=floorf(size.x/2)
- var heart:=PackedVector2Array([Vector2(-9,3),Vector2(-5,0),Vector2(0,4),Vector2(5,0),Vector2(9,3),Vector2(9,7),Vector2(0,15),Vector2(-9,7)])
- var badge:=PackedVector2Array([Vector2(x-35,2),Vector2(x-25,14),Vector2(x+25,14),Vector2(x+35,2)])
- draw_colored_polygon(badge,Color("6f4c65"))
- for i in range(heart.size()):heart[i]+=Vector2(x,2)
- draw_colored_polygon(heart,Color("efb5be"))
- draw_line(Vector2(x-21,5),Vector2(x-14,5),Color("e9c29e"),2)
- draw_line(Vector2(x+14,5),Vector2(x+21,5),Color("e9c29e"),2)
+ var texture:Texture2D=preload("res://assets/ui/crest_button.png") if panel is Button else preload("res://assets/ui/crest_panel.png")
+ var target:=Vector2(36,20) if panel is Button else Vector2(100,26)
+ draw_texture_rect(texture,Rect2(Vector2((size.x-target.x)/2,0),target),false)
