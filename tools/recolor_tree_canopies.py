@@ -3,8 +3,8 @@ from pathlib import Path
 from PIL import Image
 import json,math
 ROOT=Path(__file__).resolve().parents[1];SRC=ROOT/'tools/art_source/tree_palette';A=ROOT/'assets'
-# Olive, emerald, blue spruce, golden lime, sage and warm pear.
-PALETTES=[((27,65,55),(91,142,75),(187,202,112)),((22,65,61),(52,143,104),(137,206,139)),((28,62,79),(67,130,142),(151,196,173)),((53,67,40),(132,153,66),(221,211,117)),((35,66,62),(92,151,124),(185,211,154)),((47,66,40),(119,143,75),(204,192,111))]
+# Cohesive hedge greens: modest warm/cool variation, shared teal shadows and sage highlights.
+PALETTES=[((30,65,59),(80,126,94),(147,173,116)),((29,66,58),(75,127,94),(137,170,119)),((29,64,62),(77,122,99),(142,171,129)),((34,67,56),(88,129,91),(153,174,117)),((31,66,60),(82,129,101),(145,175,128)),((34,66,56),(88,126,92),(151,170,116))]
 def recolor(im,variant):
  out=im.copy();low,mid,hi=PALETTES[variant%6]
  for y in range(im.height):

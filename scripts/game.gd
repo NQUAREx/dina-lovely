@@ -361,6 +361,11 @@ func decorate_panel(panel:Control)->void:
 	var decoration:=Node2D.new()
 	panel.add_child(decoration)
 	panel.move_child(decoration,0)
+	if not panel is Button:
+		var wallpaper:=Control.new()
+		wallpaper.set_script(preload("res://scripts/ui_wallpaper.gd"))
+		wallpaper.panel=panel
+		decoration.add_child(wallpaper)
 	var pattern:=Control.new()
 	pattern.set_script(preload("res://scripts/ui_pattern.gd"))
 	pattern.panel=panel
@@ -380,7 +385,7 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	var b := Button.new()
 	b.text = text
 	if not text.is_empty():decorate_panel(b)
-	b.custom_minimum_size = Vector2(minf(width, 420), 60)
+	b.custom_minimum_size = Vector2(minf(width, 420), 76)
 	b.add_theme_font_override("font", title_font)
 	b.add_theme_font_size_override("font_size", 30)
 	b.clip_text = true
@@ -489,8 +494,8 @@ func setup_ui() -> void:
 	objective.autowrap_mode = TextServer.AUTOWRAP_OFF
 	objective.clip_text = true
 	objective.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	objective.position = Vector2(32, 68)
-	objective.size = Vector2(374, 42)
+	objective.position = Vector2(48, 68)
+	objective.size = Vector2(358, 42)
 	hud.add_child(objective)
 	status = label("", 18, Color("c1bdce"))
 	status.add_theme_font_override("font", title_font)
@@ -668,7 +673,7 @@ func modal_box(width: float = 610, height: float = 430, paper: bool = false) -> 
 	for key in ["margin_left","margin_right","margin_top","margin_bottom"]: margin.add_theme_constant_override(key, 22)
 	panel.add_child(margin)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 9)
+	box.add_theme_constant_override("separation", 24)
 	margin.add_child(box)
 	panel.modulate.a = 0
 	create_tween().tween_property(panel, "modulate:a", 1.0, 0.25)
@@ -783,6 +788,7 @@ func show_journal() -> void:
 	scroll.custom_minimum_size.y = 285
 	box.add_child(scroll)
 	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation",24)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
 	for letter in content.letters:
@@ -1489,7 +1495,7 @@ func interaction_reachable(obj: Dictionary) -> bool:
 	if obj.kind=="cat_hut":return companion.can_feed(obj)
 	var target:Vector2=obj.pos
 	var length:=player.distance_to(target)
-	var embedded:bool=obj.get("hidden_hedge",false) or obj.kind in ["berries","tree_apples","hedge_target"] or (world_tools.tree_target(obj) and obj.get("integrated_hedge",false))
+	var embedded:bool=obj.get("hidden_hedge",false) or obj.kind in ["berries","tree_apples","hedge_tree_apples","hedge_target"] or (world_tools.tree_target(obj) and obj.get("integrated_hedge",false))
 	for step in range(1,ceili(length/2)):
 		var point:=player.lerp(target,float(step)*2/maxf(length,1))
 		var cell:=Vector2i(point/TILE)
@@ -2121,9 +2127,14 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 	if name=="quest_tree":name=dig_quest.damage_texture(name)+"_outline";scale_factor*=2.0
 	if name=="quest_axe":name="axe"
 	if name=="shovel" and level==3 and dig_quest.state().broken:name="shovel_broken"
-	if hedge_tree_textures.has(name):
-		if not outlines.has(name):
-			var source:Image=hedge_tree_textures[name].get_image().get_region(Rect2i(0,0,64,80))
+	var world:=pos+camera-get_viewport_rect().size/2
+	var variant:=posmod(floori(world.x/48)*17+floori(world.y/48)*7,6)
+	if name in ["tree","tree_apples"]:name+="_variant"+str(variant)
+	if name in ["hedge_tree","hedge_tree_apples"]:
+		var key:=name+str(variant)
+		if not hedge_tree_textures.has(key):hedge_tree_textures[key]=load("res://assets/"+name+"_variant"+str(variant)+".png")
+		if not outlines.has(key):
+			var source:Image=hedge_tree_textures[key].get_image().get_region(Rect2i(0,0,64,80))
 			var border:=Image.create(68,84,false,Image.FORMAT_RGBA8)
 			for y in range(80):
 				for x in range(64):
@@ -2132,8 +2143,8 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 			for y in range(80):
 				for x in range(64):
 					if source.get_pixel(x,y).a>.2:border.set_pixel(x+2,y+2,Color.TRANSPARENT)
-			outlines[name]=ImageTexture.create_from_image(border)
-		draw_texture_rect(outlines[name],Rect2(pos-Vector2(34,98),Vector2(68,84)),false);return
+			outlines[key]=ImageTexture.create_from_image(border)
+		draw_texture_rect(outlines[key],Rect2(pos-Vector2(34,98),Vector2(68,84)),false);return
 	if not outlines.has(name):
 		var id := int(sprites.get(name,0))
 		var source := atlas.get_image().get_region(Rect2i(id%16*32,id/16*48+(16 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 0),32,32 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 48))
@@ -2454,6 +2465,8 @@ func _draw_world() -> void:
 				draw_hedge_canopy(visible_crowns,1)
 		elif kind=="pet_cat":companion.draw_cat()
 		elif item.get("integrated_tree",false):
+			if not drawing_neighbor and task_time<=0 and available(item) and item.pos.distance_squared_to(player)<9025 and interaction_reachable(item):
+				draw_pickup_outline(item.kind,p,1.0)
 			draw_hedge_tree_top(item.kind,item.pos)
 		elif item.has("enemy"):
 			var enemy: Dictionary = item.enemy
@@ -3713,12 +3726,16 @@ func prepare_room_details(rng: RandomNumberGenerator) -> void:
 			if obj.kind=="column":obj.kind="column_wreath"
 			elif obj.kind=="candle":obj.kind="candle_heart"
 		for cell in [Vector2i(9,10),Vector2i(17,10),Vector2i(8,20),Vector2i(18,20)]:put_object("heart_stand",cell,"",true)
-	var index := 0
-	for obj in objects:
-		if obj.kind!="tree":continue
-		if rng.randf()<.55:
-			obj.kind="tree_apples";obj.id="apple_%d_%d"%[level,index]
-		index+=1
+	var trees:Array=objects.filter(func(o):return o.kind in ["tree","tree_apples"])
+	var apple_flags:Array[bool]=[]
+	for obj in trees:apple_flags.append(rng.randf()<.45)
+	if trees.size()>1:
+		if not apple_flags.has(true):apple_flags[rng.randi_range(0,trees.size()-1)]=true
+		if not apple_flags.has(false):apple_flags[rng.randi_range(0,trees.size()-1)]=false
+	for index in range(trees.size()):
+		var obj:Dictionary=trees[index]
+		obj.kind="tree_apples" if apple_flags[index] else "tree"
+		if apple_flags[index]:obj.id="apple_%d_%d"%[level,index]
 	for obj in objects:
 		if obj.kind not in ["tree","tree_apples"]:continue
 		var cell:=Vector2i(obj.pos/TILE)
