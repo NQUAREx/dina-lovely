@@ -29,3 +29,43 @@ func draw(door:Dictionary,pos:Vector2)->void:
   if not textures.has(key):textures[key]=load("res://assets/"+key+".png")
   var x:=-96.0 if side=="left" else 96.0
   g.draw_texture_rect(textures[key],Rect2(pos+Vector2(x-48,-160),Vector2(96,224)),false)
+
+func draw_hinges(pos:Vector2,amount:float)->void:
+ for side in [-1,1]:
+  for y in [-54,-13]:
+   var origin:=pos+Vector2(side*72,y)
+   g.draw_rect(Rect2(origin+Vector2(-4,-3),Vector2(8,8)),Color("373943"))
+   g.draw_rect(Rect2(origin+Vector2(-2,-2),Vector2(4,6)),Color("939099"))
+   var length:=9.0 if side<0 or amount<=.25 else 4.0
+   var start:=origin+Vector2(4 if side<0 else -length-4,-2)
+   g.draw_rect(Rect2(start,Vector2(length,5)),Color("474853"))
+   g.draw_line(start,start+Vector2(length,0),Color("898692"),2)
+   g.draw_rect(Rect2(start+Vector2(length*.5,2),Vector2(2,2)),Color("b5a5aa"))
+
+var lamps:Dictionary={}
+func update_lights()->void:
+ for lamp in lamps.values():lamp.visible=false
+ for door in g.objects:
+  if door.kind!="doorway":continue
+  for side in [-1,1]:
+   var key:=str(door.id)+str(side)
+   if not lamps.has(key):
+    var lamp:=PointLight2D.new()
+    var image:=Image.create(96,96,false,Image.FORMAT_RGBA8)
+    for y in range(96):
+     for x in range(96):
+      var down:=float(y-48)
+      var across:=absf(float(x-48))
+      var value:=0.0
+      if down>=0:
+       var width:=9.0+down*.30
+       value=pow(maxf(0,1.0-across/width),2)*pow(maxf(0,1.0-down/44.0),1.6)
+      image.set_pixel(x,y,Color(1,1,1,value))
+    lamp.texture=ImageTexture.create_from_image(image)
+    lamp.texture_scale=1.0
+    lamp.color=Color(1,.70,.38)
+    g.add_child(lamp);lamps[key]=lamp
+   var lamp:PointLight2D=lamps[key]
+   lamp.visible=true
+   lamp.position=g.screen(door.pos)+Vector2(side*99,-47)
+   lamp.energy=.055 if g.level==1 else .32

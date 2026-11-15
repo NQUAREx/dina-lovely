@@ -10,6 +10,8 @@ uniform vec2 light_dir = vec2(0.0,-1.0);
 uniform vec4 optics = vec4(1.0);
 uniform bool enabled = false;
 uniform bool ground_light = false;
+uniform vec2 gate_lights[4];
+uniform int gate_light_count=0;
 void fragment(){
  vec2 pixel=UV*view_size;
  vec2 offset=pixel-light_pos;
@@ -31,6 +33,15 @@ void fragment(){
  vec2 reflected=offset-body*body_t;
  float bounce=(ground_light?0.0:1.0)*exp(-dot(reflected,reflected)/(26.0*26.0))*(.34-.14*body_t);
  float light=enabled?clamp(max(beam,max(lens_spill,bounce))*optics.w,0.0,1.0):0.0;
+ float gate_light=0.0;
+ for(int i=0;i<4;i++){
+  if(i>=gate_light_count)break;
+  vec2 delta=pixel-gate_lights[i];
+  float width=9.0+max(0.0,delta.y)*.30;
+  float spill=pow(max(0.0,1.0-abs(delta.x)/width),2.0)*pow(max(0.0,1.0-delta.y/44.0),1.6);
+  gate_light=max(gate_light,delta.y>=0.0?spill*.12:0.0);
+ }
+ light=max(light,gate_light);
  float in_room=smoothstep(room_band.x-64.0,room_band.x+64.0,pixel.y)*(1.0-smoothstep(room_band.y-64.0,room_band.y+64.0,pixel.y));
  COLOR=vec4(vec3(.08,.043,.016)*max(beam,bounce)*(enabled?1.0:0.0),(1.0-light)*max(room_opacity,in_room));
 }

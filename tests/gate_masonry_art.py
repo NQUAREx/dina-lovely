@@ -1,15 +1,13 @@
-"""Column roof retains wall perspective; shaft omits vertical mortar joints."""
+"""Posts have mirrored fittings and a solid inner foot return."""
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageOps
 A=Path(__file__).resolve().parents[1]/'assets'
-w=Image.open(A/'wall_exposed.png').convert('RGBA')
-for f in A.glob('junction_*.png'):
- im=Image.open(f).convert('RGBA')
- # The unchanged wall roof maps at native scale, shifted down by8+2px.
- for y in range(19,34):
-  for x in range(4,28):
-   c=w.getpixel((x,y-8))
-   if c[3]==255:assert im.getpixel((x+8,y+2))==c,(f.name,x,y)
- # Collars project two pixels beyond the unchanged shaft.
- assert im.getpixel((10,30))[3]==255 and im.getpixel((10,90))[3]==255
-print('PASS original wall roof perspective retained with narrow upper/lower collars')
+for path in A.glob('junction_*_left.png'):
+ left=Image.open(path).convert('RGBA')
+ right=Image.open(path.with_name(path.name.replace('_left','_right'))).convert('RGBA')
+ assert left.size==(96,224)
+ assert ImageOps.mirror(left).tobytes()==right.tobytes()
+ assert left.getpixel((74,160))[3]==255
+ for y in range(94,172):
+  assert all(left.getpixel((x,y))[3]==255 for x in range(24,72))
+print('PASS mirrored posts, continuous shaft, solid inner pedestal return')

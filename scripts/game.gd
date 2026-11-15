@@ -2960,6 +2960,7 @@ func setup_fog() -> void:
 	layer.add_child(fog)
 
 func update_fog() -> void:
+	gate_junctions.update_lights()
 	if not is_instance_valid(fog):return
 	if level!=1:fog.visible=false;return
 	var material: ShaderMaterial = fog.material
@@ -2967,6 +2968,12 @@ func update_fog() -> void:
 	var south:=clampf((grid.size()*TILE-player.y)/(5*TILE),0,1)
 	var opacity:=smoothstep(0,1,minf(north,south))
 	fog.visible=true
+	var gate_lights:=PackedVector2Array()
+	for door in objects:
+		if door.kind=="doorway":
+			for side in [-1,1]:gate_lights.append(screen(door.pos)+Vector2(side*99,-47))
+	material.set_shader_parameter("gate_lights",gate_lights)
+	material.set_shader_parameter("gate_light_count",gate_lights.size())
 	material.set_shader_parameter("room_band",Vector2(screen(Vector2(0,5*TILE)).y,screen(Vector2(0,(grid.size()-5)*TILE)).y))
 	material.set_shader_parameter("room_opacity",opacity)
 	if not fog.visible:return
@@ -3625,6 +3632,7 @@ func level_complete() -> bool:
 func draw_gate(pos: Vector2, amount: float) -> void:
 	draw_gate_leaf("gate_panel",pos+Vector2(-72,-65))
 	draw_gate_leaf("gate_ajar" if amount>.25 else "gate_panel",pos+Vector2(0,-65))
+	gate_junctions.draw_hinges(pos,amount)
 	if amount<=0:
 		draw_sprite("lock_closed",pos+Vector2(0,-23),Color.WHITE,.5)
 	else:
