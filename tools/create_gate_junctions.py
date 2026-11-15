@@ -15,10 +15,13 @@ for room in ['hedge','stone']:
    d.rectangle((15,44,31,85),fill='#81708a')
    d.rectangle((12,44,14,85),fill='#a18a9f')
    d.rectangle((32,44,35,85),fill='#51475f')
-   for y in [57,71,83]:
+   # Match the wall side courses after its 0.6x extrusion compression:
+   # 7 source px * 2 * .6 ~= 8 world px, i.e. 4 column source px.
+   for row,y in enumerate(range(49,85,4)):
     d.line((15,y,31,y),fill='#685971')
     d.line((16,y+1,30,y+1),fill='#978097')
-   for x,y in [(23,45),(20,58),(26,72)]:d.line((x,y,x,y+11),fill='#74617c')
+    joint=21 if row%2==0 else 27
+    d.line((joint,y+1,joint,min(y+3,84)),fill='#685971')
    for x,y in [(18,49),(28,62),(19,77),(26,81)]:d.rectangle((x,y,x+1,y+1),fill='#aa90a3')
    # A restrained square capital: two source pixels beyond the shaft, no crown.
    d.rectangle((10,40,37,47),fill='#51475f')
