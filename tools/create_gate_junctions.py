@@ -17,17 +17,13 @@ for room in ['hedge','stone']:
    d.rectangle((32,44,35,85),fill='#51475f')
    # Match the wall side courses after its 0.6x extrusion compression:
    # 7 source px * 2 * .6 ~= 8 world px, i.e. 4 column source px.
-   for row,y in enumerate(range(49,85,4)):
-    d.line((15,y,31,y),fill='#685971')
-    d.line((16,y+1,30,y+1),fill='#978097')
-    # Courses wrap continuously around both chamfer/return planes.
-    d.line((12,y-2,15,y),fill='#74617c')
-    d.line((12,y-1,15,y+1),fill='#b098ab')
-    d.line((31,y,35,y-2),fill='#43394f')
-    d.line((31,y+1,35,y-1),fill='#79647f')
-    joint=21 if row%2==0 else 27
-    d.line((joint,y+1,joint,min(y+3,84)),fill='#685971')
-   for x,y in [(18,49),(28,62),(19,77),(26,81)]:d.rectangle((x,y,x+1,y+1),fill='#aa90a3')
+   # Use the wall's actual side-face pixels and the same 20->12 projection,
+   # rather than approximating its mortar colors or brick proportions.
+   wall=Image.open(A/'wall_exposed.png').convert('RGBA')
+   course=wall.crop((4,34,28,54)).resize((24,12),Image.Resampling.NEAREST)
+   for y in range(47,85,12):
+    part=course.crop((0,0,24,min(12,85-y)))
+    im.alpha_composite(part,(12,y))
    # A restrained square capital: two source pixels beyond the shaft, no crown.
    d.rectangle((10,40,37,47),fill='#51475f')
    d.rectangle((11,39,36,43),fill='#9c859b')
