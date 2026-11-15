@@ -75,3 +75,7 @@ python3 tools/serve.py
 ## Публикация после восстановления
 
 GitHub API подтвердил Pages: источник `main`, путь `/docs`, тип `legacy`. Экспорт игры выполняется локально; GitHub Pages собирает и размещает статический сайт. Перед экспортом обе JSON-версии синхронизированы с GitHub. В окружении отсутствовали export templates; для сборки загружены официальные шаблоны 4.7.2. Отдельная проверка `tests/forest_gate_art.py` прошла. `tests/outfit_art.py` падает на проверке отверстия в вуали (строка 37), при этом атлас совпадает с предыдущим HEAD: это существующее ограничение, не новая правка кладки.
+
+## Рабочие скриншоты в proot
+
+См. `tools/qa/README.md`. Нативный Godot и Firefox WebGL2 успешно снимают реальную игру с `GALLIUM_DRIVER=softpipe LIBGL_ALWAYS_SOFTWARE=1 LP_NUM_THREADS=1` под Xvfb. Нельзя делать вывод о невозможности preview по предыдущим падениям llvmpipe: они устранены этой конфигурацией. Команды: `./tools/qa/native_capture.sh`, `./tools/qa/firefox_capture.sh`. Playwright Chromium работает для стартовой оболочки, полный WebGL runtime пока проверять Firefox. Среда Selenium установлена постоянно в `/root/.local/share/love-bloom-qa/venv`, Playwright — рядом в `node_modules`.
