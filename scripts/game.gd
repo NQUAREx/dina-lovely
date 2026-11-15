@@ -448,7 +448,7 @@ func update_action_icon()->void:
 	if not action_icon_cache.has(name):action_icon_cache[name]=load("res://assets/ui/action_"+name+".png")
 	action_button.icon=action_icon_cache[name]
 	action_button.expand_icon=true
-	action_button.add_theme_constant_override("icon_max_width",26)
+	action_button.add_theme_constant_override("icon_max_width",32)
 	action_button.add_theme_constant_override("h_separation",6)
 
 func ui_button_hearts(control:Button)->void:
@@ -460,7 +460,7 @@ func ui_button_hearts(control:Button)->void:
 
 func fit_button_text(control: Button) -> void:
 	var available_width := maxf(1, control.size.x - control.get_theme_stylebox("normal").get_minimum_size().x - 4)
-	if control.icon!=null:available_width-=34
+	if control.icon!=null:available_width-=40
 	var font_size := 30
 	while font_size > 16 and control.get_theme_font("font").get_string_size(control.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > available_width:
 		font_size -= 1
@@ -489,12 +489,12 @@ func setup_ui() -> void:
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(top)
 	decorate_panel(top)
-	objective = label("", 22)
+	objective = label("", 28)
 	objective.add_theme_font_override("font", title_font)
 	objective.autowrap_mode = TextServer.AUTOWRAP_OFF
 	objective.clip_text = true
 	objective.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	objective.position = Vector2(48, 68)
+	objective.position = Vector2(48, 62)
 	objective.size = Vector2(358, 42)
 	hud.add_child(objective)
 	status = label("", 18, Color("c1bdce"))
@@ -502,7 +502,7 @@ func setup_ui() -> void:
 	status.autowrap_mode = TextServer.AUTOWRAP_OFF
 	status.clip_text = true
 	status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	status.position = Vector2(32, 92)
+	status.position = Vector2(32, 104)
 	status.size = Vector2(374, 30)
 	hud.add_child(status)
 	setup_enemy_progress()
@@ -527,7 +527,7 @@ func setup_ui() -> void:
 	attack_button = button(tx("attack_action"), func(): attack(), 120)
 	attack_button.icon=preload("res://assets/ui/action_attack.png")
 	attack_button.expand_icon=true
-	attack_button.add_theme_constant_override("icon_max_width",26)
+	attack_button.add_theme_constant_override("icon_max_width",32)
 	attack_button.button_down.connect(func(): attack_held = true)
 	attack_button.button_up.connect(func(): attack_held = false)
 	hud.add_child(attack_button)

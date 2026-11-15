@@ -4,6 +4,8 @@
  motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}';document.head.append(motifStyle);
  const roseStyle=document.createElement('style');
  const shellUI='__SHELL_UI_HASH__';
+ const loadingHero=new Image();loadingHero.src='loading-heroine.png?v='+shellUI;
+ const loadingHeroReady=loadingHero.decode().catch(()=>{});
  roseStyle.textContent=`#mobile-gate,#portrait-gate,#garden-loading,#garden-recovery{isolation:isolate}#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{z-index:-1}
  #mobile-gate button,#garden-recovery button{position:relative;z-index:1;isolation:isolate;opacity:1!important;min-height:76px;box-sizing:border-box;border:12px solid transparent!important;border-image:url('ui-frame-normal.png?v=${shellUI}') 12 fill stretch!important;border-radius:0!important;background:#4f3855!important;background-clip:padding-box!important;box-shadow:none!important;color:#f5e3cf!important;padding:8px 20px!important;image-rendering:pixelated}
  #mobile-gate button:hover,#garden-recovery button:hover{border-image-source:url('ui-frame-hover.png?v=${shellUI}')!important}
@@ -12,8 +14,9 @@
  #mobile-gate button::before,#garden-recovery button::before{content:'';pointer-events:none;position:absolute;left:-14px;right:-14px;top:-26px;height:36px;background:url('ui-flower-left.png?v=${shellUI}') left top/48px 36px no-repeat,url('ui-flower-right.png?v=${shellUI}') right top/48px 36px no-repeat}
  #mobile-gate button::after,#garden-recovery button::after{content:'';pointer-events:none;position:absolute;left:50%;top:-17px;transform:translateX(-50%);width:44px;height:24px;background:url('ui-crest-button.png?v=${shellUI}') center/44px 24px no-repeat}
  #mobile-gate h1{color:#f4d3b4!important;text-shadow:2px 2px #49354f}#garden-loading progress{accent-color:#d49aab}
- .garden-loading-heroine{width:128px;height:128px;margin:0 auto;background:url('loading-heroine.png?v=${shellUI}') 0 0/1024px 128px no-repeat;image-rendering:pixelated;animation:garden-heroine-walk .64s steps(8) infinite}
- @keyframes garden-heroine-walk{to{background-position:-1024px 0}}`;
+ .garden-loading-heroine{width:128px;height:128px;margin:0 auto;overflow:hidden;contain:paint;isolation:isolate}
+ .garden-loading-heroine-strip{display:block;width:1024px;height:128px;max-width:none;image-rendering:pixelated;will-change:transform;transform:translate3d(0,0,0);animation:garden-heroine-walk .64s steps(8,end) infinite;pointer-events:none}
+ @keyframes garden-heroine-walk{from{transform:translate3d(0,0,0)}to{transform:translate3d(-1024px,0,0)}}`;
  document.head.append(roseStyle);
  const frameArtVersion='__FRAME_ART_HASH__';
  // The same room palette also colors browser-owned areas where textures cannot render.
@@ -213,7 +216,7 @@
   window.gardenShowLoading=()=>{
    window.gardenHideLoading();const screen=document.createElement('section');screen.id='garden-loading';
    screen.style.cssText='position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:1900;background:radial-gradient(ellipse at top,#55435d,#242538 75%);display:grid;place-content:center;text-align:center;padding:32px;color:#f5e3cf;font:20px/1.6 GardenLetter,sans-serif';
-   const sprout=document.createElement('div');sprout.className='garden-loading-heroine';sprout.setAttribute('aria-hidden','true');screen.append(sprout);
+   const sprout=document.createElement('div');sprout.className='garden-loading-heroine';sprout.setAttribute('aria-hidden','true');const strip=loadingHero.cloneNode();strip.className='garden-loading-heroine-strip';strip.alt='';sprout.append(strip);screen.append(sprout);
    const progress=document.createElement('progress');progress.id='garden-progress';progress.max=1;progress.value=loadProgress;progress.style.cssText='width:min(300px,75vw);height:14px;accent-color:#e5a6bd;border:1px solid #a07890;border-radius:8px;margin:22px auto 0;background:#342c42';progress.setAttribute('aria-label',t('loading_progress_label'));screen.append(progress);const phrase=document.createElement('p');screen.append(phrase);const keys=loaded.loading_phrases||[];let index=Math.floor(Math.random()*keys.length);
    const update=()=>{phrase.textContent=t(keys[index++%keys.length]);};update();loadingTimer=setInterval(update,1300);document.body.append(screen);paintChrome(chromeColor);
   };
@@ -231,7 +234,12 @@
    const button=add('button','launch_button');button.onclick=async()=>{
     try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();}catch(e){}
     try{if(screen.orientation?.lock)await screen.orientation.lock('portrait');}catch(e){}
-    gate.remove();window.gardenShowLoading();launch();
+    gate.remove();window.gardenShowLoading();
+    // Decode the sprite and commit its compositor layer before main-thread
+    // engine compilation. The walking strip is independent of progress events.
+    await loadingHeroReady;
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    launch();
    };
   }
   const credits=add('a','audio_credits');credits.href='audio-credits.html';credits.target='_blank';credits.rel='noopener';credits.style.cssText='color:#c3a7b8;font:12px GardenLetter,sans-serif;margin-top:24px';

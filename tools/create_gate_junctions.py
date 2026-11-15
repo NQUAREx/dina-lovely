@@ -1,5 +1,5 @@
 """Quiet pixel masonry gate posts; same footprint, canvas and render anchor."""
-from PIL import Image,ImageOps,ImageDraw
+from PIL import Image,ImageOps,ImageDraw,ImageFilter
 from pathlib import Path
 A=Path(__file__).resolve().parents[1]/'assets'
 for room in ['hedge','stone']:
@@ -26,11 +26,17 @@ for room in ['hedge','stone']:
    d.line((12,40,35,40),fill='#b79caf')
    d.rectangle((13,44,34,46),fill='#62536f')
    # Broad roof plane and darker bevels match the cubical wall blocks.
-   d.polygon([(12,25),(35,25),(37,27),(37,39),(35,41),(12,41),(10,39),(10,27)],fill='#8e7b94')
-   d.polygon([(10,27),(12,25),(12,37),(15,40),(12,40),(10,38)],fill='#aa91a6')
-   d.polygon([(35,25),(37,27),(37,39),(35,41),(33,41),(35,38)],fill='#62536f')
-   d.line((12,26,35,26),fill='#baa0af');d.line((14,28,33,28),fill='#a58ba1')
-   d.line((14,39,33,39),fill='#77617e')
+   d.polygon([(12,17),(35,17),(37,19),(37,41),(35,43),(12,43),(10,41),(10,19)],fill='#8e7b94')
+   d.polygon([(10,19),(12,17),(12,39),(15,42),(12,42),(10,40)],fill='#aa91a6')
+   d.polygon([(35,17),(37,19),(37,41),(35,43),(33,43),(35,40)],fill='#62536f')
+   d.line((12,18,35,18),fill='#baa0af');d.line((14,20,33,20),fill='#a58ba1')
+   d.line((14,41,33,41),fill='#77617e')
    for x,y in [(16,32),(25,34),(31,31),(20,36)]:d.rectangle((x,y,x+1,y+1),fill='#a58ba1')
+   # A single source-pixel dark rim separates the existing capital from the
+   # rear wall without changing its shape, palette or position.
+   cap=im.getchannel('A');cap.paste(0,(0,48,48,112))
+   rim=cap.filter(ImageFilter.MaxFilter(3))
+   backing=Image.new('RGBA',im.size,'#51475f');backing.putalpha(rim)
+   backing.alpha_composite(im);im=backing
    for side,s in [('left',im),('right',ImageOps.mirror(im))]:s.save(A/f'junction_{room}_{corridor}_{end}_{side}.png')
 print('Generated 16 restrained masonry gate posts, without ornate crowns or metal insets')
