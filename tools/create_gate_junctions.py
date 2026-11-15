@@ -20,6 +20,11 @@ for room in ['hedge','stone']:
    for row,y in enumerate(range(49,85,4)):
     d.line((15,y,31,y),fill='#685971')
     d.line((16,y+1,30,y+1),fill='#978097')
+    # Courses wrap continuously around both chamfer/return planes.
+    d.line((12,y-2,15,y),fill='#74617c')
+    d.line((12,y-1,15,y+1),fill='#b098ab')
+    d.line((31,y,35,y-2),fill='#43394f')
+    d.line((31,y+1,35,y-1),fill='#79647f')
     joint=21 if row%2==0 else 27
     d.line((joint,y+1,joint,min(y+3,84)),fill='#685971')
    for x,y in [(18,49),(28,62),(19,77),(26,81)]:d.rectangle((x,y,x+1,y+1),fill='#aa90a3')
