@@ -494,8 +494,9 @@ func setup_ui() -> void:
 	objective.autowrap_mode = TextServer.AUTOWRAP_OFF
 	objective.clip_text = true
 	objective.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	objective.position = Vector2(48, 62)
-	objective.size = Vector2(358, 42)
+	objective.position = Vector2(48, 36)
+	objective.size = Vector2(358, 100)
+	objective.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hud.add_child(objective)
 	status = label("", 18, Color("c1bdce"))
 	status.add_theme_font_override("font", title_font)

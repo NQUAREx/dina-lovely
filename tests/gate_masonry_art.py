@@ -1,13 +1,11 @@
-"""Pillar courses use exactly the projected wall side-face pixels."""
+"""Entire pillars, not just their brick strips, use projected wall blocks."""
 from pathlib import Path
-from PIL import Image,ImageOps
+from PIL import Image
 A=Path(__file__).resolve().parents[1]/'assets'
-course=Image.open(A/'wall_exposed.png').convert('RGBA').crop((4,34,28,54)).resize((24,12),Image.Resampling.NEAREST)
-for f in A.glob('junction_*.png'):
- im=Image.open(f).convert('RGBA')
- if f.stem.endswith('right'):im=ImageOps.mirror(im)
- for y in range(12):
-  for x in range(24):
-   c=course.getpixel((x,y))
-   if c[3]==255:assert im.getpixel((12+x,59+y))==c,(f.name,x,y)
-print('PASS pillar masonry uses identical projected wall-face pixels')
+w=Image.open(A/'wall_exposed.png').convert('RGBA')
+tile=Image.new('RGBA',(32,64));tile.alpha_composite(w.crop((0,0,32,34)),(0,8))
+tile.alpha_composite(w.crop((0,34,32,64)).resize((32,18),Image.Resampling.NEAREST),(0,42))
+expected=Image.new('RGBA',(48,112))
+for y in (38,26,14,2):expected.alpha_composite(tile,(8,y))
+for f in A.glob('junction_*.png'):assert Image.open(f).convert('RGBA').tobytes()==expected.tobytes(),f.name
+print('PASS full pillars match wall roof, bevels, side faces and perspective pixel-for-pixel')
