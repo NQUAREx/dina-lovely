@@ -87,10 +87,7 @@ func _ready() -> void:
     close_button.expand_icon = true
     close_button.add_theme_constant_override("icon_max_width", 38)
     close_button.tooltip_text = game.tx("reply_close_symbol")
-    close_button.flat = false
-    close_button.add_theme_stylebox_override("normal", game.panel_style(Color("51445f")))
-    close_button.add_theme_stylebox_override("hover", game.panel_style(Color("70536e"), game.PINK))
-    close_button.add_theme_stylebox_override("pressed", game.panel_style(Color("97677d"), game.CREAM))
+    close_button.flat = true
     close_button.position = Vector2(400, 8)
     close_button.size = Vector2(60, 60)
     close_button.pressed.connect(game.ui_button_hearts.bind(close_button))

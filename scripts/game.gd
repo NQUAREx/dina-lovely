@@ -346,10 +346,10 @@ func panel_style(color: Color, border: Color = Color("a07890"), radius: int = 12
 	if border==CREAM:state="pressed"
 	var style:=StyleBoxTexture.new()
 	style.texture=load("res://assets/ui/frame_"+state+".png")
-	style.set_texture_margin(SIDE_LEFT,34)
-	style.set_texture_margin(SIDE_RIGHT,34)
-	style.set_texture_margin(SIDE_TOP,27)
-	style.set_texture_margin(SIDE_BOTTOM,19)
+	style.set_texture_margin(SIDE_LEFT,12)
+	style.set_texture_margin(SIDE_RIGHT,12)
+	style.set_texture_margin(SIDE_TOP,12)
+	style.set_texture_margin(SIDE_BOTTOM,12)
 	style.content_margin_left=16
 	style.content_margin_right=16
 	style.content_margin_top=8
@@ -379,7 +379,7 @@ func label(text: String, size: int, color: Color = CREAM, fancy: bool = false) -
 func button(text: String, callback: Callable, width: float = 250) -> Button:
 	var b := Button.new()
 	b.text = text
-	decorate_panel(b)
+	if not text.is_empty():decorate_panel(b)
 	b.custom_minimum_size = Vector2(minf(width, 420), 60)
 	b.add_theme_font_override("font", title_font)
 	b.add_theme_font_size_override("font_size", 30)
@@ -400,6 +400,14 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	focus_style.set_border_width_all(2)
 	focus_style.set_corner_radius_all(4)
 	b.add_theme_stylebox_override("focus",focus_style)
+	if text.is_empty():
+		for state in ["normal","hover","pressed","disabled","focus"]:
+			var empty:=StyleBoxEmpty.new()
+			empty.content_margin_left=16
+			empty.content_margin_right=16
+			empty.content_margin_top=8
+			empty.content_margin_bottom=8
+			b.add_theme_stylebox_override(state,empty)
 	b.resized.connect(fit_button_text.bind(b))
 	b.pressed.connect(ui_button_hearts.bind(b))
 	b.pressed.connect(callback)

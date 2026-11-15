@@ -2,20 +2,8 @@
 from pathlib import Path
 from PIL import Image,ImageDraw
 A=Path(__file__).resolve().parents[1]/'assets'/'ui';A.mkdir(exist_ok=True)
-for state,bg,edge in [('normal','#4b364f','#c38b9e'),('hover','#67465e','#f4c69f'),('pressed','#382c42','#a5718d'),('disabled','#403846','#746578'),('panel','#302538','#bb879b'),('paper','#fff4df','#ba879a'),('focus','#4b364f','#f5d5a6')]:
- im=Image.new('RGBA',(64,64));d=ImageDraw.Draw(im)
- d.polygon([(6,0),(57,0),(63,6),(63,57),(57,63),(6,63),(0,57),(0,6)],fill='#251f30')
- d.polygon([(7,2),(56,2),(61,7),(61,56),(56,61),(7,61),(2,56),(2,7)],fill=edge)
- d.polygon([(8,4),(55,4),(59,8),(59,55),(55,59),(8,59),(4,55),(4,8)],fill=bg)
- d.line([(8,6),(55,6),(57,8)],fill='#e6b3b6' if state!='disabled' else '#877387',width=1)
- d.line([(6,9),(6,54),(9,57),(54,57)],fill='#78536f',width=1)
- d.line([(9,60),(55,60),(60,55)],fill='#6d4a63',width=1)
- for x,y in [(8,8),(55,55)]:
-  d.line((x-5,y+6,x+5,y-4),fill='#657548',width=2)
-  d.rectangle((x-5,y+1,x-2,y+3),fill='#a1a564');d.rectangle((x+2,y-5,x+4,y-2),fill='#839953')
-  for dx,dy in [(-2,0),(2,0),(0,-2),(0,2)]:d.rectangle((x+dx-1,y+dy-1,x+dx+1,y+dy+1),fill='#e7b5ba' if state!='disabled' else '#8b7987')
-  d.point((x,y),fill='#f7d59b')
- im.save(A/f'frame_{state}.png')
+from create_ui_frames import generate
+generate()
 # Each drawing is an individual, readable 24px silhouette in the UI palette.
 names=['dig','axe','pickaxe','craft','repair','water','fill','rake','fertilizer','grow','seed','shears','drill','letter','book','stats','key','gate','chest','rune','reset','wear','sit','stand','swing','apple','berries','fish','feed','pet','cat','skull','insert_skull','write','medkit','take','flashlight','attack','material']
 for name in names:
@@ -75,6 +63,3 @@ for name in names:
   if name=='material':d.polygon([(2,17),(6,15),(9,19),(6,22),(2,21)],fill=rose)
  im.save(A/f'action_{name}.png')
 print('Generated pixel UI frames and',len(names),'action icons')
-
-# User-selected reference frames supersede the early procedural placeholders.
-from extract_reference_ui import *
