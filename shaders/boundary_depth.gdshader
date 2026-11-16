@@ -9,20 +9,23 @@ float distance_to_area(vec2 p,vec4 r){
  return length(max(max(r.xy-p,p-r.zw),vec2(0.)));
 }
 float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float clouds(vec2 p,float size,float seed){
- vec2 cell=floor(p/size);float density=0.;
- for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
+uniform sampler2D cloud_atlas:filter_nearest,repeat_disable;
+vec4 cloud_layer(vec2 p,float pitch,float seed){
+ vec2 cell=floor(p/pitch);vec4 colour=vec4(0.);
+ // Stable back-to-front packing, like overlapping hedge crowns.
+ for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){
   vec2 id=cell+vec2(float(x),float(y));
   float a=hash21(id+seed),b=hash21(id+seed+19.);
-  vec2 centre=(id+vec2(.15+.7*a,.15+.7*b))*size;
-  vec2 q=(p-centre)/(size*vec2(.42+.27*b,.30+.22*a));
-  // Several unequal overlapping lobes give every cluster its own silhouette.
-  float body=exp(-2.3*dot(q,q));
-  vec2 l=q-vec2(.65,-.25);vec2 r=q+vec2(.55,.10);
-  body=max(body,max(exp(-3.8*dot(l,l)),exp(-3.1*dot(r,r))));
-  density+=body*(.65+.35*a);
+  float variant=floor(a*8.);
+  vec2 centre=(id+vec2(.5+(a-.5)*.65,.5+(b-.5)*.65))*pitch;
+  float scale=1.35+b*.65;
+  vec2 uv=(p-centre)/(pitch*scale)+.5;
+  if(any(lessThan(uv,vec2(0.)))||any(greaterThanEqual(uv,vec2(1.))))continue;
+  if(b>.5)uv.x=1.-uv.x;
+  vec4 stamp=texture(cloud_atlas,vec2((variant+uv.x)/8.,uv.y));
+  colour=mix(colour,vec4(stamp.rgb,1.),stamp.a);
  }
- return clamp(density,0.,1.);
+ return colour;
 }
 void fragment(){
  vec2 p=UV*view_size;
@@ -37,13 +40,10 @@ void fragment(){
  // One distance field for rooms and corridors. There is no switch
  // at a floor edge: alpha and its derivative both start at zero there.
  float fog=smoothstep(0.,1.,fade_distance);
- // Stable world-space clouds: no reseeding when crossing a corridor seam.
  vec2 world=floor((p+world_origin)/2.)*2.;
- float broad=clouds(world,132.,5.);
- float middle=clouds(world+vec2(31.,-47.),64.,37.);
- float detail=clouds(world,29.,91.);
- float relief=clamp(broad*.55+middle*.32+detail*.13,0.,1.);
- vec3 shade=vec3(.31,.32,.40),light=vec3(.69,.70,.76);
- vec3 colour=mix(shade,light,smoothstep(.12,.86,relief));
+ vec4 back=cloud_layer(world+vec2(37.,19.),88.,5.);
+ vec4 front=cloud_layer(world,68.,71.);
+ vec3 colour=mix(vec3(.39,.41,.49),back.rgb,back.a);
+ colour=mix(colour,front.rgb,front.a);
  COLOR=vec4(colour,fog);
 }

@@ -193,3 +193,6 @@ Boundary near fog RGB(.88,.89,.91), existing96..360px fade to black retained. Lo
 
 ## Textured external cloud boundary
 External boundary shader now renders dense procedural cloud texture with3 scales132/64/29px, randomized elliptical lobes/offsets and pixel-grid2px sampling. Continuous opaque cloud coverage, existing room/corridor alpha edge retained. Stable world_origin accumulates room heights and maze96px offset to avoid cloud reseed at corridor midpoint. Internal dark-room flashlight shader unchanged.
+
+## Actual pixel cloud sprites (replaces noisy cloud shader)
+Boundary builds8 original64x64 pixel cloud sprites in-memory, irregular layered lobe silhouettes,4 stepped light/shadow colours and opaque pixel rim. Shader packs two jittered layers at68/88px pitch with variable1.35..2.0 scale and mirroring, sampling atlas nearest at2world-pixel coordinates. No Gaussian noise cloud shading remains. World-origin continuity and room/corridor mask retained; dark-room flashlight shader unchanged. Sprite construction is code-native Image rendering, no external AI asset dependency.
