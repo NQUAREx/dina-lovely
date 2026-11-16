@@ -15,12 +15,9 @@ func draw()->void:
  var source_size:=Vector2(texture.get_width(),PAD+(g.grid.size()-5)*24)
  g.draw_texture_rect_region(texture,Rect2(g.screen(Vector2(-PAD,-PAD)*PIXEL),source_size*PIXEL),Rect2(Vector2.ZERO,source_size))
 func wall(x:int,y:int)->bool:
- if y>=g.grid.size()-5 and y<g.grid.size()+5:return x in [9,10,11,15,16,17]
- if y<3 or y>=g.grid.size()-3 or x< -2 or x>=g.grid[0].length()+2:return false
- var cy:=clampi(y,5,g.grid.size()-6)
- var cx:=clampi(x,0,g.grid[0].length()-1)
- if y!=cy and absi(x-13)<=2:return false
- return g.grid[cy][cx]=="#" and not g.gate_junctions.skip_wall(Vector2i(cx,cy))
+ if y>=g.grid.size()-5 and y<g.grid.size()+5:return x in [11,15]
+ if y<5 or y>=g.grid.size()-5 or x<0 or x>=g.grid[0].length():return false
+ return g.grid[y][x]=="#" and not g.gate_junctions.skip_wall(Vector2i(x,y))
 
 func polygon(image:Image,points:PackedVector2Array,colour:Color)->void:
  var bounds:=Rect2(points[0],Vector2.ZERO)
@@ -106,8 +103,8 @@ func draw_shared_corridor()->void:
  if not cache.has(key):cache[key]=bake()
  g.grid=old_grid;g.objects=old_objects
  var texture:Texture2D=cache[key]
- for x in [9*48,15*48-12]:
+ for x in [11*48,15*48-12]:
   var start:=Vector2(x,height-5*48)
-  var size:=Vector2(3*48+12,10*48-24)
+  var size:=Vector2(48+12,10*48-24)
   # Stop at the lower room wall roof, before its foreground cap.
   g.draw_texture_rect_region(texture,Rect2(g.screen(start+origin),size),Rect2(start/2+Vector2.ONE*PAD,size/2))

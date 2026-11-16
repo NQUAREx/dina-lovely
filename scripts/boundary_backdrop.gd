@@ -20,54 +20,6 @@ func stamp(owner:int,point:Vector2)->void:
  if layout.mirror and owner in [1,3]:g.draw_set_transform(Vector2.ZERO)
 func draw()->void:
  if g.level in [0,3]:draw_extended_grass()
- var width:int=g.grid[0].length()
- var height:int=g.grid.size()
- # One outer band: nested rings used to stamp the same cells twice.
- for ring in [2]:
-  for y in range(5-ring,height-5+ring):
-   for x in range(-ring,width+ring):
-    if x>=0 and x<width and y>=5 and y<height-5:continue
-    var center:=15 if g.level==0 and y<5 else 13
-    if (y<5 and g.level<6 or y>=height-5 and g.level>0) and absi(x-center)<=4:continue
-    var p:Vector2=g.screen(Vector2(x+.5,y+.5)*48)
-    # Junction aprons exist in both cached rooms; their material follows
-    # the same upper-room owner as the shared corridor, never active level.
-    var owner:int=g.boundary_room(y) if g.corridor_row(y) else g.level
-    if not g.corridor_row(y) and owner!=1:continue
-    stamp(owner,p)
-
-func draw_outer_hedge(front:bool=false)->void:
- if g.hedge_field==null:return
- var width:float=g.grid[0].length()*48
- var height:float=g.grid.size()*48
- for crown in g.hedge_field.crowns:
-  var base:Vector2=crown.base
-  var offsets:Array[Vector2]=[]
-  if base.x<48:offsets.append(Vector2(-48,0))
-  if base.x>width-48:offsets.append(Vector2(48,0))
-  if base.y<6*48 and absf(base.x-15.5*48)>120:offsets.append(Vector2(0,-48))
-  if base.y>height-6*48:offsets.append(Vector2(0,48))
-  for offset in offsets:
-   if (offset.y>0)!=front:continue
-   var centre:Vector2=g.screen((base+offset).round()-Vector2(0,16))
-   if not g.get_viewport_rect().grow(48).has_point(centre):continue
-   var id:int=g.sprites["crown_leaf_"+str(crown.variant)]
-   var radius:float=roundf(crown.radius*1.48)
-   g.draw_texture_rect_region(g.atlas,Rect2(centre-Vector2.ONE*radius,Vector2.ONE*radius*2),Rect2(Vector2(id%16*32+8,id/16*48+24),Vector2(17,17)))
-
-func masonry_cells()->Array[Dictionary]:
- var cells:Array[Dictionary]=[]
- var width:int=g.grid[0].length()
- var height:int=g.grid.size()
- if g.level in [2,4,5,6]:
-  var left:int=8 if g.level==2 else 0
-  var right:int=18 if g.level==2 else width-1
-  for y in range(4,height-4):
-   for x in range(left-1,right+2):
-    if x>=left and x<=right and y>=5 and y<height-5:continue
-    if (y<5 or y>=height-5) and absi(x-13)<=2:continue
-    cells.append({"kind":"boundary_wall","id":"","pos":Vector2(x+.5,y+.5)*48,"owner":g.level,"wall":true})
- return cells
 
 func draw_extended_grass()->void:
  if g.grass_texture==null:return
@@ -103,11 +55,11 @@ func draw_shared_corridors()->void:
   g.level=owner;g.grid=map;g.camera=old_camera+offset
   # Reset the shared floor under wall chamfers, including extended grass.
   for y in range(height-5,height+5):
-   for x in [9,10,11,15,16,17]:
+   for x in [11,15]:
     var p:Vector2=g.screen(Vector2(x,y)*48)
     g.draw_texture_rect_region(g.ground,Rect2(p,Vector2(48,48)),Rect2(24,0,24,24))
   for y in range(height-5,height+5):
-   for x in [9,10,11,15,16,17]:
+   for x in [11,15]:
     stamp(owner,g.screen(Vector2(x+.5,y+.5)*48))
   # Lower room front row covers the final corridor block face at the corner.
   if owner>1 and g.room_cache.has(owner-1):

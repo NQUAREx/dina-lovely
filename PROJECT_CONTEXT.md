@@ -205,3 +205,7 @@ Added third world-anchored cloud layer152px pitch (vs48/62near), starts120px out
 
 ## Refined reference-style cumulus texture
 Rebuilt8 atlas variants at128px each from layered asymmetric cumulus towers and36 small foreground puffs,9 grey-lilac shades, rounded local surface shading and subtle pixel flecks; removed thick dark rims and flat white patches. Wide lower shelf and taller centres follow user's reference cloud texture (original art). Nearest128px cell sampling, existing stable cloud packing retained.
+
+## Restore exactly one boundary row throughout game
+Removed outer masonry_cells rendering, copied maze hedge crowns and all forest/junction apron stamping. Shared corridor columns reduced to original11/15 only (one wall on each side). Earth main wall() now accepts original grid walls only, no clamped outside rings; earth corridor wall() also11/15, final shared strips narrowed to one48px block plus natural12px inward silhouette. Extended grass retained under boundary. AGENTS now explicitly prohibits extra outer rows. Native audit covers all7 rooms and both sides of6 corridor midpoints with clouds disabled to expose geometry.
+Final verification: native7 room captures (room1 also with night disabled) and12 corridor captures inspected. All6 paired left/right terrain crops120..215/325..420,y290..600 identical RGB. Gates/projectiles/grips and material/trunk regressions passed. Original collision grid untouched; all added decorative outer row paths deleted.

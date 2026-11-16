@@ -2408,7 +2408,6 @@ func _draw_world() -> void:
 	var to := Vector2i((camera+view/2)/TILE)+Vector2i(3,4)
 	var renderables: Array[Dictionary] = []
 	if not drawing_neighbor:renderables=draw_corridor_extensions()
-	renderables.append_array(boundary_backdrop.masonry_cells())
 	for y in range(maxi(0,from.y),mini(grid.size(),to.y)):
 		for x in range(maxi(0,from.x),mini(grid[0].length(),to.x)):
 			if grid[y][x]==" " or (drawing_neighbor and corridor_row(y)): continue
@@ -2516,7 +2515,6 @@ func _draw_world() -> void:
 			var pos:=screen(crown.base+crown.offset)
 			draw_texture_rect(glow,Rect2(pos-Vector2(r+11,r*.95),Vector2(r*2+22,r*2+12)),false,Color(0,0,0,.7))
 		draw_hedge_body(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
-		if level==0:boundary_backdrop.draw_outer_hedge(false)
 		# Each tree has one visible crown/trunk layer, sorted with the heroine below.
 		draw_hedge_canopy(visible_crowns,-1)
 
@@ -2534,9 +2532,7 @@ func _draw_world() -> void:
 	for item in renderables:
 		var p := screen(item.pos)
 		var kind: String = "tree" if item.kind=="tree_apples" and item.id in save_data.eaten else item.kind
-		if kind=="boundary_wall":
-			boundary_backdrop.stamp(int(item.owner),p)
-		elif kind=="player":
+		if kind=="player":
 			if drawing_neighbor:
 				if hedge_field!=null:draw_hedge_canopy(visible_crowns,1)
 				continue
@@ -4126,7 +4122,6 @@ func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 			var pose:Vector3=hedge_field.draw_poses[marker]
 			draw_texture_rect(stone_peek,Rect2(Vector2(pose.x,pose.y)-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2),false)
 	draw_set_transform(Vector2.ZERO)
-	if side==1 and level==0:boundary_backdrop.draw_outer_hedge(true)
 
 func draw_leaf_crown(index: int) -> void:
 	var node:Dictionary=hedge_field.crowns[index]
