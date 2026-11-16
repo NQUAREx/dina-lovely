@@ -3,7 +3,7 @@ extends RefCounted
 ## A connected base closes every wall cell. Overlapping height masses merge
 ## before shading, so they read as an embankment rather than isolated piles.
 const PIXEL:=2.0
-const PAD:=32
+const PAD:=64
 var g:Node2D
 var cache:Dictionary={}
 func _init(game:Node2D):g=game
@@ -14,8 +14,12 @@ func draw()->void:
  var texture:Texture2D=cache[key]
  g.draw_texture_rect(texture,Rect2(g.screen(Vector2(-PAD,-PAD)*PIXEL),Vector2(texture.get_size())*PIXEL),false)
 func wall(x:int,y:int)->bool:
- if y<5 or y>=g.grid.size()-5 or x<0 or x>=g.grid[0].length():return false
- return g.grid[y][x]=="#" and not g.gate_junctions.skip_wall(Vector2i(x,y))
+ if y<3 or y>=g.grid.size()-3 or x< -2 or x>=g.grid[0].length()+2:return false
+ var cy:=clampi(y,5,g.grid.size()-6)
+ var cx:=clampi(x,0,g.grid[0].length()-1)
+ if y!=cy and absi(x-13)<=2:return false
+ return g.grid[cy][cx]=="#" and not g.gate_junctions.skip_wall(Vector2i(cx,cy))
+
 func polygon(image:Image,points:PackedVector2Array,colour:Color)->void:
  var bounds:=Rect2(points[0],Vector2.ZERO)
  for point in points:bounds=bounds.expand(point)
@@ -28,8 +32,8 @@ func bake()->ImageTexture:
  var image:=Image.create(width,height,false,Image.FORMAT_RGBA8)
  var rng:=RandomNumberGenerator.new();rng.seed=int(g.save_data.seed)+350147
  var hills:Array=[]
- for y in range(5,g.grid.size()-5):
-  for x in range(g.grid[0].length()):
+ for y in range(3,g.grid.size()-3):
+  for x in range(-2,g.grid[0].length()+2):
    if not wall(x,y):continue
    image.fill_rect(Rect2i(x*24+PAD-1,y*24+PAD-1,26,26),Color("493127"))
    # Three staggered rows interlock; spacing is smaller than every mound.

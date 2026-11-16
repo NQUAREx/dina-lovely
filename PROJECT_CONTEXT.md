@@ -161,3 +161,6 @@ Restored the additional junction apron rows removed in2d6055d. Their material no
 
 ## Smoother distant fog and clean backdrop masonry
 Fog RGB now transitions slate→black over120..480px instead48..180px. Backdrop nested rings replaced with one outer band to eliminate duplicate cells. Junction apron excludes columns already covered by canonical longitudinal rings3/4. Masonry backdrop uses stacked texture rather than repeated exposed cap per row; organic textures retain exposed silhouette.
+
+## Single-line actions, centred drop icon and aligned organic depth
+Action248x88 uses no wrapping and existing single-line font fitting. Drop icon AtlasTexture crops transparent asymmetric padding and centres both axes. Fog colour fade72..280px; masonry alpha reaches full opacity32px (organic72px), stored per room/corridor area so midpoint does not switch fade. No extra backdrop for masonry/wood owner2/4/5/6. Maze extension copies actual crown atlas/radius/height outside boundary; earth expands same procedural bake two cells; trees use original variants/jitter/mirroring and full palette. Reviewed native no-fog and fog shots of all three organic materials plus masonry before release. Material ownership and dark continuity tests passed.

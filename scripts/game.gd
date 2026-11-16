@@ -470,13 +470,6 @@ func fit_button_text(control: Button) -> void:
 	var available_width := maxf(1, control.size.x - control.get_theme_stylebox("normal").get_minimum_size().x - 4)
 	if control.icon!=null:available_width-=40
 	var font_size := 30
-	if control==action_button:
-		# Keep long action names readable on two/three lines rather than clipping.
-		var available_height:=control.size.y-control.get_theme_stylebox("normal").get_minimum_size().y
-		while font_size>18 and control.get_theme_font("font").get_multiline_string_size(control.text,HORIZONTAL_ALIGNMENT_LEFT,available_width,font_size).y>available_height:
-			font_size-=1
-		control.add_theme_font_size_override("font_size",font_size)
-		return
 	while font_size > 16 and control.get_theme_font("font").get_string_size(control.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > available_width:
 		font_size -= 1
 	control.add_theme_font_size_override("font_size", font_size)
@@ -536,7 +529,7 @@ func setup_ui() -> void:
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hud.add_child(hint)
 	action_button = button(tx("read_letter"), interact, 248)
-	action_button.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	action_button.autowrap_mode=TextServer.AUTOWRAP_OFF
 	action_button.button_down.connect(func():
 		if held_item=="drill" and nearest<0:world_tools.start_drill())
 	action_button.button_up.connect(world_tools.stop_drill)
@@ -556,7 +549,12 @@ func setup_ui() -> void:
 	switch_button.custom_minimum_size=Vector2(80,80)
 	drop_button=button("",drop_current_item,56)
 	drop_button.tooltip_text=tx("drop_item_action")
-	drop_button.icon=preload("res://assets/drop_item_icon.png")
+	var drop_icon:=AtlasTexture.new()
+	drop_icon.atlas=preload("res://assets/drop_item_icon.png")
+	drop_icon.region=Rect2(5,4,15,19)
+	drop_button.icon=drop_icon
+	drop_button.icon_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	drop_button.vertical_icon_alignment=VERTICAL_ALIGNMENT_CENTER
 	drop_button.expand_icon=true
 	drop_button.add_theme_constant_override("icon_max_width",36)
 	drop_button.custom_minimum_size=Vector2(80,80)
