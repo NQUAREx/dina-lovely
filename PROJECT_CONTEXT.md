@@ -196,3 +196,6 @@ External boundary shader now renders dense procedural cloud texture with3 scales
 
 ## Actual pixel cloud sprites (replaces noisy cloud shader)
 Boundary builds8 original64x64 pixel cloud sprites in-memory, irregular layered lobe silhouettes,4 stepped light/shadow colours and opaque pixel rim. Shader packs two jittered layers at68/88px pitch with variable1.35..2.0 scale and mirroring, sampling atlas nearest at2world-pixel coordinates. No Gaussian noise cloud shading remains. World-origin continuity and room/corridor mask retained; dark-room flashlight shader unchanged. Sprite construction is code-native Image rendering, no external AI asset dependency.
+
+## Opaque clouds with size/density boundary falloff
+Removed per-pixel alpha fade entirely. Each opaque sprite's centre distance to room/corridor union controls spawn probability and diameter (12..128px ramp), capped by distance to avoid protruding onto floor. Two deterministic jittered layers48/62pitch. Per-cloud global depth priority replaces bucket-local traversal overwrite; atlas sample snapped/clamped to individual64px sprite texel centres. These prevent bucket-boundary seams and neighbouring sprite bleed. Internal dark room unchanged.
