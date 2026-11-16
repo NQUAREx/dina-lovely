@@ -19,6 +19,8 @@ var returned_to_stack := false
 func _ready() -> void:
     set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     mouse_filter = Control.MOUSE_FILTER_STOP
+    # Origins arrive in viewport coordinates; animation draws in this Control.
+    start = get_global_transform_with_canvas().affine_inverse() * start
     paper = Control.new()
     paper.set_script(preload("res://scripts/letter_paper.gd"))
     add_child(paper)
@@ -95,6 +97,8 @@ func _ready() -> void:
     paper.add_child(close_button)
     if journal and not is_instance_valid(stack_view):
         age = 1.5
+    # Apply before the very first draw: never expose a full-size page at (0,0).
+    update_pose(0.0)
 
 func close() -> void:
     game.note_flowers.closed[str(letter.get("id",""))] = true
@@ -111,6 +115,9 @@ func close() -> void:
 
 func _process(delta: float) -> void:
     age += delta
+    update_pose(delta)
+
+func update_pose(delta: float) -> void:
     var destination := (get_viewport_rect().size - paper.size) / 2
     if is_instance_valid(stack_view):
         var progress := smoothstep(0, .7, age)

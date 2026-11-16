@@ -126,6 +126,11 @@ for room in range(7):
             elif room==3:im=earth(variant)
             elif room==5:im=fence(variant)
             else:im=Image.open(A/f'wall_{kind}{suffix}.png').convert('RGBA')
+            if room==4:
+                for y in range(im.height):
+                    for x in range(im.width):
+                        r,g,b,a=im.getpixel((x,y))
+                        if a:im.putpixel((x,y),(round(r*.65),round(g*.65),round(b*.65),a))
             im.save(A/f'wall_room{room}_{kind}{suffix}.png')
 print('Generated dark varied thickets, excavation-soil banks and squared timber fence')
 

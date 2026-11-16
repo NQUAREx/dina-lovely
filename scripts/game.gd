@@ -827,12 +827,13 @@ func show_letter(id: String, journal: bool = false, source_stack: Control = null
 	view.game=self;view.letter=letter_with_clue(letter);view.journal=journal
 	view.stack_view = source_stack
 	if is_instance_valid(source_stack):
-		var index: int = source_stack.letters.find(letter)
+		var index: int = source_stack.letters.find_custom(func(entry):return str(entry.id)==id)
+		index=clampi(index,0,maxi(0,source_stack.letters.size()-1))
 		view.stack_rect = source_stack.card_rect(index)
 		view.stack_rotation = source_stack.card_rotation(index)
 	view.start=screen(player)
 	for obj in objects:
-		if obj.id==id:view.start=screen(obj.pos)
+		if obj.id==id:view.start=screen(item_display_position(obj));break
 	root.add_child(view);modal=view
 
 func show_letter_stack(obj: Dictionary) -> void:
@@ -1290,8 +1291,9 @@ func _physics_process(delta: float) -> void:
 		if joy_vector.length()>.2:stand_up()
 		else:return
 	if playing and not paused and not transition and task_time<=0:
+		var previous_foot:=player
 		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
-		release_at_gate()
+		release_at_gate(previous_foot)
 		hedge_contact=pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
 
 func _process(delta: float) -> void:
@@ -1817,7 +1819,7 @@ func room_bound_item()->bool:
 	return held_item in ["can","rake","fertilizer","shovel","flashlight","quest_axe","pickaxe"] or (held_item in ["sword","rifle","rpg"] and not save_data.finished)
 func room_drop_point(north:bool)->Vector2:
 	return player
-func release_at_gate()->void:
+func release_at_gate(previous_foot:Vector2=Vector2.INF)->void:
 	if not room_bound_item():return
 	var north_center:float=(15.5 if level==0 else 13.5)*TILE
 	var north:bool=level<6 and door_is_open("exit") and player.y<5.3*TILE and walk_facing.y<-.05 and player.x>north_center+10 and player.x<north_center+72
@@ -1825,6 +1827,11 @@ func release_at_gate()->void:
 		var doors:=objects.filter(func(obj):return obj.kind=="doorway" and obj.id=="exit")
 		north=not doors.is_empty() and float(doors[0].get("gate_amount",0))>=.25
 	var south:bool=level>0 and level-1 in save_data.open_gates and door_is_open("back") and not arena_exit_sealed() and player.y>(grid.size()-5.3)*TILE and walk_facing.y>.05 and absf(player.x-13.5*TILE)<72
+	# A tool is released when crossing out through the gate, not merely for
+	# standing in its corridor while facing outward (for example at the torch).
+	if previous_foot!=Vector2.INF:
+		north=north and previous_foot.y>=5.3*TILE and player.y<5.3*TILE
+		south=south and previous_foot.y<=(grid.size()-5.3)*TILE and player.y>(grid.size()-5.3)*TILE
 	if north or south:
 		return_held_tool(false,player);persist();find_nearest()
 
@@ -2284,7 +2291,7 @@ func _draw() -> void:
 	for i in range(8):
 		var c:=Color(.06,.07,.13,.025*(8-i))
 		draw_rect(Rect2(Vector2(i*5,i*5),view-Vector2.ONE*i*10),c,false,5)
-	if night_band.has_area():draw_night_mask(night_band)
+	# Shared darkness shader handles the neighbour and current room consistently.
 
 func draw_night_mask(area: Rect2) -> void:
 	var feather:=128.0
@@ -2990,21 +2997,25 @@ func setup_fog() -> void:
 func update_fog() -> void:
 	gate_junctions.update_lights()
 	if not is_instance_valid(fog):return
-	if level!=1:fog.visible=false;return
-	var material: ShaderMaterial = fog.material
-	var north:=clampf(player.y/(5*TILE),0,1)
-	var south:=clampf((grid.size()*TILE-player.y)/(5*TILE),0,1)
-	var opacity:=smoothstep(0,1,minf(north,south))
+	if level not in [0,1,2] or not room_cache.has(1):fog.visible=false;return
+	var material:ShaderMaterial=fog.material
+	var dark_grid:Array=grid if level==1 else room_cache[1].grid
+	var dark_height:float=dark_grid.size()*TILE
+	var origin:=Vector2.ZERO
+	if level==0:origin=Vector2(2*TILE,-dark_height)
+	elif level==2:origin=Vector2(0,grid.size()*TILE)
+	var local_player:=player-origin
+	var opacity:=smoothstep(0,1,clampf(minf(local_player.y,dark_height-local_player.y)/(5*TILE),0,1))
+	var dark_objects:Array=objects if level==1 else room_cache[1].objects
 	fog.visible=true
 	var gate_lights:=PackedVector2Array()
-	for door in objects:
+	for door in dark_objects:
 		if door.kind=="doorway":
-			for side in [-1,1]:gate_lights.append(screen(door.pos)+Vector2(side*99,-47))
+			for side in [-1,1]:gate_lights.append(screen(door.pos+origin)+Vector2(side*99,-47))
 	material.set_shader_parameter("gate_lights",gate_lights)
 	material.set_shader_parameter("gate_light_count",gate_lights.size())
-	material.set_shader_parameter("room_band",Vector2(screen(Vector2(0,5*TILE)).y,screen(Vector2(0,(grid.size()-5)*TILE)).y))
+	material.set_shader_parameter("room_band",Vector2(screen(origin+Vector2(0,5*TILE)).y,screen(origin+Vector2(0,dark_height-5*TILE)).y))
 	material.set_shader_parameter("room_opacity",opacity)
-	if not fog.visible:return
 	var facing: Vector2 = walk_facing.normalized()
 	if joy_vector.length()>.2: facing=joy_vector.normalized()
 	material.set_shader_parameter("light_pos",screen(held_tool_pose().tip) if held_item=="flashlight" else screen(player)+Vector2(14,-33))
@@ -3029,12 +3040,12 @@ func update_fog() -> void:
 	material.set_shader_parameter("enabled",held_item=="flashlight")
 	material.set_shader_parameter("ground_light",false)
 	if held_item!="flashlight":
-		for obj in objects:
+		for obj in dark_objects:
 			if obj.id!="flashlight":continue
-			var origin:=screen(obj.pos)+(Vector2(9,1) if obj.get("ground_tool",false) else Vector2(23,-44))
+			var light_origin:=screen(obj.pos+origin)+(Vector2(9,1) if obj.get("ground_tool",false) else Vector2(23,-44))
 			material.set_shader_parameter("enabled",true)
 			material.set_shader_parameter("ground_light",true)
-			material.set_shader_parameter("light_pos",origin)
+			material.set_shader_parameter("light_pos",light_origin)
 			material.set_shader_parameter("light_dir",Vector2.RIGHT.rotated(float(obj.get("beam_angle",0))+sway*.3))
 			break
 
@@ -3116,7 +3127,7 @@ func draw_corridor_extensions() -> Array[Dictionary]:
 	for end in [0,1]:
 		if (level==0 and end==1) or (level==6 and end==0):continue
 		var center:int=north if end==0 else south
-		for j in range(1,25):
+		for j in range(1,6):
 			var y:=-j if end==0 else grid.size()-1+j
 			if (end==0 and y*TILE < -HALL_SEAM*2-5*TILE) or (end==1 and y*TILE >= grid.size()*TILE+HALL_SEAM*2+5*TILE):continue
 			if screen(Vector2(0,y*TILE)).y < -120 or screen(Vector2(0,y*TILE)).y>get_viewport_rect().size.y+120:continue

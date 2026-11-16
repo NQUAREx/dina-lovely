@@ -25,8 +25,8 @@ func draw()->void:
     stamp(g.level,p)
  # Corridor texture must continue beyond its actual outer wall too. Otherwise
  # the transparent edge ends before the72px fog reaches full opacity.
- var first:=maxi(-24,floori((g.camera.y-g.get_viewport_rect().size.y/2)/48)-3)
- var last:=mini(height+24,ceili((g.camera.y+g.get_viewport_rect().size.y/2)/48)+3)
+ var first:=maxi(-5,floori((g.camera.y-g.get_viewport_rect().size.y/2)/48)-3)
+ var last:=mini(height+5,ceili((g.camera.y+g.get_viewport_rect().size.y/2)/48)+3)
  for y in range(first,last):
   if not g.corridor_row(y):continue
   var center:=15 if g.level==0 and y<5 else 13

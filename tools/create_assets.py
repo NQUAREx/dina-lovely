@@ -777,3 +777,6 @@ runpy.run_path(str(R/"tools/create_open_gate.py"))
 
 # Broad top-down cut stump and matching standing-tree bark.
 runpy.run_path(str(R/"tools/create_reference_stump.py"))
+
+# Anatomical left wrist, including far-arm occlusion.
+runpy.run_path(str(R/"tools/create_watch_wrist.py"))["generate"]()
