@@ -11,6 +11,6 @@ void fragment(){
  // Broad irregular wisps obscure the rectangular outer limit; the outside
  // remains fully black. This overlay never darkens HUD or menu controls.
  float wisps=sin(p.x*.025+p.y*.013)*5.+sin(p.y*.047-p.x*.018)*3.;
- float reveal=smoothstep(0.,120.,max(0.,depth)+wisps*smoothstep(0.,20.,depth));
- COLOR=vec4(0.,0.,0.,1.-reveal);
+ float reveal=smoothstep(0.,200.,max(0.,depth)+wisps*smoothstep(0.,20.,depth));
+ COLOR=vec4(.008,.012,.020,1.-pow(reveal,.78));
 }

@@ -14,7 +14,7 @@ func _process(_delta:float)->void:
  var rects:Array[Vector4]=[]
  var width:float=g.grid[0].length()*48
  var height:float=g.grid.size()*48
- area(Vector2(-48,4*48),width+96,height-8*48,rects)
+ area(Vector2(-96,3*48),width+192,height-6*48,rects)
  for next in [g.level-1,g.level+1]:
   if next<0 or next>6 or not g.room_cache.has(next):continue
   var grid:Array=g.room_cache[next].grid
@@ -23,9 +23,9 @@ func _process(_delta:float)->void:
   var current_center:float=(15.5 if g.level==0 else 13.5)*48 if north else 13.5*48
   var other_center:float=13.5*48 if north else (15.5 if next==0 else 13.5)*48
   var origin:=Vector2(current_center-other_center,-nh if north else height)
-  area(origin+Vector2(-48,4*48),nw+96,nh-8*48,rects)
+  area(origin+Vector2(-96,3*48),nw+192,nh-6*48,rects)
   # One shared corridor, including both room-coordinate halves.
-  area(Vector2(current_center-120,-5*48 if north else height-5*48),240,10*48,rects)
+  area(Vector2(current_center-168,-5*48 if north else height-5*48),336,10*48,rects)
  material.set_shader_parameter("area_count",rects.size())
  while rects.size()<7:rects.append(Vector4(-10000,-10000,-10000,-10000))
  material.set_shader_parameter("areas",rects)
