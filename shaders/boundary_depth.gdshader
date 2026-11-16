@@ -13,8 +13,9 @@ void fragment(){
   if(i>=area_count)break;
   distance=min(distance,distance_to_area(p,visible_areas[i]));
  }
- // One distance field for rooms, corridors and pillars. There is no switch
+ // One distance field for rooms and corridors. There is no switch
  // at a floor edge: alpha and its derivative both start at zero there.
  float fog=smoothstep(0.,72.,distance);
- COLOR=vec4(.008,.012,.020,fog);
+ // Muted slate dusk keeps the edge opaque without a pitch-black void.
+ COLOR=vec4(.105,.112,.145,fog);
 }

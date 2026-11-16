@@ -470,6 +470,13 @@ func fit_button_text(control: Button) -> void:
 	var available_width := maxf(1, control.size.x - control.get_theme_stylebox("normal").get_minimum_size().x - 4)
 	if control.icon!=null:available_width-=40
 	var font_size := 30
+	if control==action_button:
+		# Keep long action names readable on two/three lines rather than clipping.
+		var available_height:=control.size.y-control.get_theme_stylebox("normal").get_minimum_size().y
+		while font_size>18 and control.get_theme_font("font").get_multiline_string_size(control.text,HORIZONTAL_ALIGNMENT_LEFT,available_width,font_size).y>available_height:
+			font_size-=1
+		control.add_theme_font_size_override("font_size",font_size)
+		return
 	while font_size > 16 and control.get_theme_font("font").get_string_size(control.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > available_width:
 		font_size -= 1
 	control.add_theme_font_size_override("font_size", font_size)
@@ -528,7 +535,8 @@ func setup_ui() -> void:
 	hint = label("", 15)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hud.add_child(hint)
-	action_button = button(tx("read_letter"), interact, 155)
+	action_button = button(tx("read_letter"), interact, 248)
+	action_button.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	action_button.button_down.connect(func():
 		if held_item=="drill" and nearest<0:world_tools.start_drill())
 	action_button.button_up.connect(world_tools.stop_drill)
@@ -544,18 +552,19 @@ func setup_ui() -> void:
 	switch_button.tooltip_text=tx("cycle_tools_action")
 	switch_button.icon=preload("res://assets/cycle_tools_icon.png")
 	switch_button.expand_icon=true
-	switch_button.add_theme_constant_override("icon_max_width",30)
-	switch_button.custom_minimum_size=Vector2(64,64)
+	switch_button.add_theme_constant_override("icon_max_width",36)
+	switch_button.custom_minimum_size=Vector2(80,80)
 	drop_button=button("",drop_current_item,56)
 	drop_button.tooltip_text=tx("drop_item_action")
 	drop_button.icon=preload("res://assets/drop_item_icon.png")
 	drop_button.expand_icon=true
-	drop_button.add_theme_constant_override("icon_max_width",30)
-	drop_button.custom_minimum_size=Vector2(64,64)
+	drop_button.add_theme_constant_override("icon_max_width",36)
+	drop_button.custom_minimum_size=Vector2(80,80)
 	for state in ["normal","hover","pressed","disabled"]:
 		var frame:=panel_style(Color("51445f"),PINK if state=="hover" else CREAM if state=="pressed" else Color("a07890"))
 		if state=="disabled":frame.texture=preload("res://assets/ui/frame_disabled.png")
 		drop_button.add_theme_stylebox_override(state,frame)
+		switch_button.add_theme_stylebox_override(state,frame)
 	hud.add_child(drop_button)
 	hud.add_child(switch_button)
 	var stick := Control.new()
@@ -638,10 +647,10 @@ func layout_ui() -> void:
 	var size := get_viewport_rect().size
 	if not is_instance_valid(hud): return
 	hud.get_node("MenuButton").position = Vector2(440, 52)
-	switch_button.position=Vector2(365,642)
-	drop_button.position=Vector2(451,642)
-	action_button.position = Vector2(337, 824)
-	action_button.custom_minimum_size = Vector2(180,76)
+	switch_button.position=Vector2(339,624)
+	drop_button.position=Vector2(435,624)
+	action_button.position = Vector2(269, 812)
+	action_button.custom_minimum_size = Vector2(248,88)
 	attack_button.position = Vector2(365, 720)
 	attack_button.custom_minimum_size = Vector2(150,82)
 	hint.position = Vector2(36, 914)

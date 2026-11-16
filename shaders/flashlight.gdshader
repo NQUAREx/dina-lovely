@@ -42,6 +42,6 @@ void fragment(){
   gate_light=max(gate_light,delta.y>=0.0?spill*.12:0.0);
  }
  light=max(light,gate_light);
- float in_room=smoothstep(room_band.x,room_band.x+64.0,pixel.y)*(1.0-smoothstep(room_band.y-64.0,room_band.y,pixel.y));
- COLOR=vec4(vec3(.008,.012,.020)+vec3(.08,.043,.016)*max(beam,bounce)*(enabled?1.0:0.0),(1.0-light)*max(room_opacity,in_room));
+ float in_room=smoothstep(room_band.x-64.0,room_band.x+64.0,pixel.y)*(1.0-smoothstep(room_band.y-64.0,room_band.y+64.0,pixel.y));
+ COLOR=vec4(vec3(.08,.043,.016)*max(beam,bounce)*(enabled?1.0:0.0),(1.0-light)*max(room_opacity,in_room));
 }
