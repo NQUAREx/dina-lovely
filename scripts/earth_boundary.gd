@@ -3,7 +3,7 @@ extends RefCounted
 ## A connected base closes every wall cell. Overlapping height masses merge
 ## before shading, so they read as an embankment rather than isolated piles.
 const PIXEL:=2.0
-const PAD:=64
+const PAD:=160
 var g:Node2D
 var cache:Dictionary={}
 func _init(game:Node2D):g=game
@@ -12,8 +12,10 @@ func draw()->void:
  var key:=str(g.save_data.seed)+":"+str(hash(g.grid))
  if not cache.has(key):cache[key]=bake()
  var texture:Texture2D=cache[key]
- g.draw_texture_rect(texture,Rect2(g.screen(Vector2(-PAD,-PAD)*PIXEL),Vector2(texture.get_size())*PIXEL),false)
+ var source_size:=Vector2(texture.get_width(),PAD+(g.grid.size()-5)*24)
+ g.draw_texture_rect_region(texture,Rect2(g.screen(Vector2(-PAD,-PAD)*PIXEL),source_size*PIXEL),Rect2(Vector2.ZERO,source_size))
 func wall(x:int,y:int)->bool:
+ if y>=g.grid.size()-5 and y<g.grid.size()+5:return x in [9,10,11,15,16,17]
  if y<3 or y>=g.grid.size()-3 or x< -2 or x>=g.grid[0].length()+2:return false
  var cy:=clampi(y,5,g.grid.size()-6)
  var cx:=clampi(x,0,g.grid[0].length()-1)
@@ -37,7 +39,7 @@ func bake()->ImageTexture:
  var image:=Image.create(width,height,false,Image.FORMAT_RGBA8)
  var rng:=RandomNumberGenerator.new();rng.seed=int(g.save_data.seed)+350147
  var hills:Array=[]
- for y in range(3,g.grid.size()-3):
+ for y in range(3,g.grid.size()+5):
   for x in range(-2,g.grid[0].length()+2):
    if not wall(x,y):continue
    var depth:=clampf(edge_depth(Vector2(x*24+12,y*24+12))/48.,0.,1.)
@@ -59,23 +61,16 @@ func bake()->ImageTexture:
   for x in range(24,(g.grid[0].length()-1)*24,3):
    var p:=Vector2(x,y)
    var depth:=edge_depth(p)
-   if depth< -40 or depth>=0:continue
+   if depth< -16 or depth>=0:continue
    if absf(x-13.5*24)<62 and (y<7*24 or y>(g.grid.size()-7)*24):continue
-   var fullness:=smoothstep(-40.,0.,depth)
-   if rng.randf()<fullness*.72:
+   var fullness:=smoothstep(-16.,0.,depth)
+   if rng.randf()<fullness*.35:
     var shade:=Color("4c4630") if rng.randf()<.6 else Color("654b33")
     var dot:=Vector2i(x+PAD+rng.randi_range(-1,1),y+PAD+rng.randi_range(-1,1))
     image.fill_rect(Rect2i(dot,Vector2i(rng.randi_range(1,3),1)),shade)
-   if rng.randf()<pow(fullness,2)*.12:
-    var radius:=rng.randi_range(2,4)+int(fullness*3)
+   if rng.randf()<pow(fullness,2)*.035:
+    var radius:=rng.randi_range(2,4)
     hills.append({"pos":p+Vector2(PAD,PAD),"w":radius,"h":maxi(2,int(radius*.65)),"light":rng.randf()<.12,"seed":rng.randi()})
- # Close-set mid-size shoulders conceal the grass cut beneath a ragged edge.
- for y in range(6*24,(g.grid.size()-6)*24,8):
-  for x in range(24,(g.grid[0].length()-1)*24,8):
-   var depth:=edge_depth(Vector2(x,y))
-   if depth< -10 or depth>=0:continue
-   if absf(x-13.5*24)<62 and (y<7*24 or y>(g.grid.size()-7)*24):continue
-   hills.append({"pos":Vector2(x+PAD+rng.randi_range(-2,2),y+PAD+rng.randi_range(-1,2)),"w":rng.randi_range(6,9),"h":rng.randi_range(4,7),"light":rng.randf()<.12,"seed":rng.randi()})
  hills.sort_custom(func(a,b):return a.pos.y<b.pos.y)
  for hill in hills:
   var p:Vector2=hill.pos;var w:int=hill.w;var h:int=hill.h
@@ -97,3 +92,21 @@ func bake()->ImageTexture:
    image.fill_rect(Rect2i(stone,Vector2i(3,2)),Color("777363"))
    image.set_pixelv(stone,Color("aba28a"))
  return ImageTexture.create_from_image(image)
+
+func draw_shared_corridor()->void:
+ if g.level not in [2,3] or not g.room_cache.has(3):return
+ var old_grid:Array=g.grid
+ var old_objects:Array=g.objects
+ var map:Array=g.grid if g.level==3 else g.room_cache[3].grid
+ var height:float=map.size()*48
+ var origin:=Vector2.ZERO if g.level==3 else Vector2(0,-height)
+ g.grid=map
+ if g.level!=3:g.objects=g.room_cache[3].objects
+ var key:=str(g.save_data.seed)+":"+str(hash(map))
+ if not cache.has(key):cache[key]=bake()
+ g.grid=old_grid;g.objects=old_objects
+ var texture:Texture2D=cache[key]
+ for x in [9*48,15*48-12]:
+  var start:=Vector2(x,height-5*48)
+  var size:=Vector2(3*48+12,10*48)
+  g.draw_texture_rect_region(texture,Rect2(g.screen(start+origin),size),Rect2(start/2+Vector2.ONE*PAD,size/2))

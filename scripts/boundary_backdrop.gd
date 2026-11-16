@@ -4,6 +4,7 @@ var textures:Dictionary={}
 var grass_cache:Dictionary={}
 func _init(game:Node2D):g=game
 func stamp(owner:int,point:Vector2)->void:
+ if owner==3:return
  if not g.get_viewport_rect().grow(110).has_point(point):return
  var cell:=Vector2i(floori((point+g.camera-g.get_viewport_rect().size/2).x/48),floori((point+g.camera-g.get_viewport_rect().size/2).y/48))
  var layout:Dictionary=g.boundary_layout(cell,owner)

@@ -176,3 +176,7 @@ Masonry fog rectangles follow actual roof plane: horizontal source roof edge is2
 
 ## Stone icons, stable axe notches and grass under banks
 Pickup atlas icons now include quest_pebble variants, rock fragments and branches; shared material labels cannot select branch icon for stones. Tree generator derives every damage stage from the canonical tree and draws an expanding axe wedge rather than cracks; verified exact RGBA equality outside notch for all6 stages, masks regenerated. Removed all brown earth foundations, extended cached grass image72 source pixels around excavation so every bank gap shows grass rather than the bitmap edge. Reviewed axe sheet and native no-fog excavation edge. Tool/resource icon and trunk mask tests passed.
+
+## Narrow loose earth fringe and shared procedural corridor
+Removed regular8px shoulder lattice; fringe shrunk40→16source pixels, grain density.72→.35 and heap chance.12→.035 with radius2..4. Room3 procedural earth bake extends through entire south shared corridor (H-5..H+5), PAD160. Static wall_room3 rendering disabled in stone/backdrop paths. One final corridor draw uses room3's same cached bake and world origin from either active room. Main earth bitmap excludes corridor to avoid double painting; final strips include12px inward protrusions, preventing lower-room floor pass clipping them at midpoint. Preserve this single pass for future corridor changes.
+Native midpoint parity: left crop(140,260..215,610) and right(325,260..400,610) before/after both have exactly0 differing RGB pixels after final shared-pass fix.

@@ -2155,6 +2155,7 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 		var cell:=Vector2i(floori(world.x/TILE),floori(world.y/TILE))
 		var stacked:=cell.y>=0 and cell.y+1<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#" and grid[cell.y+1][cell.x]=="#"
 		var wall_room:=boundary_room(floori(world.y/TILE))
+		if wall_room==3:return
 		var texture_name:="wall_room%d_%s"%[wall_room,"stacked" if stacked else "exposed"]
 		var organic:=wall_room in [1,3]
 		var layout:=boundary_layout(cell,wall_room)
@@ -2305,6 +2306,7 @@ func _draw() -> void:
 		drawing_neighbor=false;neighbor_return_gate=false;level=old_level;camera=old_camera
 		for field in ROOM_FIELDS:set(field,old_state[field])
 	if destination>level:_draw_world()
+	earth_boundary.draw_shared_corridor()
 	# Corridor props must survive the foreground room floor pass.
 	if corridor_pedestal!=Vector2.INF:
 		draw_sprite("pedestal",corridor_pedestal)
