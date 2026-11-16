@@ -81,6 +81,11 @@ func ensure(e:Dictionary)->void:
  for key in defaults:
   if not e.has(key):e[key]=defaults[key]
  e.brain_version=BALANCE_VERSION
+func player_in_arena()->bool:
+ # The camera's inside_main_room() excludes a full floor tile along both
+ # horizontal walls. AI must stay active throughout the playable arena.
+ return g.level==4 and g.player.y>=6*g.TILE and g.player.y<(g.grid.size()-6)*g.TILE
+
 func sight(a:Vector2,b:Vector2)->bool:
  var count:=maxi(1,ceili(a.distance_to(b)/18))
  for i in range(1,count):

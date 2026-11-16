@@ -13,11 +13,11 @@ def generate():
   d.rectangle((26,33,38,38),fill='#46525d');d.rectangle((28,35,36,36),fill='#303b46')
   d.rectangle((19,19,44,29),fill='#718592');d.rectangle((21,21,42,27),fill='#222b36')
   d.line((22,22,41,22),fill='#3b4650');d.line((27,24,36,24),fill='#46535e')
-  spread=round(frame/7*15)
+  spread=round(frame/7*13)
   # Symmetric hinged leaves: pale recessed inner surfaces, dark thick rims.
   for side in [-1,1]:
-   if side<0: x0,x1=18-spread,31-round(frame/7*16)
-   else:x0,x1=32+round(frame/7*16),45+spread
+   if side<0: x0,x1=18-spread,31-round(frame/7*13)
+   else:x0,x1=32+round(frame/7*12),45+spread
    y0=18-round(frame/7*5); y1=28-round(frame/7*2)
    d.rectangle((x0,y0,x1,y1+1),fill='#3c4854')
    d.rectangle((x0,y0,x1,y1-1),fill='#8fa8b9')

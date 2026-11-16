@@ -1340,7 +1340,7 @@ func _process(delta: float) -> void:
 			rpg_windup-=delta
 			if rpg_windup<0 and weapon=="rpg":attack(true)
 		if attack_held and task_time<=0: attack()
-		if level == 4 and not combat_done and inside_main_room(): update_combat(minf(delta,0.04))
+		if level == 4 and not combat_done and battle.player_in_arena(): update_combat(minf(delta,0.04))
 		for id in bloom_times: bloom_times[id] = minf(1.0,bloom_times[id]+delta/2.8)
 		interaction_clock-=delta
 		if interaction_clock<=0:
@@ -2112,7 +2112,15 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 		var stacked:=cell.y>=0 and cell.y+1<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#" and grid[cell.y+1][cell.x]=="#"
 		var wall_room:=boundary_room(floori(world.y/TILE))
 		var texture_name:="wall_room%d_%s"%[wall_room,"stacked" if stacked else "exposed"]
-		var stone_variant:=posmod(cell.x*17,4) if corridor_row(cell.y) else posmod(cell.x*17+cell.y*7,4)
+		var organic:=wall_room in [1,3]
+		# Seeded placement remains fixed while moving between cached rooms.
+		# Corridors use x alone to stay identical in both local coordinate spaces.
+		var pattern:=cell.x*73856093 if corridor_row(cell.y) else cell.x*73856093+cell.y*19349663
+		var pick:=posmod(pattern+int(save_data.seed)*83492791,2147483647)
+		var stone_variant:=posmod(pick,16 if organic else 4)
+		if organic:
+			var jitter:=Vector2(posmod(pick/17,7)-3,posmod(pick/43,5)-2)
+			pos+=jitter*scale_factor
 		if stone_variant>0:texture_name+=str(stone_variant)
 		if not hedge_tree_textures.has(texture_name):hedge_tree_textures[texture_name]=load("res://assets/"+texture_name+".png")
 		# Keep the roof footprint and original stone pixels, reduce only the
