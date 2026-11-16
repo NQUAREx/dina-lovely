@@ -36,10 +36,11 @@ Chromium shell capture works. Full WebGL2 via in-process SwiftShader initializes
 ## Loading heroine during a blocked UI thread
 
 `python3 -m http.server 8874 --bind 127.0.0.1` from repository root, then
-`node tools/qa/loading_video.cjs`. `TEST_URL` overrides that root URL.
-The probe starts the actual H.264 loading asset, blocks page JavaScript for
+`node tools/qa/loading_animation.cjs`. `TEST_URL` overrides that root URL.
+The probe starts the actual transparent animated GIF loading asset, blocks page JavaScript for
 three seconds and captures compositor frames through CDP. This checks that
-media frames continue changing while the UI thread is occupied. It does not
-emulate iOS Safari; device verification is still needed. Safari uses a muted
-inline video because CSS sprite timelines may stall during WASM startup.
-`ffmpeg` with libx264 is required when generating/exporting the loader art.
+image frames continue changing while the UI thread is occupied. It does not
+emulate iOS Safari; device verification is still needed. The loader uses an
+8-frame transparent GIF, without video playback/loop events or CSS animation.
+All frames share one palette, retain transparency and clear the previous
+frame with GIF disposal2, preventing a stale silhouette or opaque backdrop.

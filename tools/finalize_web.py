@@ -49,8 +49,9 @@ for source,target in shell_files.items():shutil.copyfile(root/'assets/ui'/source
 from PIL import ImageOps
 with Image.open(root/'assets/ui/flower_corner.png') as flower:ImageOps.mirror(flower).save(p.parent/'ui-flower-right.png')
 shutil.copyfile(root/'assets/loading_heroine.png',p.parent/'loading-heroine.png')
-shutil.copyfile(root/'assets/loading_heroine.mp4',p.parent/'loading-heroine.mp4')
-shell_hash=hashlib.sha256(b''.join((p.parent/name).read_bytes() for name in [*shell_files.values(),'ui-flower-right.png','loading-heroine.png','loading-heroine.mp4'])).hexdigest()[:12]
+shutil.copyfile(root/'assets/loading_heroine.gif',p.parent/'loading-heroine.gif')
+(p.parent/'loading-heroine.mp4').unlink(missing_ok=True)
+shell_hash=hashlib.sha256(b''.join((p.parent/name).read_bytes() for name in [*shell_files.values(),'ui-flower-right.png','loading-heroine.png','loading-heroine.gif'])).hexdigest()[:12]
 (p.parent/'mobile.js').write_text((root/'tools/mobile_shell.js').read_text().replace('__SHELL_UI_HASH__',shell_hash).replace('__FONT_HASH__',hashlib.sha256((root/'assets/body.ttf').read_bytes()+(root/'assets/title.ttf').read_bytes()).hexdigest()[:12]).replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)).replace('__REQUIRED_UI__',json.dumps(sorted(required_ui(content)))))
 shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
 shutil.copyfile(root/'assets/title.ttf',p.parent/'letter-title.ttf')

@@ -545,6 +545,10 @@ func setup_ui() -> void:
 	drop_button.expand_icon=true
 	drop_button.add_theme_constant_override("icon_max_width",30)
 	drop_button.custom_minimum_size=Vector2(64,64)
+	for state in ["normal","hover","pressed","disabled"]:
+		var frame:=panel_style(Color("51445f"),PINK if state=="hover" else CREAM if state=="pressed" else Color("a07890"))
+		if state=="disabled":frame.texture=preload("res://assets/ui/frame_disabled.png")
+		drop_button.add_theme_stylebox_override(state,frame)
 	hud.add_child(drop_button)
 	hud.add_child(switch_button)
 	var stick := Control.new()
@@ -3680,6 +3684,9 @@ func draw_gate(pos: Vector2, amount: float) -> void:
 		draw_sprite("lock_open_key",lock_pos,Color.WHITE,.5)
 
 func draw_gate_leaf(name: String, pos: Vector2) -> void:
+	if name=="gate_ajar":
+		draw_texture_rect(preload("res://assets/open_gate_leaf.png"),Rect2(pos+Vector2(-9,-42.5),Vector2(90,119)),false)
+		return
 	var id: int = sprites[name]
 	draw_texture_rect_region(atlas,Rect2(pos,Vector2(72,68)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
 

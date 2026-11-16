@@ -1,7 +1,7 @@
 """Browser loading walk from the exact eight-frame game wardrobe and hand grips."""
 from pathlib import Path
 from PIL import Image
-import json, subprocess, tempfile
+import json
 R=Path(__file__).resolve().parents[1];A=R/'assets'
 def generate():
  atlas=Image.open(A/'atlas.png').convert('RGBA');ids=json.loads((A/'atlas.json').read_text());grips=json.loads((A/'hand_grips.json').read_text())
@@ -17,18 +17,20 @@ def generate():
   hand=grips[f'3:{frame}'];tile.alpha_composite(sword,(round(origin[0]+hand[0]-5),round(origin[1]+hand[1]-9)))
   strip.alpha_composite(tile,(frame*64,0))
  strip.save(A/'loading_heroine.png')
- # Safari can stall CSS sprite animations while Godot/WASM occupies the UI
- # thread. Inline muted H.264 uses the browser's media presentation pipeline.
- # Use exact nearest-neighbour enlarged frames, no motion interpolation.
- with tempfile.TemporaryDirectory(prefix='bloom-loading-') as tmp:
-  for frame in range(8):
-   tile=Image.new('RGB',(128,128),'#242538')
-   source=strip.crop((frame*64,0,(frame+1)*64,64)).resize((128,128),Image.Resampling.NEAREST)
-   tile.paste(source,(0,0),source)
-   tile.save(Path(tmp)/f'{frame:02d}.png')
-  subprocess.run(['ffmpeg','-v','error','-y','-framerate','12.5','-i',str(Path(tmp)/'%02d.png'),
-                  '-an','-c:v','libx264','-profile:v','baseline','-level','3.0',
-                  '-pix_fmt','yuv420p','-crf','12','-preset','veryfast',
-                  '-movflags','+faststart',str(A/'loading_heroine.mp4')],check=True)
+ # Native animated images do not need video autoplay, seek at every loop,
+ # CSS stepping, or an opaque media surface. Reserve one transparent index
+ # in one shared palette so the original wallpaper remains visible.
+ palette=strip.convert('RGB').quantize(colors=255,method=Image.Quantize.MEDIANCUT)
+ frames=[]
+ for frame in range(8):
+  rgba=strip.crop((frame*64,0,(frame+1)*64,64)).resize((128,128),Image.Resampling.NEAREST)
+  tile=rgba.convert('RGB').quantize(palette=palette,dither=Image.Dither.NONE)
+  alpha=rgba.getchannel('A')
+  tile.paste(255,mask=alpha.point(lambda value:255 if value<128 else 0))
+  tile.info['transparency']=255
+  frames.append(tile)
+ frames[0].save(A/'loading_heroine.gif',save_all=True,append_images=frames[1:],
+                duration=80,loop=0,transparency=255,disposal=2,optimize=False)
+ (A/'loading_heroine.mp4').unlink(missing_ok=True)
  print('Generated eight side-walk frames: white dress/veil/scarf, silver crown, sword')
 if __name__=='__main__':generate()
