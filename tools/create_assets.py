@@ -774,3 +774,6 @@ runpy.run_path(str(R/"tools/create_side_walk_art.py"))
 
 # Keep separately authored opened-gate perspective after atlas regeneration.
 runpy.run_path(str(R/"tools/create_open_gate.py"))
+
+# Broad top-down cut stump and matching standing-tree bark.
+runpy.run_path(str(R/"tools/create_reference_stump.py"))

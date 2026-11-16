@@ -26,6 +26,7 @@ var torch:=preload("res://scripts/flashlight_state.gd").new(self)
 var companion:=preload("res://scripts/cat_companion.gd").new(self)
 var weapon_crates:=preload("res://scripts/weapon_crates.gd").new(self)
 var scene_fx:=preload("res://scripts/scene_fx.gd").new(self)
+var boundary_backdrop:=preload("res://scripts/boundary_backdrop.gd").new(self)
 var earth_boundary:=preload("res://scripts/earth_boundary.gd").new(self)
 var gate_junctions:=preload("res://scripts/gate_junctions.gd").new(self)
 var dig_quest := preload("res://scripts/dig_quest.gd").new(self)
@@ -225,6 +226,9 @@ func _ready() -> void:
 	title_font.fallbacks = [preload("res://assets/symbols.ttf")]
 	setup_audio()
 	setup_fog()
+	var boundary_depth:=ColorRect.new()
+	boundary_depth.set_script(preload("res://scripts/boundary_depth.gd"))
+	add_child(boundary_depth)
 	setup_ui()
 	var target := clampi(int(save_data.level),0,6) if save_data.started else 0
 	if OS.has_feature("web"):await prepare_rooms_web(target, false)
@@ -2358,6 +2362,7 @@ func draw_reply_deposit() -> void:
 
 func _draw_world() -> void:
 	if grid.is_empty(): return
+	boundary_backdrop.draw()
 	var view := get_viewport_rect().size
 	var from := Vector2i((camera-view/2)/TILE)-Vector2i(2,3)
 	var to := Vector2i((camera+view/2)/TILE)+Vector2i(3,4)
@@ -3863,7 +3868,7 @@ func body_motion()->Vector2:
 	return -rifle_kick_dir*rifle_kick+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
 
 func hand_is_behind()->bool:
-	return visual_facing() in [0,1,4,6]
+	return visual_facing() in [0,1,4,6,7]
 
 func right_hand_position()->Vector2:
 	var face:=visual_facing();var frame:=player_walk_frame()

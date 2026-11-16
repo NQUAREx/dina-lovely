@@ -1,34 +1,65 @@
-"""Eight pixel poses of a steel weapon case with two outward opening lids."""
+"""Original eight-pose steel case, drawn on the game's native pixel grid.
+
+Two tall pale recessed lids hinge against the sides of a deep dark tray.
+Coordinates are authored anew from the reference proportions; no photograph
+pixels are extracted. Each leaf always meets the hinge and the tray rim.
+"""
 from pathlib import Path
 from PIL import Image, ImageDraw
-A=Path(__file__).resolve().parents[1]/'assets'
+A = Path(__file__).resolve().parents[1] / 'assets'
+
+
 def generate():
- sheet=Image.new('RGBA',(512,48))
- for frame in range(8):
-  im=Image.new('RGBA',(64,48));d=ImageDraw.Draw(im)
-  # The base remains on the original footprint; lids swing beyond it.
-  d.rectangle((18,39,46,44),fill='#303943')
-  d.rectangle((17,28,46,41),fill='#56616c');d.rectangle((20,31,43,40),fill='#74777a')
-  d.line((18,28,45,28),fill='#b6c3ca');d.line((18,41,45,41),fill='#343d47',width=2)
-  d.rectangle((26,33,38,38),fill='#46525d');d.rectangle((28,35,36,36),fill='#303b46')
-  d.rectangle((19,19,44,29),fill='#718592');d.rectangle((21,21,42,27),fill='#222b36')
-  d.line((22,22,41,22),fill='#3b4650');d.line((27,24,36,24),fill='#46535e')
-  spread=round(frame/7*13)
-  # Symmetric hinged leaves: pale recessed inner surfaces, dark thick rims.
-  for side in [-1,1]:
-   if side<0: x0,x1=18-spread,31-round(frame/7*13)
-   else:x0,x1=32+round(frame/7*12),45+spread
-   y0=18-round(frame/7*5); y1=28-round(frame/7*2)
-   d.rectangle((x0,y0,x1,y1+1),fill='#3c4854')
-   d.rectangle((x0,y0,x1,y1-1),fill='#8fa8b9')
-   if x1-x0>4:
-    d.rectangle((x0+2,y0+2,x1-2,y1-3),fill='#c2c6c7')
-    d.line((x0+2,y1-2,x1-2,y1-2),fill='#e0e3df')
-    d.line((x0+1,y0+1,x1-1,y0+1),fill='#b4c9d3')
-   hinge=18 if side<0 else 44
-   d.rectangle((hinge,26,hinge+1,30),fill='#afbdc2')
-  if frame==0:
-   d.rectangle((29,26,34,31),fill='#b5b49f');d.point((31,28),fill='#414550')
-  sheet.alpha_composite(im,(frame*64,0))
- sheet.save(A/'iron_weapon_crates.png')
-if __name__=='__main__':generate()
+    sheet = Image.new('RGBA', (512, 48))
+    for frame in range(8):
+        t = frame / 7
+        im = Image.new('RGBA', (64, 48))
+        d = ImageDraw.Draw(im)
+        # Low, wide body and its bevelled front; steel uses cool neutral greys.
+        d.rectangle((17, 38, 46, 43), fill='#303942')
+        d.rectangle((16, 28, 47, 40), fill='#424b55')
+        d.rectangle((18, 29, 45, 38), fill='#71777b')
+        d.rectangle((19, 30, 20, 37), fill='#4b535b')
+        d.rectangle((43, 30, 44, 37), fill='#4b535b')
+        d.rectangle((23, 30, 40, 32), fill='#a1a4a3')
+        d.rectangle((23, 33, 40, 37), fill='#4b555e')
+        d.rectangle((26, 34, 37, 35), fill='#303c47')
+        d.line((18, 39, 45, 39), fill='#555e66')
+        # Raised rim. The interior has a broad rear plane and deep black well.
+        d.rectangle((17, 11, 46, 29), fill='#7d8b96')
+        d.rectangle((18, 12, 45, 28), fill='#414a53')
+        d.rectangle((19, 14, 44, 27), fill='#242c35')
+        d.rectangle((20, 13, 43, 16), fill='#3b454e')
+        d.rectangle((19, 17, 44, 26), fill='#202832')
+        d.rectangle((25, 17, 38, 18), fill='#424b54')
+        d.line((18, 29, 45, 29), fill='#a0a9ae')
+        # Hinges connect to the inner edge at every opening pose.
+        for side in (-1, 1):
+            if side < 0:
+                x0 = round(18 - 15*t)
+                x1 = round(31 - 13*t)
+            else:
+                x0 = round(32 + 13*t)
+                x1 = round(45 + 15*t)
+            top = round(11 - 6*t)
+            bottom = round(28 - 3*t)
+            d.rectangle((x0, top+1, x1, bottom+1), fill='#46515b')
+            d.rectangle((x0, top, x1, bottom-1), fill='#91a8b8')
+            # Stepped outer corners and thick machined inner frame.
+            d.rectangle((x0+1, top+1, x1-1, bottom-2), fill='#7f919f')
+            d.rectangle((x0+3, top+2, x1-3, bottom-4), fill='#4a535c')
+            d.rectangle((x0+4, top+4, x1-3, bottom-5), fill='#c2c4c2')
+            d.line((x0+4, bottom-4, x1-3, bottom-4), fill='#e1e3de')
+            d.line((x0+2, top, x1-1, top), fill='#b3c7d3')
+            # A narrow steel return joins the lid to the chest, no floor gap.
+            hx = 18 if side < 0 else 45
+            d.rectangle((hx, 23, hx+1, 29), fill='#7f8e99')
+        if frame == 0:
+            d.rectangle((29, 25, 34, 30), fill='#b2b4ac')
+            d.rectangle((31, 27, 32, 28), fill='#48515a')
+        sheet.alpha_composite(im, (frame*64, 0))
+    sheet.save(A / 'iron_weapon_crates.png')
+
+
+if __name__ == '__main__':
+    generate()
