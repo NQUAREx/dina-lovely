@@ -135,7 +135,7 @@ func equip(tool:String)->void:
 func wear_shovel()->void:
  if g.level!=3 or g.held_item!="shovel":return
  var d:=state();d.uses+=1
- if d.uses>=d.durability:d.broken=true;g.notify(g.tx("shovel_needs_repair"));g.sfx("axe")
+ if d.uses>=d.durability:d.broken=true;g.notify(g.tx("shovel_needs_repair"));g.sfx("shovel_break")
 func blocks(pos:Vector2)->bool:
  if g.level!=3:return false
  for obj in g.objects:

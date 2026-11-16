@@ -37,10 +37,11 @@ Chromium shell capture works. Full WebGL2 via in-process SwiftShader initializes
 
 `python3 -m http.server 8874 --bind 127.0.0.1` from repository root, then
 `node tools/qa/loading_animation.cjs`. `TEST_URL` overrides that root URL.
-The probe starts the actual transparent animated GIF loading asset, blocks page JavaScript for
-three seconds and captures compositor frames through CDP. This checks that
-image frames continue changing while the UI thread is occupied. It does not
-emulate iOS Safari; device verification is still needed. The loader uses an
-8-frame transparent GIF, without video playback/loop events or CSS animation.
-All frames share one palette, retain transparency and clear the previous
-frame with GIF disposal2, preventing a stale silhouette or opaque backdrop.
+The probe loads the actual loader CSS and static transparent PNG strip, blocks
+page JavaScript for three seconds and captures compositor frames through CDP.
+It checks that frames keep changing during the blocked task. This does not
+emulate iOS Safari; device verification is still needed. GIF image repaint and
+stepped CSS animation can stall during WebKit startup. The current strip uses
+linear transform keyframes with hold intervals, so the transform remains
+compositor-interpolable while displaying distinct pixel frames. No animated
+background image, GIF repaint, video autoplay or JavaScript timer advances it.

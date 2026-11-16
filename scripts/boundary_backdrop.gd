@@ -19,8 +19,7 @@ func stamp(owner:int,point:Vector2)->void:
  g.draw_texture_rect_region(texture,Rect2(point+Vector2(-32,-2),Vector2(64,36)),Rect2(0,34,32,30),tint)
  if layout.mirror and owner in [1,3]:g.draw_set_transform(Vector2.ZERO)
 func draw()->void:
- if g.level==3:draw_extended_grass()
- if g.level==0:draw_outer_hedge()
+ if g.level in [0,3]:draw_extended_grass()
  var width:int=g.grid[0].length()
  var height:int=g.grid.size()
  # One outer band: nested rings used to stamp the same cells twice.
@@ -36,19 +35,8 @@ func draw()->void:
     var owner:int=g.boundary_room(y) if g.corridor_row(y) else g.level
     if not g.corridor_row(y) and owner!=1:continue
     stamp(owner,p)
- # Corridor texture must continue beyond its actual outer wall too. Otherwise
- # the transparent edge ends before the72px fog reaches full opacity.
- if g.drawing_neighbor:return
- var first:=maxi(-5,floori((g.camera.y-g.get_viewport_rect().size.y/2)/48)-3)
- var last:=mini(height+5,ceili((g.camera.y+g.get_viewport_rect().size.y/2)/48)+3)
- for y in range(first,last):
-  if not g.corridor_row(y):continue
-  var center:=15 if g.level==0 and y<5 else 13
-  var owner:int=g.boundary_room(y)
-  for side in [-1,1]:
-   for ring in [3,4]:stamp(owner,g.screen(Vector2(center+side*ring+.5,y+.5)*48))
 
-func draw_outer_hedge()->void:
+func draw_outer_hedge(front:bool=false)->void:
  if g.hedge_field==null:return
  var width:float=g.grid[0].length()*48
  var height:float=g.grid.size()*48
@@ -60,6 +48,7 @@ func draw_outer_hedge()->void:
   if base.y<6*48 and absf(base.x-15.5*48)>120:offsets.append(Vector2(0,-48))
   if base.y>height-6*48:offsets.append(Vector2(0,48))
   for offset in offsets:
+   if (offset.y>0)!=front:continue
    var centre:Vector2=g.screen((base+offset).round()-Vector2(0,16))
    if not g.get_viewport_rect().grow(48).has_point(centre):continue
    var id:int=g.sprites["crown_leaf_"+str(crown.variant)]
@@ -92,4 +81,40 @@ func draw_extended_grass()->void:
     extended.blit_rect(source,Rect2i(posmod(x,source.get_width()),posmod(y,source.get_height()),24,24),Vector2i(x+72,y+72))
   grass_cache[key]=ImageTexture.create_from_image(extended)
  var texture:Texture2D=grass_cache[key]
- g.draw_texture_rect(texture,Rect2(g.screen(Vector2(-144,-144)),texture.get_size()*2),false)
+ for y in range(-3,g.grid.size()+3):
+  for x in range(-3,g.grid[0].length()+3):
+   var centre:=15 if g.level==0 and y<5 else 13
+   if g.corridor_row(y) and absi(x-centre)<=2:continue
+   var p:Vector2=g.screen(Vector2(x,y)*48)
+   if not g.get_viewport_rect().grow(48).has_point(p):continue
+   g.draw_texture_rect_region(texture,Rect2(p,Vector2(48,48)),Rect2(Vector2(x+3,y+3)*24,Vector2(24,24)))
+
+func draw_shared_corridors()->void:
+ # Always use the upper room's coordinates, and render after both room floors.
+ # These are visual wall cells only: keep the playable corridor floor untouched.
+ var old_level:int=g.level
+ var old_grid:Array=g.grid
+ var old_camera:Vector2=g.camera
+ for owner in [old_level,old_level+1]:
+  if owner<1 or owner>6 or not g.room_cache.has(owner) or owner==3:continue
+  var map:Array=old_grid if owner==old_level else g.room_cache[owner].grid
+  var height:int=map.size()
+  var offset:=Vector2.ZERO if owner==old_level else Vector2(-96 if old_level==0 else 0,height*48)
+  g.level=owner;g.grid=map;g.camera=old_camera+offset
+  # Reset the shared floor under wall chamfers, including extended grass.
+  for y in range(height-5,height+5):
+   for x in [9,10,11,15,16,17]:
+    var p:Vector2=g.screen(Vector2(x,y)*48)
+    g.draw_texture_rect_region(g.ground,Rect2(p,Vector2(48,48)),Rect2(24,0,24,24))
+  for y in range(height-5,height+5):
+   for x in [9,10,11,15,16,17]:
+    stamp(owner,g.screen(Vector2(x+.5,y+.5)*48))
+  # Lower room front row covers the final corridor block face at the corner.
+  if owner>1 and g.room_cache.has(owner-1):
+   var lower:Array=g.room_cache[owner-1].grid
+   g.level=owner-1;g.grid=lower
+   g.camera=old_camera+offset-Vector2(-96 if owner==1 else 0,height*48)
+   var cx:=15 if owner==1 else 13
+   for x in [cx-4,cx-3,cx-2,cx+2,cx+3,cx+4]:
+    if lower[5][x]=="#":g.draw_sprite("stone",g.screen(Vector2(x+.5,5.5)*48))
+ g.level=old_level;g.grid=old_grid;g.camera=old_camera

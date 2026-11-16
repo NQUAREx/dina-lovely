@@ -59,5 +59,7 @@ def generate():
    d.line([(13+depth,36),(12,bottom)],fill='#795534')
   put(name,s)
  atlas.save(A/'atlas.png')
+ import runpy
+ runpy.run_path(str(Path(__file__).with_name('remove_quest_tree_ground.py')))
  print('Generated reference-style broad stump and matching dark tree bark')
 if __name__=='__main__':generate()

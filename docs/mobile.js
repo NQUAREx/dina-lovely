@@ -4,8 +4,14 @@
  motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}';document.head.append(motifStyle);
  const roseStyle=document.createElement('style');
  const shellUI='e811eb826579';
- const loadingHero=new Image();loadingHero.src='loading-heroine.gif?v='+shellUI;
+ const loadingHero=new Image();loadingHero.src='loading-heroine.png?v='+shellUI;
  const loadingHeroReady=loadingHero.decode().catch(()=>{});
+ // Linear transform keyframes remain compositor-interpolable in WebKit.
+ // GIF decoding and discrete steps() timelines can wait for UI-thread paint.
+ const loadingWalkFrames=Array.from({length:8},(_,frame)=>{
+  const x=-frame*128,start=frame*12.5,end=frame===7?100:(frame+1)*12.5-.0001;
+  return `${start}%,${end}%{transform:translate3d(${x}px,0,0)}`;
+ }).join('');
  roseStyle.textContent=`#mobile-gate,#portrait-gate,#garden-loading,#garden-recovery{isolation:isolate}#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{z-index:-1}
  #mobile-gate button,#garden-recovery button{position:relative;z-index:1;isolation:isolate;opacity:1!important;min-height:76px;box-sizing:border-box;border:12px solid transparent!important;border-image:url('ui-frame-normal.png?v=${shellUI}') 12 fill stretch!important;border-radius:0!important;background:#4f3855!important;background-clip:padding-box!important;box-shadow:none!important;color:#f5e3cf!important;padding:8px 20px!important;image-rendering:pixelated}
  #mobile-gate button:hover,#garden-recovery button:hover{border-image-source:url('ui-frame-hover.png?v=${shellUI}')!important}
@@ -14,8 +20,8 @@
  #mobile-gate button::before,#garden-recovery button::before{content:'';pointer-events:none;position:absolute;left:-14px;right:-14px;top:-26px;height:36px;background:url('ui-flower-left.png?v=${shellUI}') left top/48px 36px no-repeat,url('ui-flower-right.png?v=${shellUI}') right top/48px 36px no-repeat}
  #mobile-gate button::after,#garden-recovery button::after{content:'';pointer-events:none;position:absolute;left:50%;top:-17px;transform:translateX(-50%);width:44px;height:24px;background:url('ui-crest-button.png?v=${shellUI}') center/44px 24px no-repeat}
  #mobile-gate h1{color:#f4d3b4!important;text-shadow:2px 2px #49354f}#garden-loading progress{accent-color:#d49aab}
- #garden-loading .garden-loading-heroine{position:relative;display:block;width:128px;height:128px;margin:0 auto;overflow:visible;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
- #garden-loading .garden-loading-heroine-image{display:block;width:128px;height:128px;max-width:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;animation:none!important;transform:none!important}`;
+ #garden-loading .garden-loading-heroine{position:relative;display:block;width:128px;height:128px;margin:0 auto;overflow:hidden;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+ #garden-loading .garden-loading-heroine-image{display:block;width:1024px;height:128px;max-width:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform:translate3d(0,0,0);animation:garden-loading-walk .64s linear infinite} @keyframes garden-loading-walk{${loadingWalkFrames}}`;
  document.head.append(roseStyle);
  const frameArtVersion='c57621a051f2';
  // The same room palette also colors browser-owned areas where textures cannot render.
@@ -234,9 +240,11 @@
     try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();}catch(e){}
     try{if(screen.orientation?.lock)await screen.orientation.lock('portrait');}catch(e){}
     gate.remove();window.gardenShowLoading();
-    // Decode and paint the native transparent animated image before WASM.
-    // No play/seek lifecycle can hide or reset it during the progress updates.
+    // Decode the complete static strip and commit its animated compositor layer
+    // before WASM. Walking never depends on progress callbacks or image repaint.
     await loadingHeroReady;
+    const walker=document.querySelector('.garden-loading-heroine-image');
+    if(walker?.getAnimations)await Promise.all(walker.getAnimations().map(animation=>animation.ready));
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     launch();
    };

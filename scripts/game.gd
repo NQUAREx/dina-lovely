@@ -340,7 +340,7 @@ func sfx(name: String = "chime") -> void:
 	var sample_name := name
 	if name in ["step_grass","step_stone","attack"]: sample_name += ["","_2","_3"][randi()%3]
 	voice.stream = preload("res://scripts/audio_bank.gd").STREAMS.get(sample_name)
-	voice.volume_db = {"chop_wood":-10,"axe":-10,"pick_stone":-12,"craft_bench":-12,"dig":-18,"punch_swing":-20,"punch_hit":-17,"sword_swing":-19,"birds":-29,"crickets":-28,"gate_open":-11,"gate_unlock":-13,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rpg_launch":-10,"rpg_explosion":-8,"rpg_load":-22,"rifle":-13,"pistol":-10}.get(name,-15)
+	voice.volume_db = {"shovel_break":-10,"chop_wood":-10,"axe":-10,"pick_stone":-12,"craft_bench":-12,"dig":-18,"punch_swing":-20,"punch_hit":-17,"sword_swing":-19,"birds":-29,"crickets":-28,"gate_open":-11,"gate_unlock":-13,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rpg_launch":-10,"rpg_explosion":-8,"rpg_load":-22,"rifle":-13,"pistol":-10}.get(name,-15)
 	voice.pitch_scale = randf_range(.98,1.02) if name in ["rifle","water","fill"] else randf_range(.94,1.06)
 	voice.play()
 
@@ -786,6 +786,7 @@ func activate_cached_room(index: int) -> void:
 	objects.assign(objects.filter(func(obj):return not obj.get("dropped_accessory",false)))
 	restore_accessory_drops();restore_gate_key();normalize_dig_site();world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install();dig_quest.install()
 	weapon_crates.install()
+	ensure_arena_chest_clearance()
 	for door in objects:
 		if door.kind=="doorway":door.gate_amount=1.0 if door_is_open(str(door.id)) else 0.0
 	task_time=0;rpg_windup=-1;resting="";moving=false;nearest=-1
@@ -1180,6 +1181,7 @@ func build_level(index: int) -> void:
 	if index==4:
 		arena_save.restore_room();restore_gate_key();rune_stones.install();dig_quest.install()
 		weapon_crates.install()
+		ensure_arena_chest_clearance()
 		battle.navigation_checked=-INF;battle.ensure_navigation()
 	camera = camera_target()
 	nearest = -1
@@ -2306,6 +2308,7 @@ func _draw() -> void:
 		drawing_neighbor=false;neighbor_return_gate=false;level=old_level;camera=old_camera
 		for field in ROOM_FIELDS:set(field,old_state[field])
 	if destination>level:_draw_world()
+	boundary_backdrop.draw_shared_corridors()
 	earth_boundary.draw_shared_corridor()
 	# Corridor props must survive the foreground room floor pass.
 	if corridor_pedestal!=Vector2.INF:
@@ -2425,7 +2428,7 @@ func _draw_world() -> void:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
 			if gate_junctions.skip_wall(Vector2i(x,y)):continue
-			if grid[y][x]=="#" and (level!=0 or corridor_row(y)) and not (level==3 and not corridor_row(y)):
+			if grid[y][x]=="#" and not corridor_row(y) and level not in [0,3]:
 				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	for obj in objects:
@@ -2483,6 +2486,8 @@ func _draw_world() -> void:
 			for n in range(16):silhouette.append(screen(flower.pos)+Vector2(cos(n*TAU/16)*19,sin(n*TAU/16)*5))
 			draw_floor_shadow(silhouette,Color(.06,.09,.15,.24))
 	if level==6 and save_data.finished:draw_tool_table()
+	for tree in objects:
+		if tree.kind=="quest_tree":draw_cast_shadow("quest_tree",screen(tree.pos),2.0)
 	draw_footprints()
 	if not drawing_neighbor:companion.draw_prints()
 	battle.draw_poison()
@@ -2511,6 +2516,7 @@ func _draw_world() -> void:
 			var pos:=screen(crown.base+crown.offset)
 			draw_texture_rect(glow,Rect2(pos-Vector2(r+11,r*.95),Vector2(r*2+22,r*2+12)),false,Color(0,0,0,.7))
 		draw_hedge_body(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
+		if level==0:boundary_backdrop.draw_outer_hedge(false)
 		# Each tree has one visible crown/trunk layer, sorted with the heroine below.
 		draw_hedge_canopy(visible_crowns,-1)
 
@@ -2576,7 +2582,7 @@ func _draw_world() -> void:
 					draw_set_transform(p,float(item.get("ground_angle",PI/2)));draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p,1.0)
 				else:draw_pickup_outline(highlight,screen(item_display_position(item)),.65 if item.get("on_table",false) or kind in ["quest_axe","pickaxe","shovel"] else 3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
-			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false) and kind not in ["flowers","blueflowers"]:
+			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false) and kind not in ["flowers","blueflowers","quest_tree"]:
 				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
 				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
 			if item.get("ground_tool",false):
@@ -3165,7 +3171,7 @@ func draw_corridor_extensions() -> Array[Dictionary]:
 				var pos:=screen(Vector2(x,y)*TILE)
 				draw_texture_rect_region(ground,Rect2(pos,Vector2(48,48)),Rect2(Vector2(24,0),Vector2(24,24)))
 				draw_corridor_edge_shade(pos,x,center)
-				if x==center-2 or x==center+2:walls.append({"kind":corridor_wall_kind(y),"id":"","pos":Vector2(x+.5,y+.5)*TILE,"wall":true})
+				# Shared corridor wall pass follows both room floors.
 	return walls
 
 func draw_corridor_edge_shade(pos:Vector2,column:int,center:int)->void:
@@ -3242,11 +3248,42 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 			obj.pos=Vector2(rng.randf_range(10.5,16.5),21.5)*TILE
 			continue
 		if (obj.kind!="note" and obj.id!="courage") or obj.id=="buried":continue
+		if obj.id=="courage":
+			var clear_candidates:=candidates.filter(func(p):return arena_chest_clear(p,obj))
+			if not clear_candidates.is_empty():obj.pos=clear_candidates[rng.randi_range(0,clear_candidates.size()-1)]
+			else:push_error("Arena has no unobstructed reward chest position")
+			continue
 		if candidates.is_empty():break
 		var index := rng.randi_range(0,candidates.size()-1)
 		obj.pos=candidates[index];candidates.remove_at(index)
 	if level==3 and save_data.buried_exposed and "buried" not in save_data.letters:
 		objects.append({"kind":"note","id":"buried","pos":Vector2(save_data.dig_target[0],save_data.dig_target[1]),"solid":false})
+
+func ensure_arena_chest_clearance()->void:
+	if level!=4:return
+	for chest in objects:
+		if chest.id!="courage" or arena_chest_clear(chest.pos,chest):continue
+		var candidates:Array[Vector2]=[]
+		for y in range(8,grid.size()-8):
+			for x in range(2,grid[0].length()-2):
+				var point:=Vector2(x+.5,y+.5)*TILE
+				if arena_chest_clear(point,chest):candidates.append(point)
+		if candidates.is_empty():push_error("Arena has no unobstructed reward chest position");return
+		var rng:=RandomNumberGenerator.new();rng.seed=int(save_data.seed)+48951
+		chest.pos=candidates[rng.randi_range(0,candidates.size()-1)]
+
+func arena_chest_clear(point:Vector2,chest:Dictionary)->bool:
+	# Check the chest footprint and its visible sprite, not only a walkable point.
+	for offset in [Vector2.ZERO,Vector2(-30,-20),Vector2(30,-20),Vector2(-30,16),Vector2(30,16)]:
+		if not valid_ground(point+offset) or blocked(point+offset):return false
+	var box:=Rect2(point-Vector2(32,86),Vector2(64,96)).grow(8)
+	for prop in objects:
+		if prop==chest:continue
+		var bounds:=Rect2(prop.pos-Vector2(32,86),Vector2(64,96))
+		if prop.kind=="weapon_crate":bounds=Rect2(prop.pos-Vector2(64,86),Vector2(128,96))
+		elif prop.kind=="doorway":bounds=Rect2(prop.pos-Vector2(144,160),Vector2(288,224))
+		if box.intersects(bounds):return false
+	return true
 
 func scatter_room_props(rng: RandomNumberGenerator) -> void:
 	# Each new game's seed places landmarks and tools independently across the room.
@@ -4089,6 +4126,7 @@ func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 			var pose:Vector3=hedge_field.draw_poses[marker]
 			draw_texture_rect(stone_peek,Rect2(Vector2(pose.x,pose.y)-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2),false)
 	draw_set_transform(Vector2.ZERO)
+	if side==1 and level==0:boundary_backdrop.draw_outer_hedge(true)
 
 func draw_leaf_crown(index: int) -> void:
 	var node:Dictionary=hedge_field.crowns[index]
