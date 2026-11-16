@@ -16,5 +16,5 @@ void fragment(){
  // One distance field for rooms, corridors and pillars. There is no switch
  // at a floor edge: alpha and its derivative both start at zero there.
  float fog=smoothstep(0.,72.,distance);
- COLOR=vec4(.008,.012,.020,fog*.98);
+ COLOR=vec4(.008,.012,.020,fog);
 }
