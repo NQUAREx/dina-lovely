@@ -6,6 +6,9 @@ func _ready()->void:
  material=ShaderMaterial.new();material.shader=preload("res://shaders/boundary_depth.gdshader")
  z_index=100
 func area(origin:Vector2,w:float,h:float,rects:Array[Vector4],owner:int)->void:
+ # Fog follows the projected roof plane, not the block foot on the ground.
+ if owner in [2,4,5,6]:
+  origin+=Vector2(-2,-26);w+=4
  fades.append(72.)
  var p:Vector2=g.screen(origin)
  rects.append(Vector4(p.x,p.y,p.x+w,p.y+h))
