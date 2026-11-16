@@ -5,11 +5,17 @@ func run():
  g.new_game();g.clear_modal();g.set_process(false);g.set_physics_process(false)
  for lower in range(6):
   g.build_level(lower)
+  var center:=15 if lower==0 else 13
+  var layout=g.boundary_layout(Vector2i(center-2,-2),lower+1)
+  var mirrored=g.boundary_layout(Vector2i(center+2,-2),lower+1)
+  assert(layout.variant==mirrored.variant and layout.jitter.x==-mirrored.jitter.x)
   var owner:int=g.boundary_room(0)
   assert(owner==lower+1)
   var left:Image=load('res://assets/wall_room%d_exposed.png'%owner).get_image()
   g.build_level(lower+1)
   assert(g.boundary_room(g.grid.size()-1)==owner)
+  var continuation=g.boundary_layout(Vector2i(11,g.grid.size()-2),owner)
+  assert(layout.variant==continuation.variant and layout.jitter==continuation.jitter)
   var right:Image=load('res://assets/wall_room%d_exposed.png'%g.boundary_room(g.grid.size()-1)).get_image()
   assert(left.get_data()==right.get_data())
  for stage in range(7):

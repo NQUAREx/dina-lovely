@@ -32,3 +32,14 @@ node tools/qa/chromium_capture.cjs
 ARM64 Chrome for Testing 156, bundled by Playwright. Saves `/tmp/bloom-browser-launch.png` and logs computed button opacity/background. Module can be overridden by PLAYWRIGHT_MODULE. Executable is the installed Chromium v1248 under `/root/.cache/ms-playwright`.
 
 Chromium shell capture works. Full WebGL2 via in-process SwiftShader initializes then crashes on this host; TRY_WEBGL=1 is diagnostic only. Use Firefox for the game runtime and native Godot for world/UI captures. Do not equate successful shell screenshots with a tested game runtime.
+
+## Loading heroine during a blocked UI thread
+
+`python3 -m http.server 8874 --bind 127.0.0.1` from repository root, then
+`node tools/qa/loading_video.cjs`. `TEST_URL` overrides that root URL.
+The probe starts the actual H.264 loading asset, blocks page JavaScript for
+three seconds and captures compositor frames through CDP. This checks that
+media frames continue changing while the UI thread is occupied. It does not
+emulate iOS Safari; device verification is still needed. Safari uses a muted
+inline video because CSS sprite timelines may stall during WASM startup.
+`ffmpeg` with libx264 is required when generating/exporting the loader art.
