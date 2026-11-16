@@ -158,3 +158,6 @@ Removed room backdrop stamps in corridor rows and prevented cached neighbours fr
 
 ## Restore junction depth, distant black and dark-room perimeter
 Restored the additional junction apron rows removed in2d6055d. Their material now uses boundary_room(y), including cached neighbours, so both halves use the upper room's material. Longitudinal rings remain single-owner. External fog keeps a slate near edge, fades RGB to black over48..180 world pixels (alpha still0..72). Night mask band extends two tiles over the room boundary (3TILE..H-3TILE), so trees/apron fade into dark room from corridor instead of a visible light stripe. Shared world coordinates and full-screen entry opacity retained.
+
+## Smoother distant fog and clean backdrop masonry
+Fog RGB now transitions slate→black over120..480px instead48..180px. Backdrop nested rings replaced with one outer band to eliminate duplicate cells. Junction apron excludes columns already covered by canonical longitudinal rings3/4. Masonry backdrop uses stacked texture rather than repeated exposed cap per row; organic textures retain exposed silhouette.
