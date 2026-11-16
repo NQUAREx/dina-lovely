@@ -9,9 +9,6 @@ func area(origin:Vector2,w:float,h:float,rects:Array[Vector4])->void:
  rects.append(Vector4(p.x,p.y,p.x+w,p.y+h))
 func room(origin:Vector2,width:float,height:float,rects:Array[Vector4])->void:
  area(origin+Vector2(48,6*48),width-96,height-12*48,rects)
-func pillars(center:float,y:float,rects:Array[Vector4])->void:
- for side in [-1,1]:
-  area(Vector2(center+side*96-28,y-132),56,164,rects)
 func _process(_delta:float)->void:
  visible=not g.grid.is_empty()
  if not visible:return
@@ -30,8 +27,6 @@ func _process(_delta:float)->void:
   var origin:=Vector2(current_center-other_center,-nh if north else height)
   room(origin,nw,nh,rects)
   area(Vector2(current_center-72,-6*48 if north else height-6*48),144,12*48,rects)
-  pillars(current_center,5.5*48 if north else height-5.5*48,rects)
-  pillars(current_center,-5.5*48 if north else height+5.5*48,rects)
  material.set_shader_parameter("area_count",rects.size())
  while rects.size()<20:rects.append(Vector4(-10000,-10000,-10000,-10000))
  material.set_shader_parameter("visible_areas",rects)

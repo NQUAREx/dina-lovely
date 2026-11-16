@@ -229,6 +229,9 @@ func _ready() -> void:
 	var boundary_depth:=ColorRect.new()
 	boundary_depth.set_script(preload("res://scripts/boundary_depth.gd"))
 	add_child(boundary_depth)
+	var pillar_overlay:=Node2D.new()
+	pillar_overlay.set_script(preload("res://scripts/pillar_overlay.gd"))
+	add_child(pillar_overlay)
 	setup_ui()
 	var target := clampi(int(save_data.level),0,6) if save_data.started else 0
 	if OS.has_feature("web"):await prepare_rooms_web(target, false)
