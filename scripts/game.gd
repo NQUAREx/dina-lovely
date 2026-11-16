@@ -2284,11 +2284,11 @@ func _draw() -> void:
 	if night_band.has_area():draw_night_mask(night_band)
 
 func draw_night_mask(area: Rect2) -> void:
-	var feather:=64.0
+	var feather:=128.0
 	draw_rect(Rect2(area.position+Vector2(0,feather),area.size-Vector2(0,feather*2)),Color.BLACK)
 	for n in range(128):
-		var distance:float=-feather+n
-		var alpha:=smoothstep(-feather,feather,distance+.5)
+		var distance:float=n
+		var alpha:=smoothstep(0,feather,distance+.5)
 		draw_rect(Rect2(area.position+Vector2(0,distance),Vector2(area.size.x,1)),Color(0,0,0,alpha))
 		draw_rect(Rect2(Vector2(area.position.x,area.end.y-distance-1),Vector2(area.size.x,1)),Color(0,0,0,alpha))
 
