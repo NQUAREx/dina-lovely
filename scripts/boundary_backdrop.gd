@@ -17,6 +17,8 @@ func draw()->void:
  var height:int=g.grid.size()
  for ring in [1,2]:
   for y in range(5-ring,height-5+ring):
+   # Corridor backdrop has a single owner below, including cached neighbours.
+   if g.corridor_row(y):continue
    for x in range(-ring,width+ring):
     if x>=0 and x<width and y>=5 and y<height-5:continue
     var center:=15 if g.level==0 and y<5 else 13
@@ -25,6 +27,7 @@ func draw()->void:
     stamp(g.level,p)
  # Corridor texture must continue beyond its actual outer wall too. Otherwise
  # the transparent edge ends before the72px fog reaches full opacity.
+ if g.drawing_neighbor:return
  var first:=maxi(-5,floori((g.camera.y-g.get_viewport_rect().size.y/2)/48)-3)
  var last:=mini(height+5,ceili((g.camera.y+g.get_viewport_rect().size.y/2)/48)+3)
  for y in range(first,last):

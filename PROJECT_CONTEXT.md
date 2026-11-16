@@ -152,3 +152,6 @@ boundary_backdrop теперь подкладывает непрерывную �
 
 ## 2026-11-16: larger controls and restored darkness feather
 Action control248x88 with readable wrapped labels; drop/cycle80x80 and explicit framed states. Boundary fog opaque muted slate(.105,.112,.145), preserving72px fade. Restored exact pre-boundary6ad3171 symmetric ±64px night feather and black night base; retained shared world coordinates for midpoint continuity. Inspected14 native entrance/exit captures and large-button screenshot. Dark corridor continuity regression passed. This was a visual sample audit, not an exhaustive guarantee.
+
+## Corridor backdrop ownership follow-up
+Removed room backdrop stamps in corridor rows and prevented cached neighbours from drawing corridor backdrop rings. Active-room canonical corridor pass owns both halves. Corrected boundary fog floor rectangle for narrow room2 (columns9..17), excluding empty grid padding. Permanent corridor comparison rule added to AGENTS.md.

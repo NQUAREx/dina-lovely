@@ -7,3 +7,5 @@
 - Runtime UI copy belongs in both JSON variants. Keep their comments; run `python3 tests/content_schema.py` after schema changes.
 
 - Delegate independent subtasks to subagents when doing so improves speed, token use, or context use; keep shared-file integration coordinated.
+
+- Every shared corridor must render identically from either active room. Its material belongs to the physically upper room; use canonical corridor coordinates for variants and draw its backdrop once, never through the cached neighbour too. When changing boundaries/fog, compare screenshots of the same physical corridor on both sides of the midpoint, including backdrop rows and fog geometry. Room fog bounds must follow actual floor bounds, excluding empty grid padding.
