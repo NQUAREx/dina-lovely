@@ -3,14 +3,25 @@
  const motifSvg='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="96" viewBox="0 0 120 96"><g fill="none" stroke="#efb5c7" stroke-opacity=".055" stroke-width="2" shape-rendering="crispEdges"><path d="M18 25v-9h6v3h6v-3h6v9h-3v6h-3v3h-3v3h-3v-3h-3v-6h-3z"/><path d="M84 55h3v6h3v3h6v3h-6v3h-3v6h-3v-6h-3v-3h-6v-3h6v-3h3z"/></g></svg>';
  motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}';document.head.append(motifStyle);
  const roseStyle=document.createElement('style');
- const shellUI='e811eb826579';
- const loadingHero=new Image();loadingHero.src='loading-heroine.png?v='+shellUI;
- const loadingHeroReady=loadingHero.decode().catch(()=>{});
- // Linear transform keyframes remain compositor-interpolable in WebKit.
- // GIF decoding and discrete steps() timelines can wait for UI-thread paint.
+ const shellUI='10a4c55de987';
+ // Keep all walking poses resident inside the viewport. WebKit can cull a
+ // translated sprite strip despite its parent being visible during WASM startup.
+ const loadingHeroes=Array.from({length:8},(_,frame)=>{
+  const image=new Image();image.src='loading-heroine-'+frame+'.png?v='+shellUI;
+  image.alt='';image.decoding='sync';image.className='garden-loading-heroine-image';
+  image.style.animationName='garden-loading-pose-'+frame;
+  image.style.zIndex=String(frame);
+  return image;
+ });
+ const loadingHeroReady=Promise.all(loadingHeroes.map(image=>image.decode().then(()=>true,()=>false)));
+ const loadingHeroFallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAADGklEQVR4nO2aX0hTURzHv0vdg0FPRlhUW2s2kqCsqxI9RC9GCIU0+vsQCAqjtjfnSw+9NR+KiRgKQQ8ZwcQMJFhI9JKow1XISjPbosAHoR7CPdTi9nA5d7vzTjfxd85tng8I594d/Z3zPd/f73fvEJBIJBKJRCKRSCQSQajp76qo2DZRgRld/j598z29N7mvZxvvgGb4Al5hsSt5Buvy96mhuxcw/Oydfk9pVvRxZGhMBQDvtVYboKVGsHuU1BncBIgMjamxqRS+LlUVNRcAgt2j1MviUwPYhoDsiccmY4hNpXDCcQoA0Hi+Fv3hCJQmh/b5VAq+gBcO1y7SNZILkLt5QNsYAChNDijNCqafLwHQBACA/burEAw+gS/g1QVhKUGBkCLoC3h1IfJhm+cFqQPyTx/IWns9+sMRANBTgsoF3B0QCl0tae7FtpOEq+HcBgFgeGSioP0LzaeEuwClMDwyQVoAAQ4CNByvL+peOp2hXoopXGpAfCax5udrbX42vkD6omSJdwGRkKaAmdXzYadfkXhquP+3/rI+no0vqEca3OXRBq2GZbpA7onzhNwB8ZlEUakgii2fAmQCLM4lN619URVAwAIOqK4WW4aEC7AelKcPWESAQi6Y+zhPHptM3cW5pFpqB0inMwYxXB4n+TdWwp8DMpk/+thu5x+fLAWs3v8Zwh2Qz6+3DwAAR6/0cPnGmswB/8PpA4IckJv3hYh++Fz0g1TL4YMbdgs3AcZfvgEAdLS34FPyJwDg0Z17q+ZdattR8t9mYm1ECNLnAJfHaXN5nDa2eStCJgDr4QO9j3Ur557+ZrPRNBDaBd7/WDFc3/LdAH5HAQCp8Ul0+q+X94PQ/fBtw/WX+W/c12CJdwHGgUN7ucckdUBu/p8+01jU7yzZW9iIYkmrsJQDgKwL9u2p5RKPVABWxDo6z6HOXQNUVpjOe/1qGnXuGv3nbOsxymUZIK+yuWkAaGKYMTjwwnDNowMAAv5NLl8QM3htHhDYBjvatWI3+DBquNbGy6pt+87ydABDXVle0wm8BJBIJBKJRCLZsvwDe7Hq3xnkLO8AAAAASUVORK5CYII=";
  const loadingWalkFrames=Array.from({length:8},(_,frame)=>{
-  const x=-frame*128,start=frame*12.5,end=frame===7?100:(frame+1)*12.5-.0001;
-  return `${start}%,${end}%{transform:translate3d(${x}px,0,0)}`;
+  // Never make a resident layer fully transparent (Safari can discard it).
+  // Crossfades overlap: one pose remains visible throughout every handover.
+  const dim=.001,start=frame*12.5,end=(frame+1)*12.5;
+  const points=frame===0?[[0,1],[11.5,1],[12.5,dim],[99,dim],[100,1]]:
+   [[0,dim],[start-1,dim],[start,1],[end-1,1],[end,dim],[100,dim]];
+  return '@keyframes garden-loading-pose-'+frame+'{'+points.map(([t,o])=>t+'%{opacity:'+o+'}').join('')+'}';
  }).join('');
  roseStyle.textContent=`#mobile-gate,#portrait-gate,#garden-loading,#garden-recovery{isolation:isolate}#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{z-index:-1}
  #mobile-gate button,#garden-recovery button{position:relative;z-index:1;isolation:isolate;opacity:1!important;min-height:76px;box-sizing:border-box;border:12px solid transparent!important;border-image:url('ui-frame-normal.png?v=${shellUI}') 12 fill stretch!important;border-radius:0!important;background:#4f3855!important;background-clip:padding-box!important;box-shadow:none!important;color:#f5e3cf!important;padding:8px 20px!important;image-rendering:pixelated}
@@ -20,8 +31,8 @@
  #mobile-gate button::before,#garden-recovery button::before{content:'';pointer-events:none;position:absolute;left:-14px;right:-14px;top:-26px;height:36px;background:url('ui-flower-left.png?v=${shellUI}') left top/48px 36px no-repeat,url('ui-flower-right.png?v=${shellUI}') right top/48px 36px no-repeat}
  #mobile-gate button::after,#garden-recovery button::after{content:'';pointer-events:none;position:absolute;left:50%;top:-17px;transform:translateX(-50%);width:44px;height:24px;background:url('ui-crest-button.png?v=${shellUI}') center/44px 24px no-repeat}
  #mobile-gate h1{color:#f4d3b4!important;text-shadow:2px 2px #49354f}#garden-loading progress{accent-color:#d49aab}
- #garden-loading .garden-loading-heroine{position:relative;display:block;width:128px;height:128px;margin:0 auto;overflow:hidden;transform:translateZ(0);contain:paint;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
- #garden-loading .garden-loading-heroine-image{display:block;width:1024px!important;min-width:1024px!important;max-width:1024px!important;height:128px!important;min-height:128px!important;max-height:128px!important;object-fit:fill!important;flex:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform:translate3d(0,0,0);animation:garden-loading-walk .64s linear infinite} @keyframes garden-loading-walk{${loadingWalkFrames}}`;
+ #garden-loading .garden-loading-heroine{position:relative;display:block;width:128px;height:128px;margin:0 auto;isolation:isolate;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+ #garden-loading .garden-loading-heroine-image{position:absolute;inset:0;display:block;width:128px!important;min-width:128px!important;max-width:128px!important;height:128px!important;min-height:128px!important;max-height:128px!important;object-fit:contain!important;flex:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;opacity:.001;will-change:opacity;animation-duration:.64s;animation-timing-function:linear;animation-iteration-count:infinite} ${loadingWalkFrames}`;
  document.head.append(roseStyle);
  const frameArtVersion='c57621a051f2';
  // The same room palette also colors browser-owned areas where textures cannot render.
@@ -221,7 +232,7 @@
   window.gardenShowLoading=()=>{
    window.gardenHideLoading();const screen=document.createElement('section');screen.id='garden-loading';
    screen.style.cssText='position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:1900;background:radial-gradient(ellipse at top,#55435d,#242538 75%);display:grid;place-content:center;text-align:center;padding:32px;color:#f5e3cf;font:20px/1.6 GardenLetter,sans-serif';
-   const sprout=document.createElement('div');sprout.className='garden-loading-heroine';sprout.setAttribute('aria-hidden','true');const heroine=loadingHero.cloneNode();heroine.className='garden-loading-heroine-image';heroine.alt='';heroine.style.setProperty('width','1024px','important');heroine.style.setProperty('height','128px','important');sprout.append(heroine);screen.append(sprout);
+   const sprout=document.createElement('div');sprout.className='garden-loading-heroine';sprout.setAttribute('aria-hidden','true');for(const pose of loadingHeroes)sprout.append(pose);screen.append(sprout);
    const progress=document.createElement('progress');progress.id='garden-progress';progress.max=1;progress.value=loadProgress;progress.style.cssText='width:min(300px,75vw);height:14px;accent-color:#e5a6bd;border:1px solid #a07890;border-radius:8px;margin:22px auto 0;background:#342c42';progress.setAttribute('aria-label',t('loading_progress_label'));screen.append(progress);const phrase=document.createElement('p');screen.append(phrase);const keys=loaded.loading_phrases||[];let index=Math.floor(Math.random()*keys.length);
    const update=()=>{phrase.textContent=t(keys[index++%keys.length]);};update();loadingTimer=setInterval(update,1300);document.body.append(screen);paintChrome(chromeColor);
   };
@@ -240,11 +251,22 @@
     try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();}catch(e){}
     try{if(screen.orientation?.lock)await screen.orientation.lock('portrait');}catch(e){}
     gate.remove();window.gardenShowLoading();
-    // Decode the complete static strip and commit its animated compositor layer
-    // before WASM. Walking never depends on progress callbacks or image repaint.
-    await loadingHeroReady;
-    const walker=document.querySelector('.garden-loading-heroine-image');
-    if(walker?.getAnimations)await Promise.all(walker.getAnimations().map(animation=>animation.ready));
+    // Decode every resident pose, then commit opacity animations before WASM.
+    const decoded=await loadingHeroReady;
+    if(decoded.some(ok=>!ok)){
+     // A missing pose must never create a hole in the walking cycle.
+     for(let i=0;i<loadingHeroes.length;i++)if(!decoded[i])loadingHeroes[i].remove();
+     for(const pose of loadingHeroes){pose.style.animation='none';pose.style.opacity='0';}
+     const fallback=loadingHeroes.find((_,i)=>decoded[i]);
+     if(fallback)fallback.style.opacity='1';
+     else{
+      const emergency=new Image();emergency.src=loadingHeroFallback;emergency.alt='';emergency.className='garden-loading-heroine-image';emergency.style.animation='none';emergency.style.opacity='1';
+      document.querySelector('.garden-loading-heroine')?.append(emergency);
+     }
+    }
+    const walkers=[...document.querySelectorAll('.garden-loading-heroine-image')];
+    await Promise.all(walkers.map(image=>image.decode().catch(()=>{})));
+    await Promise.all(walkers.flatMap(image=>image.getAnimations?.()||[]).map(animation=>animation.ready));
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     launch();
    };

@@ -17,6 +17,9 @@ def generate():
   hand=grips[f'3:{frame}'];tile.alpha_composite(sword,(round(origin[0]+hand[0]-5),round(origin[1]+hand[1]-9)))
   strip.alpha_composite(tile,(frame*64,0))
  strip.save(A/'loading_heroine.png')
+ # Resident frame images avoid WebKit culling a strip translated out of its clip.
+ for frame in range(8):
+  strip.crop((frame*64,0,(frame+1)*64,64)).save(A/f'loading_heroine_{frame}.png')
  # Native animated images do not need video autoplay, seek at every loop,
  # CSS stepping, or an opaque media surface. Reserve one transparent index
  # in one shared palette so the original wallpaper remains visible.

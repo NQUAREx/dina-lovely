@@ -68,35 +68,8 @@ def thicket(variant):
     return im
 
 def earth(variant):
-    im=Image.new('RGBA',(32,64));d=ImageDraw.Draw(im);r=random.Random(572+variant*173)
-    # Exactly the excavation pit palette from scripts/world_tools.gd.
-    d.polygon([(5,31),(25,31),(29,44),(27,51),(22,54),(7,54),(3,49),(3,41)],fill='#473229')
-    d.polygon([(5,30),(25,30),(27,40),(24,49),(7,50),(4,44)],fill='#674832')
-    left=r.randint(3,6);right=r.randint(26,29);peak=r.randint(10,21);top=r.randint(9,21)
-    if variant%4==0:
-        pts=[(left,34),(left+2,24),(peak-3,top+3),(peak,top),(peak+4,top+2),(right-2,26),(right,35),(right-4,41),(8,41)]
-    elif variant%4==1:
-        pts=[(left,35),(left+3,25),(9,top+2),(13,top),(18,top+5),(22,top+1),(right-1,29),(right,36),(24,41),(8,41)]
-    elif variant%4==2:
-        pts=[(left,34),(left+1,27),(9,top+3),(15,top),(23,top+1),(right-1,25),(right,35),(24,41),(8,41)]
-    else:
-        pts=[(left,34),(7,29),(8,top+7),(peak,top),(peak+3,top+1),(23,28),(right,33),(right-3,40),(8,41)]
-    d.polygon(pts,fill='#76543c')
-    # A broad lit soil slope is the same exposed topsoil colour as a fresh pit.
-    lit=[(left+2,31),(8,top+8),(peak,top+2),(min(right-2,peak+4),top+5),(21,30),(17,35),(9,37)]
-    d.polygon(lit,fill='#a88255')
-    d.line([(5,35),(10,38),(19,38),(26,34)],fill='#89613f')
-    d.line([(5,43),(12,45),(22,44),(26,40)],fill='#51382b')
-    d.line([(8,48),(17,49),(23,47)],fill='#76543c')
-    for n in range(15):
-        x=r.randrange(7,25);y=r.randrange(max(22,top+4),49)
-        if im.getpixel((x,y))[3]:d.line((x,y,x+1,y),fill=r.choice(['#89613f','#674832','#76543c']))
-    # Occasional embedded clods, never identical grey ornamental rocks.
-    for n in range(r.randint(1,3)):
-        x=r.randrange(8,24);y=r.randrange(28,46)
-        d.polygon([(x,y),(x+2,y-1),(x+3,y+1),(x+1,y+2)],fill='#5c3f2e')
-        d.point((x+1,y),fill='#a88255')
-    return im
+    from create_earth_blocks import earth_block
+    return earth_block(variant)
 
 def fence(variant):
     im=Image.new('RGBA',(32,64));d=ImageDraw.Draw(im)
@@ -123,7 +96,7 @@ def fence(variant):
     return im
 
 for room in range(7):
-    for variant in range(16 if room in [1,3] else 4):
+    for variant in range(16 if room==1 else 4):
         suffix='' if variant==0 else str(variant)
         for kind in ['exposed','stacked']:
             if room==0:im=foliage(variant)
@@ -151,7 +124,7 @@ if __name__=='__main__':
     sheet.save('/tmp/room-materials.png')
     variants=Image.new('RGBA',(16*72,240),'#242538')
     for row,room in enumerate([1,3]):
-        for n in range(16):
+        for n in range(16 if room==1 else 4):
             suffix='' if n==0 else str(n)
             tile=Image.open(A/f'wall_room{room}_exposed{suffix}.png')
             projected=Image.new('RGBA',(64,104))

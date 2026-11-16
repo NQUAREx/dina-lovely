@@ -32,6 +32,12 @@ def generate():
  d.polygon([(11,30),(20,30),(23,32),(20,34),(12,34),(8,32)],outline='#96713f')
  d.line([(12,31),(18,31),(20,32),(18,33),(14,33),(13,32),(16,32)],fill='#c29a58')
  d.line((23,29,21,31,22,32),fill='#795534')
+ # Engraved heart and D on the cut plane, inside the bark rim.
+ d.polygon([(10,30),(12,29),(15,29),(16,30),(18,29),(21,29),(23,31),(22,33),(16,36),(11,33)],fill='#81574e')
+ d.polygon([(11,30),(14,30),(16,32),(19,30),(21,30),(22,31),(21,33),(16,35),(12,33)],fill='#bc8b89')
+ d.line([(11,30),(14,30),(16,32)],fill='#d5aaa0')
+ d.line([(15,30),(17,30),(18,31),(18,33),(17,34),(15,34),(15,30)],fill='#624438')
+ d.point((16,31),fill='#d6ae9b')
  put('quest_stump',stump)
  # Bark of the still-standing tree matches the stump's wood and root flare.
  for name in ['quest_tree']+['quest_tree_damage'+str(n) for n in range(1,7)]:

@@ -37,11 +37,13 @@ Chromium shell capture works. Full WebGL2 via in-process SwiftShader initializes
 
 `python3 -m http.server 8874 --bind 127.0.0.1` from repository root, then
 `node tools/qa/loading_animation.cjs`. `TEST_URL` overrides that root URL.
-The probe loads the actual loader CSS and static transparent PNG strip, blocks
-page JavaScript for three seconds and captures compositor frames through CDP.
-It checks that frames keep changing during the blocked task. This does not
-emulate iOS Safari; device verification is still needed. GIF image repaint and
-stepped CSS animation can stall during WebKit startup. The current strip uses
-linear transform keyframes with hold intervals, so the transform remains
-compositor-interpolable while displaying distinct pixel frames. No animated
-background image, GIF repaint, video autoplay or JavaScript timer advances it.
+The probe loads the actual loader CSS and eight resident transparent PNG poses,
+blocks page JavaScript for three seconds and captures compositor frames through
+CDP. It checks motion and counts actual visible heroine pixels in every captured
+frame, rejecting any blank frame. This does not emulate iOS Safari; device
+verification is still needed. The current loader keeps every pose at the same
+128px position and animates only opacity with short overlapping crossfades.
+A tiny nonzero opacity keeps inactive layers resident, avoiding Safari culling
+an offscreen transformed strip. Every pose is decoded before WASM starts; if a
+frame fails to decode, an available pose stays visible without animation.
+No GIF repaint, video autoplay, translated image or JavaScript timer advances it.

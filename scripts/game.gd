@@ -27,7 +27,6 @@ var companion:=preload("res://scripts/cat_companion.gd").new(self)
 var weapon_crates:=preload("res://scripts/weapon_crates.gd").new(self)
 var scene_fx:=preload("res://scripts/scene_fx.gd").new(self)
 var boundary_backdrop:=preload("res://scripts/boundary_backdrop.gd").new(self)
-var earth_boundary:=preload("res://scripts/earth_boundary.gd").new(self)
 var gate_junctions:=preload("res://scripts/gate_junctions.gd").new(self)
 var dig_quest := preload("res://scripts/dig_quest.gd").new(self)
 var note_flowers := preload("res://scripts/note_flowers.gd").new(self)
@@ -2154,9 +2153,8 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 		var cell:=Vector2i(floori(world.x/TILE),floori(world.y/TILE))
 		var stacked:=cell.y>=0 and cell.y+1<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#" and grid[cell.y+1][cell.x]=="#"
 		var wall_room:=boundary_room(floori(world.y/TILE))
-		if wall_room==3:return
 		var texture_name:="wall_room%d_%s"%[wall_room,"stacked" if stacked else "exposed"]
-		var organic:=wall_room in [1,3]
+		var organic:=wall_room==1
 		var layout:=boundary_layout(cell,wall_room)
 		var stone_variant:int=layout.variant
 		if organic:pos+=Vector2(layout.jitter)*scale_factor
@@ -2306,7 +2304,6 @@ func _draw() -> void:
 		for field in ROOM_FIELDS:set(field,old_state[field])
 	if destination>level:_draw_world()
 	boundary_backdrop.draw_shared_corridors()
-	earth_boundary.draw_shared_corridor()
 	# Corridor props must survive the foreground room floor pass.
 	if corridor_pedestal!=Vector2.INF:
 		draw_sprite("pedestal",corridor_pedestal)
@@ -2423,8 +2420,10 @@ func _draw_world() -> void:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
 			if gate_junctions.skip_wall(Vector2i(x,y)):continue
-			if grid[y][x]=="#" and not corridor_row(y) and level not in [0,3]:
+			if grid[y][x]=="#" and not corridor_row(y) and level!=0:
 				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
+
+	if not drawing_neighbor:boundary_backdrop.draw_tree_shadows()
 
 	for obj in objects:
 		if obj.kind in ["quest_axe","pickaxe"] and obj.id==held_item:continue
@@ -2462,7 +2461,6 @@ func _draw_world() -> void:
 	if not drawing_neighbor and playing and save_data.cat_tamed:renderables.append({"kind":"pet_cat","pos":companion.position,"id":"pet_cat"})
 	draw_paths()
 	world_tools.draw_ground()
-	earth_boundary.draw()
 	# Fixed contact shade ties raised masonry to the ground grid. Only exposed
 	# floor edges receive it; no dynamic light or per-frame shadow projection.
 	for wall in renderables:
@@ -3167,6 +3165,8 @@ func draw_corridor_extensions() -> Array[Dictionary]:
 	return walls
 
 func draw_corridor_edge_shade(pos:Vector2,column:int,center:int)->void:
+	var row:=floori((pos.y-screen(Vector2.ZERO).y)/TILE)
+	if boundary_room(row)==1:return
 	if column==center-1:
 		draw_rect(Rect2(pos,Vector2(7,48)),Color(.10,.10,.16,.24))
 		draw_rect(Rect2(pos+Vector2(7,0),Vector2(5,48)),Color(.10,.10,.16,.09))
@@ -3187,7 +3187,7 @@ func boundary_layout(cell:Vector2i,owner:int)->Dictionary:
 	var pick:=posmod(pattern+int(save_data.seed)*83492791,2147483647)
 	var jitter:=Vector2(posmod(pick/17,7)-3,posmod(pick/43,5)-2)
 	if hall:jitter.x*=side
-	return {"variant":posmod(pick,16 if owner in [1,3] else 4),"jitter":jitter,"mirror":hall and side>0}
+	return {"variant":posmod(pick,16 if owner==1 else 4),"jitter":jitter,"mirror":hall and side>0}
 
 func boundary_room(row:int)->int:
 	# Rooms advance northwards: both halves belong to the physically upper room.
@@ -4227,7 +4227,7 @@ func garden_bed_clear(point:Vector2,include_beds:bool=true,ignore_id:String="") 
 	return true
 
 func draw_ground_region(texture:Texture2D,destination:Rect2,source:Rect2)->void:
-	var world:Vector2=destination.position+camera-get_viewport_rect().size/2
+	var world:Vector2=destination.position-screen(Vector2.ZERO)
 	var row:=floori((world.y+24)/48)
 	var clip:Rect2
 	if corridor_row(row):
@@ -4238,9 +4238,10 @@ func draw_ground_region(texture:Texture2D,destination:Rect2,source:Rect2)->void:
 		var right:float=18.5*48 if level==2 else grid[0].length()*48-24.
 		clip=Rect2(screen(Vector2(left,5.5*48-26)),Vector2(right-left,(grid.size()-11)*48))
 	# Door openings join the corridor floor through the boundary wall row.
-	if (row==5 and level<6) or (row==grid.size()-6 and level>0):
+	if (row==5 and level<6) or (row in [grid.size()-7,grid.size()-6] and level>0):
 		var cx:float=(15.5 if level==0 and row==5 else 13.5)*48
-		var bridge:=Rect2(screen(Vector2(cx-72,row*48)),Vector2(144,48))
+		var bridge_top:float=5*48 if row==5 else (grid.size()-6)*48-2
+		var bridge:=Rect2(screen(Vector2(cx-72,bridge_top)),Vector2(144,48 if row==5 else 50))
 		var part:=destination.intersection(bridge)
 		if part.has_area():
 			var scale:=source.size/destination.size

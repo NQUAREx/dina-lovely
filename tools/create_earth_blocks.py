@@ -1,0 +1,69 @@
+"""Excavation earth cubes on the exact standard chamfered wall footprint.
+
+Rows0:34 are the roof; rows34:64 are the vertical shell. The game projects
+these regions with the same sizes used by its stone and timber boundaries.
+"""
+from pathlib import Path
+from PIL import Image, ImageDraw
+import random
+
+A = Path(__file__).resolve().parents[1] / 'assets'
+ROOF = [(7,11),(24,11),(27,14),(27,31),(24,34),(7,34),(4,31),(4,14)]
+
+def earth_block(variant):
+    r = random.Random(72541 + variant * 971)
+    im = Image.new('RGBA', (32,64))
+    d = ImageDraw.Draw(im)
+    # Continuous soil shell, including every bevel: no holes at cut corners.
+    for n,p in enumerate(ROOF):
+        q = ROOF[(n+1) % len(ROOF)]
+        d.polygon([p,q,(q[0],q[1]+20),(p[0],p[1]+20)], fill='#553c2e')
+    d.polygon([(4,31),(7,34),(7,54),(4,51)],fill='#856043')
+    d.polygon([(7,34),(24,34),(24,54),(7,54)],fill='#674832')
+    d.polygon([(24,34),(27,31),(27,51),(24,54)],fill='#3d2c26')
+    d.polygon([(25,15),(27,14),(27,51),(25,52)],fill='#493428')
+    # Soil horizons are broken, gently wavy bands, not brick mortar seams.
+    for y,shadow,light in [(39,'#51392d','#805b3e'),(46,'#493428','#785139')]:
+        wave = [(7,y),(11,y+1),(16,y),(20,y+1),(24,y)]
+        d.line(wave,fill=shadow)
+        d.line([(x,yy+1) for x,yy in wave],fill=light)
+        d.line([(4,y-3),(7,y)],fill='#664832')
+        d.line([(24,y),(27,y-3)],fill='#342722')
+    d.line((7,54,24,54),fill='#322721')
+    d.line((8,52,23,52),fill='#79523a')
+    # Compact earth top: broad flat plane with a crumbled but aligned bevel.
+    tops = ['#89633f','#84603e','#8d6745','#806040']
+    d.polygon(ROOF,fill=tops[variant % 4])
+    d.polygon([(4,14),(7,11),(7,31),(9,34),(7,34),(4,31)],fill='#a27a4f')
+    d.polygon([(24,11),(27,14),(27,31),(24,34),(22,34),(24,31)],fill='#59412e')
+    d.line([(4,14),(7,11),(24,11)],fill='#b08a59')
+    d.line([(7,32),(23,32),(25,30)],fill='#654832')
+    # Irregular packed clods and mineral grains keep the surface earthy.
+    for n in range(30):
+        x,y = r.randrange(8,24),r.randrange(14,31)
+        colour = r.choice(['#785439','#a17a50','#926c46','#6a4a33'])
+        d.line((x,y,x+r.choice([0,1,1,2]),y),fill=colour)
+        if n % 5 == 0:d.point((x,y+1),fill='#6a4a33')
+    # Small broken root fibres wrap onto the front soil face.
+    x = 10 + variant * 3
+    d.line([(x,30),(x+1,34),(x,37),(x+2,39)],fill='#a68054')
+    d.line([(x+1,34),(x+3,35),(x+2,37)],fill='#493528')
+    # Embedded slate/ochre stones, never a decorative masonry pattern.
+    for n in range(4):
+        x,y = r.randrange(9,22),r.randrange(36,51)
+        d.polygon([(x,y),(x+2,y-1),(x+3,y+1),(x+1,y+2)],fill='#514d40')
+        d.line((x,y,x+1,y-1),fill='#a29876')
+    # Clamp coverage to the same standard block shell used throughout game.
+    mask = Image.open(A/'wall_exposed.png').convert('RGBA').getchannel('A')
+    im.putalpha(mask)
+    return im
+
+def generate():
+    for variant in range(4):
+        tile=earth_block(variant)
+        suffix='' if variant==0 else str(variant)
+        for kind in ['exposed','stacked']:
+            tile.save(A/f'wall_room3_{kind}{suffix}.png')
+    print('Generated four detailed earth cubes in standard wall perspective')
+
+if __name__=='__main__':generate()
