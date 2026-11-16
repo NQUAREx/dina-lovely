@@ -1,7 +1,6 @@
 extends RefCounted
 var g:Node2D
 var textures:Dictionary={}
-var grass_cache:Dictionary={}
 func _init(game:Node2D):g=game
 func stamp(owner:int,point:Vector2)->void:
  if owner==3:return
@@ -18,29 +17,6 @@ func stamp(owner:int,point:Vector2)->void:
  g.draw_texture_rect_region(texture,Rect2(point+Vector2(-32,-70),Vector2(64,68)),Rect2(0,0,32,34),tint)
  g.draw_texture_rect_region(texture,Rect2(point+Vector2(-32,-2),Vector2(64,36)),Rect2(0,34,32,30),tint)
  if layout.mirror and owner in [1,3]:g.draw_set_transform(Vector2.ZERO)
-func draw()->void:
- if g.level in [0,3]:draw_extended_grass()
-
-func draw_extended_grass()->void:
- if g.grass_texture==null:return
- var key:int=g.grass_texture.get_instance_id()
- if not grass_cache.has(key):
-  if grass_cache.size()>2:grass_cache.clear()
-  var source:Image=g.grass_texture.get_image()
-  var extended:=Image.create(source.get_width()+144,source.get_height()+144,false,Image.FORMAT_RGBA8)
-  for y in range(-72,source.get_height()+72,24):
-   for x in range(-72,source.get_width()+72,24):
-    extended.blit_rect(source,Rect2i(posmod(x,source.get_width()),posmod(y,source.get_height()),24,24),Vector2i(x+72,y+72))
-  grass_cache[key]=ImageTexture.create_from_image(extended)
- var texture:Texture2D=grass_cache[key]
- for y in range(-3,g.grid.size()+3):
-  for x in range(-3,g.grid[0].length()+3):
-   var centre:=15 if g.level==0 and y<5 else 13
-   if g.corridor_row(y) and absi(x-centre)<=2:continue
-   var p:Vector2=g.screen(Vector2(x,y)*48)
-   if not g.get_viewport_rect().grow(48).has_point(p):continue
-   g.draw_texture_rect_region(texture,Rect2(p,Vector2(48,48)),Rect2(Vector2(x+3,y+3)*24,Vector2(24,24)))
-
 func draw_shared_corridors()->void:
  # Always use the upper room's coordinates, and render after both room floors.
  # These are visual wall cells only: keep the playable corridor floor untouched.
@@ -57,7 +33,7 @@ func draw_shared_corridors()->void:
   for y in range(height-5,height+5):
    for x in [11,15]:
     var p:Vector2=g.screen(Vector2(x,y)*48)
-    g.draw_texture_rect_region(g.ground,Rect2(p,Vector2(48,48)),Rect2(24,0,24,24))
+    g.draw_ground_region(g.ground,Rect2(p,Vector2(48,48)),Rect2(24,0,24,24))
   for y in range(height-5,height+5):
    for x in [11,15]:
     stamp(owner,g.screen(Vector2(x+.5,y+.5)*48))

@@ -226,9 +226,6 @@ func _ready() -> void:
 	title_font.fallbacks = [preload("res://assets/symbols.ttf")]
 	setup_audio()
 	setup_fog()
-	var boundary_depth:=ColorRect.new()
-	boundary_depth.set_script(preload("res://scripts/boundary_depth.gd"))
-	add_child(boundary_depth)
 	var pillar_overlay:=Node2D.new()
 	pillar_overlay.set_script(preload("res://scripts/pillar_overlay.gd"))
 	add_child(pillar_overlay)
@@ -2402,7 +2399,6 @@ func draw_reply_deposit() -> void:
 
 func _draw_world() -> void:
 	if grid.is_empty(): return
-	boundary_backdrop.draw()
 	var view := get_viewport_rect().size
 	var from := Vector2i((camera-view/2)/TILE)-Vector2i(2,3)
 	var to := Vector2i((camera+view/2)/TILE)+Vector2i(3,4)
@@ -2419,10 +2415,10 @@ func _draw_world() -> void:
 			if corridor_row(y):
 				var north:int=15 if level==0 else 13
 				var height:=TILE
-				draw_texture_rect_region(ground,Rect2(p,Vector2(TILE,height)),Rect2(Vector2(24,0),Vector2(24,height/2)))
+				draw_ground_region(ground,Rect2(p,Vector2(TILE,height)),Rect2(Vector2(24,0),Vector2(24,height/2)))
 				draw_corridor_edge_shade(p,x,15 if level==0 and y<5 else 13)
-			elif grass_texture!=null and level not in [4,6]:draw_texture_rect_region(grass_texture,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(x,y)*24,Vector2(24,24)))
-			else:draw_texture_rect_region(romance_ground if level==6 else ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
+			elif grass_texture!=null and level not in [4,6]:draw_ground_region(grass_texture,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(x,y)*24,Vector2(24,24)))
+			else:draw_ground_region(romance_ground if level==6 else ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
 			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
@@ -3165,7 +3161,7 @@ func draw_corridor_extensions() -> Array[Dictionary]:
 			if screen(Vector2(0,y*TILE)).y < -120 or screen(Vector2(0,y*TILE)).y>get_viewport_rect().size.y+120:continue
 			for x in range(center-2,center+3):
 				var pos:=screen(Vector2(x,y)*TILE)
-				draw_texture_rect_region(ground,Rect2(pos,Vector2(48,48)),Rect2(Vector2(24,0),Vector2(24,24)))
+				draw_ground_region(ground,Rect2(pos,Vector2(48,48)),Rect2(Vector2(24,0),Vector2(24,24)))
 				draw_corridor_edge_shade(pos,x,center)
 				# Shared corridor wall pass follows both room floors.
 	return walls
@@ -4229,3 +4225,27 @@ func garden_bed_clear(point:Vector2,include_beds:bool=true,ignore_id:String="") 
 		elif obj.kind!="pet_cat" and obj.pos.distance_to(point)<60:return false
 		if obstacle.has_area() and plant.intersects(obstacle):return false
 	return true
+
+func draw_ground_region(texture:Texture2D,destination:Rect2,source:Rect2)->void:
+	var world:Vector2=destination.position+camera-get_viewport_rect().size/2
+	var row:=floori((world.y+24)/48)
+	var clip:Rect2
+	if corridor_row(row):
+		var cx:float=(15.5 if level==0 and row<5 else 13.5)*48
+		clip=Rect2(screen(Vector2(cx-96,world.y)),Vector2(192,48))
+	else:
+		var left:float=8.5*48 if level==2 else 24.
+		var right:float=18.5*48 if level==2 else grid[0].length()*48-24.
+		clip=Rect2(screen(Vector2(left,5.5*48-26)),Vector2(right-left,(grid.size()-11)*48))
+	# Door openings join the corridor floor through the boundary wall row.
+	if (row==5 and level<6) or (row==grid.size()-6 and level>0):
+		var cx:float=(15.5 if level==0 and row==5 else 13.5)*48
+		var bridge:=Rect2(screen(Vector2(cx-72,row*48)),Vector2(144,48))
+		var part:=destination.intersection(bridge)
+		if part.has_area():
+			var scale:=source.size/destination.size
+			draw_texture_rect_region(texture,part,Rect2(source.position+(part.position-destination.position)*scale,part.size*scale))
+	var cropped:=destination.intersection(clip)
+	if not cropped.has_area():return
+	var ratio:=source.size/destination.size
+	draw_texture_rect_region(texture,cropped,Rect2(source.position+(cropped.position-destination.position)*ratio,cropped.size*ratio))
