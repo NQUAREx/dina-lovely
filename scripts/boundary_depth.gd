@@ -6,7 +6,7 @@ func _ready()->void:
  material=ShaderMaterial.new();material.shader=preload("res://shaders/boundary_depth.gdshader")
  z_index=100
 func area(origin:Vector2,w:float,h:float,rects:Array[Vector4],owner:int)->void:
- fades.append(72. if owner in [0,1,3] else 32.)
+ fades.append(72.)
  var p:Vector2=g.screen(origin)
  rects.append(Vector4(p.x,p.y,p.x+w,p.y+h))
 func room(origin:Vector2,width:float,height:float,rects:Array[Vector4],owner:int)->void:

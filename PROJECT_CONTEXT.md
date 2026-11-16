@@ -164,3 +164,6 @@ Fog RGB now transitions slate→black over120..480px instead48..180px. Backdrop 
 
 ## Single-line actions, centred drop icon and aligned organic depth
 Action248x88 uses no wrapping and existing single-line font fitting. Drop icon AtlasTexture crops transparent asymmetric padding and centres both axes. Fog colour fade72..280px; masonry alpha reaches full opacity32px (organic72px), stored per room/corridor area so midpoint does not switch fade. No extra backdrop for masonry/wood owner2/4/5/6. Maze extension copies actual crown atlas/radius/height outside boundary; earth expands same procedural bake two cells; trees use original variants/jitter/mirroring and full palette. Reviewed native no-fog and fog shots of all three organic materials plus masonry before release. Material ownership and dark continuity tests passed.
+
+## Two-block masonry and soft darker fog
+Restored72px fade for all materials, darkened near slate to(.070,.076,.095). Added one outward masonry/wood perimeter cell on horizontal and vertical room edges (narrow room2 uses actual columns8..18). Canonical corridor backdrop restored for masonry too. Lower entrance overlay disabled: original world-sorted lower posts remain, avoiding repaint over foreground lower walls. Upper post silhouette overlay retained.

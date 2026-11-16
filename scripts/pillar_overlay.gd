@@ -81,7 +81,9 @@ func posts(objects:Array,origin:Vector2,room_id:int)->void:
     var shader:=ShaderMaterial.new();shader.shader=preload("res://shaders/pillar_occlusion.gdshader")
     sprite.material=shader;add_child(sprite);sprites[post_key]=sprite
    var sprite:Sprite2D=sprites[post_key]
-   sprite.visible=true;sprite.texture=textures[key]
+   # Lower entrance posts already participate in world depth sorting.
+   # Repainting them above everything covers the foreground wall.
+   sprite.visible=door.id=="exit";sprite.texture=textures[key]
    sprite.position=pos+Vector2(side*96-48,-160)
    var shader:ShaderMaterial=sprite.material
    var box:=player_box()

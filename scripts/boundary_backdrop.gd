@@ -3,14 +3,13 @@ var g:Node2D
 var textures:Dictionary={}
 func _init(game:Node2D):g=game
 func stamp(owner:int,point:Vector2)->void:
- if owner not in [0,1,3]:return
  if not g.get_viewport_rect().grow(110).has_point(point):return
  var cell:=Vector2i(floori((point+g.camera-g.get_viewport_rect().size/2).x/48),floori((point+g.camera-g.get_viewport_rect().size/2).y/48))
  var layout:Dictionary=g.boundary_layout(cell,owner)
- var key:="wall_room%d_exposed"%owner
+ var key:="wall_room%d_%s"%[owner,"exposed" if owner in [0,1,3] else "stacked"]
  if layout.variant>0:key+=str(layout.variant)
- point+=Vector2(layout.jitter)
- if layout.mirror:g.draw_set_transform(point,0,Vector2(-1,1));point=Vector2.ZERO
+ if owner in [1,3]:point+=Vector2(layout.jitter)
+ if layout.mirror and owner in [1,3]:g.draw_set_transform(point,0,Vector2(-1,1));point=Vector2.ZERO
  if not textures.has(key):textures[key]=load("res://assets/"+key+".png")
  var texture:Texture2D=textures[key]
  var foundation:=Color("203b31") if owner in [0,1] else Color("493127") if owner==3 else Color("57412b") if owner==5 else Color("453d50")
@@ -18,11 +17,19 @@ func stamp(owner:int,point:Vector2)->void:
  var tint:=Color.WHITE
  g.draw_texture_rect_region(texture,Rect2(point+Vector2(-32,-70),Vector2(64,68)),Rect2(0,0,32,34),tint)
  g.draw_texture_rect_region(texture,Rect2(point+Vector2(-32,-2),Vector2(64,36)),Rect2(0,34,32,30),tint)
- if layout.mirror:g.draw_set_transform(Vector2.ZERO)
+ if layout.mirror and owner in [1,3]:g.draw_set_transform(Vector2.ZERO)
 func draw()->void:
  if g.level==0:draw_outer_hedge()
  var width:int=g.grid[0].length()
  var height:int=g.grid.size()
+ if g.level in [2,4,5,6]:
+  var left:int=8 if g.level==2 else 0
+  var right:int=18 if g.level==2 else width-1
+  for y in range(4,height-4):
+   for x in range(left-1,right+2):
+    if x>=left and x<=right and y>=5 and y<height-5:continue
+    if (y<5 or y>=height-5) and absi(x-13)<=2:continue
+    stamp(g.level,g.screen(Vector2(x+.5,y+.5)*48))
  # One outer band: nested rings used to stamp the same cells twice.
  for ring in [2]:
   for y in range(5-ring,height-5+ring):
@@ -34,7 +41,7 @@ func draw()->void:
     # Junction aprons exist in both cached rooms; their material follows
     # the same upper-room owner as the shared corridor, never active level.
     var owner:int=g.boundary_room(y) if g.corridor_row(y) else g.level
-    if not g.corridor_row(y) and owner in [0,3]:continue
+    if not g.corridor_row(y) and owner!=1:continue
     stamp(owner,p)
  # Corridor texture must continue beyond its actual outer wall too. Otherwise
  # the transparent edge ends before the72px fog reaches full opacity.
