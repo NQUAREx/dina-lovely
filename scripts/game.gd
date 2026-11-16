@@ -3023,7 +3023,7 @@ func update_fog() -> void:
 			for side in [-1,1]:gate_lights.append(screen(door.pos+origin)+Vector2(side*99,-47))
 	material.set_shader_parameter("gate_lights",gate_lights)
 	material.set_shader_parameter("gate_light_count",gate_lights.size())
-	material.set_shader_parameter("room_band",Vector2(screen(origin+Vector2(0,5*TILE)).y,screen(origin+Vector2(0,dark_height-5*TILE)).y))
+	material.set_shader_parameter("room_band",Vector2(screen(origin+Vector2(0,3*TILE)).y,screen(origin+Vector2(0,dark_height-3*TILE)).y))
 	material.set_shader_parameter("room_opacity",opacity)
 	var facing: Vector2 = walk_facing.normalized()
 	if joy_vector.length()>.2: facing=joy_vector.normalized()

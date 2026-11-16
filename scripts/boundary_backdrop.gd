@@ -17,14 +17,14 @@ func draw()->void:
  var height:int=g.grid.size()
  for ring in [1,2]:
   for y in range(5-ring,height-5+ring):
-   # Corridor backdrop has a single owner below, including cached neighbours.
-   if g.corridor_row(y):continue
    for x in range(-ring,width+ring):
     if x>=0 and x<width and y>=5 and y<height-5:continue
     var center:=15 if g.level==0 and y<5 else 13
     if (y<5 and g.level<6 or y>=height-5 and g.level>0) and absi(x-center)<=2:continue
     var p:Vector2=g.screen(Vector2(x+.5,y+.5)*48)
-    stamp(g.level,p)
+    # Junction aprons exist in both cached rooms; their material follows
+    # the same upper-room owner as the shared corridor, never active level.
+    stamp(g.boundary_room(y) if g.corridor_row(y) else g.level,p)
  # Corridor texture must continue beyond its actual outer wall too. Otherwise
  # the transparent edge ends before the72px fog reaches full opacity.
  if g.drawing_neighbor:return

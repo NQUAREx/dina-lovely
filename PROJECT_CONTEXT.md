@@ -155,3 +155,6 @@ Action control248x88 with readable wrapped labels; drop/cycle80x80 and explicit 
 
 ## Corridor backdrop ownership follow-up
 Removed room backdrop stamps in corridor rows and prevented cached neighbours from drawing corridor backdrop rings. Active-room canonical corridor pass owns both halves. Corrected boundary fog floor rectangle for narrow room2 (columns9..17), excluding empty grid padding. Permanent corridor comparison rule added to AGENTS.md.
+
+## Restore junction depth, distant black and dark-room perimeter
+Restored the additional junction apron rows removed in2d6055d. Their material now uses boundary_room(y), including cached neighbours, so both halves use the upper room's material. Longitudinal rings remain single-owner. External fog keeps a slate near edge, fades RGB to black over48..180 world pixels (alpha still0..72). Night mask band extends two tiles over the room boundary (3TILE..H-3TILE), so trees/apron fade into dark room from corridor instead of a visible light stripe. Shared world coordinates and full-screen entry opacity retained.
