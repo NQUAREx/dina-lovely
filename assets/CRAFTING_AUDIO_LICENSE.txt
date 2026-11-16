@@ -1,6 +1,33 @@
-Kenney Impact Sounds — Creative Commons Zero (CC0).
+Material-tool sound design, 2026-11-16
+
+All constituent recordings are CC0; no synthesized ringing tones were added.
+Rebuild: python3 tools/create_material_audio.py (requires ffmpeg).
+Unprocessed source snapshots: tools/audio_source/materials/.
+
+metal-medium-original.ogg / wood-heavy-original.ogg:
+Kenney Impact Sounds, Creative Commons Zero (CC0).
 https://kenney.nl/assets/impact-sounds
-Source copies: https://github.com/shoemoney/commander-in-chief/tree/main/assets/cc0_extra/sfx_impact
-chop_wood.ogg: impactWood_heavy_000.ogg
-pick_stone.ogg: impactMetal_medium_000.ogg
-craft_bench.wav: three timed metal impacts mixed locally.
+Original copies previously obtained from:
+https://github.com/shoemoney/commander-in-chief/tree/main/assets/cc0_extra/sfx_impact
+Names: impactMetal_medium_000.ogg and impactWood_heavy_000.ogg.
+
+concrete-original.wav:
+Existing game recording, Kenney Impact Sounds, footstep_concrete_000.ogg,
+CC0; same source recorded in assets/audio_sources.json for step_stone.
+
+twigs-original.wav:
+Existing game recording, wood-twigs-break-02.wav, CC0 fantasy SFX.
+Same source recorded in assets/audio_sources.json before this revision.
+
+rake-original.wav:
+Existing game recording, Tinysized SFX / Augmentality mixed CC0 recordings.
+https://opengameart.org/content/random-sounds-samples
+Same source recorded in assets/audio_sources.json for rake.
+
+Processing:
+pick_stone.ogg: short damped metal contact (65ms, resonant tail removed),
+concrete body, quieter delayed grit and twig transient. No sustained bell.
+chop_wood.ogg / axe.wav: compressed wood impact with close twig crack.
+craft_bench.wav: three spaced wood/tool contacts, wood movement/scrapes,
+final seating crack; 0.98s, matching the existing crafting task duration.
+Outputs normalized to peak0.89 before Vorbis encoding; mono44.1kHz.

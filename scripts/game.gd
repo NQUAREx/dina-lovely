@@ -332,7 +332,7 @@ func sfx(name: String = "chime") -> void:
 	var sample_name := name
 	if name in ["step_grass","step_stone","attack"]: sample_name += ["","_2","_3"][randi()%3]
 	voice.stream = preload("res://scripts/audio_bank.gd").STREAMS.get(sample_name)
-	voice.volume_db = {"dig":-18,"punch_swing":-20,"punch_hit":-17,"sword_swing":-19,"birds":-29,"crickets":-28,"gate_open":-11,"gate_unlock":-13,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rpg_launch":-10,"rpg_explosion":-8,"rpg_load":-22,"rifle":-13,"pistol":-10}.get(name,-15)
+	voice.volume_db = {"chop_wood":-10,"axe":-10,"pick_stone":-12,"craft_bench":-12,"dig":-18,"punch_swing":-20,"punch_hit":-17,"sword_swing":-19,"birds":-29,"crickets":-28,"gate_open":-11,"gate_unlock":-13,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rpg_launch":-10,"rpg_explosion":-8,"rpg_load":-22,"rifle":-13,"pistol":-10}.get(name,-15)
 	voice.pitch_scale = randf_range(.98,1.02) if name in ["rifle","water","fill"] else randf_range(.94,1.06)
 	voice.play()
 
@@ -1125,7 +1125,7 @@ func build_level(index: int) -> void:
 	prepare_foliage_and_paths(rng)
 	prepare_room_details(rng)
 	prepare_gate_jambs()
-	if level not in [1,2,4]:
+	if level==0:
 		var foliage_grid:Array[String]=grid.duplicate()
 		for row in range(grid.size()):
 			if corridor_row(row):foliage_grid[row]=foliage_grid[row].replace("#"," ")
@@ -2110,9 +2110,9 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	if name=="stone":
 		var cell:=Vector2i(world/TILE)
 		var stacked:=cell.y>=0 and cell.y+1<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#" and grid[cell.y+1][cell.x]=="#"
-		var wall_room:=clampi(level-1 if world.y<5*TILE else level,0,6)
+		var wall_room:=boundary_room(floori(world.y/TILE))
 		var texture_name:="wall_room%d_%s"%[wall_room,"stacked" if stacked else "exposed"]
-		var stone_variant:=posmod(cell.x*17+cell.y*7,4)
+		var stone_variant:=posmod(cell.x*17,4) if corridor_row(cell.y) else posmod(cell.x*17+cell.y*7,4)
 		if stone_variant>0:texture_name+=str(stone_variant)
 		if not hedge_tree_textures.has(texture_name):hedge_tree_textures[texture_name]=load("res://assets/"+texture_name+".png")
 		# Keep the roof footprint and original stone pixels, reduce only the
@@ -2162,7 +2162,10 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 	if not outlines.has(name):
 		var id := int(sprites.get(name,0))
 		var source := atlas.get_image().get_region(Rect2i(id%16*32,id/16*48+(16 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 0),32,32 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 48))
-		if name.begins_with("tree") or name.begins_with("quest_tree"):
+		if name.begins_with("quest_tree"):
+			var trunk:Texture2D=load("res://assets/"+name.replace("_outline","")+"_trunk.png")
+			source=trunk.get_image()
+		elif name.begins_with("tree"):
 			var crown_atlas:Texture2D=load("res://assets/tree_crowns.png")
 			source=crown_atlas.get_image().get_region(Rect2i(id%16*32,id/16*48,32,48))
 		var border := Image.create(34,source.get_height()+2,false,Image.FORMAT_RGBA8)
@@ -2360,13 +2363,14 @@ func _draw_world() -> void:
 				var north:int=15 if level==0 else 13
 				var height:=TILE
 				draw_texture_rect_region(ground,Rect2(p,Vector2(TILE,height)),Rect2(Vector2(24,0),Vector2(24,height/2)))
+				draw_corridor_edge_shade(p,x,15 if level==0 and y<5 else 13)
 			elif grass_texture!=null and level not in [4,6]:draw_texture_rect_region(grass_texture,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(x,y)*24,Vector2(24,24)))
 			else:draw_texture_rect_region(romance_ground if level==6 else ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
 			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
 			if gate_junctions.skip_wall(Vector2i(x,y)):continue
-			if grid[y][x]=="#" and (level in [1,2,4] or corridor_row(y)):
+			if grid[y][x]=="#" and (level!=0 or corridor_row(y)):
 				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	for obj in objects:
@@ -2409,6 +2413,7 @@ func _draw_world() -> void:
 	# floor edges receive it; no dynamic light or per-frame shadow projection.
 	for wall in renderables:
 		if wall.kind!="stone" or not wall.get("wall",false) or not wall.has("cell"):continue
+		if corridor_row(wall.cell.y):continue
 		var cell:Vector2i=wall.cell
 		for side in [-1,1]:
 			var adjacent:=cell+Vector2i(side,0)
@@ -3097,13 +3102,23 @@ func draw_corridor_extensions() -> Array[Dictionary]:
 			for x in range(center-2,center+3):
 				var pos:=screen(Vector2(x,y)*TILE)
 				draw_texture_rect_region(ground,Rect2(pos,Vector2(48,48)),Rect2(Vector2(24,0),Vector2(24,24)))
+				draw_corridor_edge_shade(pos,x,center)
 				if x==center-2 or x==center+2:walls.append({"kind":corridor_wall_kind(y),"id":"","pos":Vector2(x+.5,y+.5)*TILE,"wall":true})
 	return walls
 
+func draw_corridor_edge_shade(pos:Vector2,column:int,center:int)->void:
+	if column==center-1:
+		draw_rect(Rect2(pos,Vector2(7,48)),Color(.10,.10,.16,.24))
+		draw_rect(Rect2(pos+Vector2(7,0),Vector2(5,48)),Color(.10,.10,.16,.09))
+	elif column==center+1:
+		draw_rect(Rect2(pos+Vector2(43,0),Vector2(5,48)),Color(.10,.10,.16,.15))
+
 func corridor_wall_kind(row: int) -> String:
-	# The shared garden/final passage has one material in both coordinate spaces.
-	if (level==5 and row<5) or (level==6 and row>=grid.size()-5):return "tree"
 	return "stone"
+
+func boundary_room(row:int)->int:
+	# Rooms advance northwards: both halves belong to the physically upper room.
+	return mini(level+1,6) if row<5 else level
 
 func valid_ground(pos: Vector2) -> bool:
 	if pos.x<0 or pos.y<0 or pos.x>=grid[0].length()*TILE or pos.y>=grid.size()*TILE: return false

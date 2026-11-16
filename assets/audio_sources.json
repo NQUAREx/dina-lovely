@@ -124,7 +124,7 @@
     "source_file": "sounds/sks.wav",
     "source_url": "https://opengameart.org/content/gunshot-sounds",
     "license": "CC BY 3.0 (bundled license; OGA page differs)",
-    "changes": "0.28–1.03 sec excerpt, mono 44.1kHz, loudness normalization, fade",
+    "changes": "0.28\u20131.03 sec excerpt, mono 44.1kHz, loudness normalization, fade",
     "sha256": "cecb857f6092b5bb36fcfebe4bf69ba2ec4f91bd120ba865a9be4f10e33cb39e"
   },
   "birds": {
@@ -147,19 +147,19 @@
     "sha256": "d9dd90ab822f37ae7e1375ee76be9f5ee70d6973b3dd2ee0507b20d70a240c72"
   },
   "eat": {
-    "pack": "7 Eating Crunches — StarNinjas",
+    "pack": "7 Eating Crunches \u2014 StarNinjas",
     "source_url": "https://opengameart.org/content/7-eating-crunches",
     "license": "CC0",
     "sha256": "31b39e019ba4c2779849fe0f080efc70d438d4e63891fe0527b7fe23a557798d"
   },
   "rake": {
-    "pack": "Tinysized SFX / Augmentality — mixed licensed recordings",
+    "pack": "Tinysized SFX / Augmentality \u2014 mixed licensed recordings",
     "source_url": "https://opengameart.org/content/random-sounds-samples",
     "license": "CC0",
     "sha256": "2209f63f712779ee122ad98f114e280752d184d25c60051dd43ab37109306d59"
   },
   "reload": {
-    "pack": "Tinysized SFX — Jan Schupke",
+    "pack": "Tinysized SFX \u2014 Jan Schupke",
     "source_url": "https://opengameart.org/content/50-rpg-sound-effects",
     "license": "CC0",
     "sha256": "118151e5b61e640cfe0929c75729fe25bd17c50c0d52decaed37c4c46f66c599"
@@ -197,10 +197,11 @@
     "url": "https://kenney.nl/assets/rpg-audio"
   },
   "axe": {
-    "source_file": "wood-twigs-break-02.wav",
-    "pack": "Existing CC0 fantasy SFX",
+    "pack": "Layered recorded material foley, see CRAFTING_AUDIO_LICENSE.txt",
     "license": "CC0",
-    "sha256": "40d8c1ecc7790981a2c82b297652abcca80501005aa512db5e76e1ece4cf941f"
+    "source_file": "tools/audio_source/materials",
+    "processing": "tools/create_material_audio.py",
+    "sha256": "0db756b192b2fe81a52836408afd3f3287348ca753244182054de7a7c6055acb"
   },
   "shears": {
     "source_file": "scissors-close-01.wav",
@@ -223,7 +224,7 @@
   "rpg_flight.wav": {
     "source": "rpg_reference_flight.wav",
     "url": "https://youtu.be/4Vu0Hr9660U",
-    "excerpt_seconds": "6.18–8.40",
+    "excerpt_seconds": "6.18\u20138.40",
     "license": "Reference recording supplied by user; rights remain with respective owners (not CC0)",
     "processing": "Mono 44.1kHz, peak 27000, 80ms equal-power loop seam; no launch or impact",
     "sha256": "677a2d3974bbec14c0eb36d6e0c369954d24b5e149972f4e68c56fc68a364a21"
@@ -231,7 +232,7 @@
   "rpg_launch.wav": {
     "source": "rpg_reference_launch.wav",
     "url": "https://youtu.be/4Vu0Hr9660U",
-    "excerpt_seconds": "5.88–6.18",
+    "excerpt_seconds": "5.88\u20136.18",
     "license": "Reference recording supplied by user; rights remain with respective owners (not CC0)",
     "processing": "Mono 44.1kHz, peak 29000, 60ms tail fade; original pitch; impact leading silence removed",
     "sha256": "1e29db96c55efc5f0546a6c5e46f90c2490bf2c732f2fca988d1f296e75db3d9"
@@ -239,7 +240,7 @@
   "rpg_explosion.wav": {
     "source": "rpg_reference_impact.wav",
     "url": "https://youtu.be/4Vu0Hr9660U",
-    "excerpt_seconds": "8.40–10.50",
+    "excerpt_seconds": "8.40\u201310.50",
     "license": "Reference recording supplied by user; rights remain with respective owners (not CC0)",
     "processing": "Mono 44.1kHz, peak 30000, 60ms tail fade; original pitch; impact leading silence removed",
     "sha256": "1293d28b9a57062a7de266ab2f7edc5bcfa5388b4f48903ec4467215809a755d"
@@ -271,5 +272,26 @@
     "license": "CC0",
     "processing": "Trim leading silence, tempo, short fade and loudness normalization",
     "sha256": "f7f0281867f24e083bbec383dd899497444b82af02e865c7f8199ee45e67c06e"
+  },
+  "pick_stone": {
+    "pack": "Layered recorded material foley, see CRAFTING_AUDIO_LICENSE.txt",
+    "license": "CC0",
+    "source_file": "tools/audio_source/materials",
+    "processing": "tools/create_material_audio.py",
+    "sha256": "bc597ed3dd58511ea2945a19db4f46d136cb21f4c1b2140c6ec61d4674b29fee"
+  },
+  "chop_wood": {
+    "pack": "Layered recorded material foley, see CRAFTING_AUDIO_LICENSE.txt",
+    "license": "CC0",
+    "source_file": "tools/audio_source/materials",
+    "processing": "tools/create_material_audio.py",
+    "sha256": "c1f2e6f36780864834d0f584fb64f623e4a2b39c2deee0ed8ff9757a6646e432"
+  },
+  "craft_bench": {
+    "pack": "Layered recorded material foley, see CRAFTING_AUDIO_LICENSE.txt",
+    "license": "CC0",
+    "source_file": "tools/audio_source/materials",
+    "processing": "tools/create_material_audio.py",
+    "sha256": "1e6a661051741e8462d4c7b417a1cef6d958e035b4a49728e6ca4ed712709df0"
   }
 }
