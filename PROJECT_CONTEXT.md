@@ -180,3 +180,6 @@ Pickup atlas icons now include quest_pebble variants, rock fragments and branche
 ## Narrow loose earth fringe and shared procedural corridor
 Removed regular8px shoulder lattice; fringe shrunk40→16source pixels, grain density.72→.35 and heap chance.12→.035 with radius2..4. Room3 procedural earth bake extends through entire south shared corridor (H-5..H+5), PAD160. Static wall_room3 rendering disabled in stone/backdrop paths. One final corridor draw uses room3's same cached bake and world origin from either active room. Main earth bitmap excludes corridor to avoid double painting; final strips include12px inward protrusions, preventing lower-room floor pass clipping them at midpoint. Preserve this single pass for future corridor changes.
 Native midpoint parity: left crop(140,260..215,610) and right(325,260..400,610) before/after both have exactly0 differing RGB pixels after final shared-pass fix.
+
+## Corridor bank termination and southeast foreground hands
+Earth shared corridor ends24px before lower room wall footprint boundary, at that wall's roof edge, preventing soil over masonry. Near fog slate restored(.105,.100,.135) with very soft96..360px darkening. Southeast facing7 removed from hand_is_behind; anatomical right grip remains unchanged and common tool/weapon renderer draws above body. Updated diagonal regression expectation.

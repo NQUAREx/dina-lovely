@@ -21,6 +21,6 @@ void fragment(){
  // at a floor edge: alpha and its derivative both start at zero there.
  float fog=smoothstep(0.,1.,fade_distance);
  // Slate at the near edge fades smoothly into black in the distance.
- vec3 dusk=mix(vec3(.070,.076,.095),vec3(0.),smoothstep(72.,280.,distance));
+ vec3 dusk=mix(vec3(.105,.100,.135),vec3(0.),smoothstep(96.,360.,distance));
  COLOR=vec4(dusk,fog);
 }

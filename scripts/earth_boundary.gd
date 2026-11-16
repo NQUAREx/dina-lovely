@@ -108,5 +108,6 @@ func draw_shared_corridor()->void:
  var texture:Texture2D=cache[key]
  for x in [9*48,15*48-12]:
   var start:=Vector2(x,height-5*48)
-  var size:=Vector2(3*48+12,10*48)
+  var size:=Vector2(3*48+12,10*48-24)
+  # Stop at the lower room wall roof, before its foreground cap.
   g.draw_texture_rect_region(texture,Rect2(g.screen(start+origin),size),Rect2(start/2+Vector2.ONE*PAD,size/2))

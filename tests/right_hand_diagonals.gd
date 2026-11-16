@@ -7,8 +7,9 @@ func run():
   g.walk_facing=facing;g.moving=false
   for tool in ['can','rake','fertilizer','shovel','flashlight','axe','shears','drill','quest_axe','pickaxe']:
    g.held_item=tool
+   if facing.y>0:assert(not g.hand_is_behind())
    var pose=g.held_tool_pose()
    assert(pose.hand.x>g.player.x if facing.y<0 else pose.hand.x<g.player.x)
-  if facing.y>0:assert(g.hand_is_behind())
- print('PASS ten tools use anatomical right hand on both rightward diagonals')
+  if facing.y>0:assert(not g.hand_is_behind())
+ print('PASS ten tools retain right-hand grips; southeast tools render in front of body')
  quit()
