@@ -167,3 +167,6 @@ Action248x88 uses no wrapping and existing single-line font fitting. Drop icon A
 
 ## Two-block masonry and soft darker fog
 Restored72px fade for all materials, darkened near slate to(.070,.076,.095). Added one outward masonry/wood perimeter cell on horizontal and vertical room edges (narrow room2 uses actual columns8..18). Canonical corridor backdrop restored for masonry too. Lower entrance overlay disabled: original world-sorted lower posts remain, avoiding repaint over foreground lower walls. Upper post silhouette overlay retained.
+
+## Wall row sorting and tool pickup icons
+Extra masonry perimeter is now in the same depth-sorted renderable list as ordinary walls, not an early backdrop pass; lower roofs correctly cover upper faces. Tool actions use cropped actual atlas sprites for all10 tools regardless shared pickup label (regression tests/tool_action_icons.gd). Removed rectangular backdrop foundations. Thicket base silhouette now scalloped/rooted with foliage lobes; earth foundation narrowed beneath overlap, broad low irregular crests/shoulders replace tall pointed heaps. Inspected no-fog forest/earth/masonry images before fog shots. Material ownership/dark continuity regressions passed.

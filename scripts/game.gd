@@ -429,6 +429,23 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 var action_icon_cache:Dictionary={}
 var action_icon_text:=""
 func update_action_icon()->void:
+	action_button.expand_icon=true
+	action_button.add_theme_constant_override("icon_max_width",32)
+	action_button.add_theme_constant_override("h_separation",6)
+	var pickup:=""
+	if nearest>=0 and nearest<objects.size():
+		var obj:Dictionary=objects[nearest]
+		if obj.kind in ["axe","quest_axe","pickaxe","shovel","can","rake","fertilizer","flashlight","shears","drill"]:pickup="axe" if obj.kind=="quest_axe" else str(obj.kind)
+	if not pickup.is_empty():
+		var cache_key:="tool:"+pickup
+		if not action_icon_cache.has(cache_key):
+			var id:int=sprites[pickup]
+			var source:=Rect2i(id%16*32,id/16*48,32,48)
+			var used:=atlas.get_image().get_region(source).get_used_rect()
+			var icon:=AtlasTexture.new();icon.atlas=atlas;icon.region=Rect2(Vector2(source.position+used.position),Vector2(used.size))
+			action_icon_cache[cache_key]=icon
+		action_button.icon=action_icon_cache[cache_key];action_icon_text=""
+		return
 	if action_button.text==action_icon_text and action_button.icon!=null:return
 	action_icon_text=action_button.text
 	var groups:={
@@ -2385,6 +2402,7 @@ func _draw_world() -> void:
 	var to := Vector2i((camera+view/2)/TILE)+Vector2i(3,4)
 	var renderables: Array[Dictionary] = []
 	if not drawing_neighbor:renderables=draw_corridor_extensions()
+	renderables.append_array(boundary_backdrop.masonry_cells())
 	for y in range(maxi(0,from.y),mini(grid.size(),to.y)):
 		for x in range(maxi(0,from.x),mini(grid[0].length(),to.x)):
 			if grid[y][x]==" " or (drawing_neighbor and corridor_row(y)): continue
@@ -2507,7 +2525,9 @@ func _draw_world() -> void:
 	for item in renderables:
 		var p := screen(item.pos)
 		var kind: String = "tree" if item.kind=="tree_apples" and item.id in save_data.eaten else item.kind
-		if kind=="player":
+		if kind=="boundary_wall":
+			boundary_backdrop.stamp(int(item.owner),p)
+		elif kind=="player":
 			if drawing_neighbor:
 				if hedge_field!=null:draw_hedge_canopy(visible_crowns,1)
 				continue

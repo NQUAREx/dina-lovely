@@ -12,8 +12,6 @@ func stamp(owner:int,point:Vector2)->void:
  if layout.mirror and owner in [1,3]:g.draw_set_transform(point,0,Vector2(-1,1));point=Vector2.ZERO
  if not textures.has(key):textures[key]=load("res://assets/"+key+".png")
  var texture:Texture2D=textures[key]
- var foundation:=Color("203b31") if owner in [0,1] else Color("493127") if owner==3 else Color("57412b") if owner==5 else Color("453d50")
- g.draw_rect(Rect2(point-Vector2(24,24),Vector2(48,48)),foundation)
  var tint:=Color.WHITE
  g.draw_texture_rect_region(texture,Rect2(point+Vector2(-32,-70),Vector2(64,68)),Rect2(0,0,32,34),tint)
  g.draw_texture_rect_region(texture,Rect2(point+Vector2(-32,-2),Vector2(64,36)),Rect2(0,34,32,30),tint)
@@ -22,14 +20,6 @@ func draw()->void:
  if g.level==0:draw_outer_hedge()
  var width:int=g.grid[0].length()
  var height:int=g.grid.size()
- if g.level in [2,4,5,6]:
-  var left:int=8 if g.level==2 else 0
-  var right:int=18 if g.level==2 else width-1
-  for y in range(4,height-4):
-   for x in range(left-1,right+2):
-    if x>=left and x<=right and y>=5 and y<height-5:continue
-    if (y<5 or y>=height-5) and absi(x-13)<=2:continue
-    stamp(g.level,g.screen(Vector2(x+.5,y+.5)*48))
  # One outer band: nested rings used to stamp the same cells twice.
  for ring in [2]:
   for y in range(5-ring,height-5+ring):
@@ -72,3 +62,17 @@ func draw_outer_hedge()->void:
    var id:int=g.sprites["crown_leaf_"+str(crown.variant)]
    var radius:float=roundf(crown.radius*1.48)
    g.draw_texture_rect_region(g.atlas,Rect2(centre-Vector2.ONE*radius,Vector2.ONE*radius*2),Rect2(Vector2(id%16*32+8,id/16*48+24),Vector2(17,17)))
+
+func masonry_cells()->Array[Dictionary]:
+ var cells:Array[Dictionary]=[]
+ var width:int=g.grid[0].length()
+ var height:int=g.grid.size()
+ if g.level in [2,4,5,6]:
+  var left:int=8 if g.level==2 else 0
+  var right:int=18 if g.level==2 else width-1
+  for y in range(4,height-4):
+   for x in range(left-1,right+2):
+    if x>=left and x<=right and y>=5 and y<height-5:continue
+    if (y<5 or y>=height-5) and absi(x-13)<=2:continue
+    cells.append({"kind":"boundary_wall","id":"","pos":Vector2(x+.5,y+.5)*48,"owner":g.level,"wall":true})
+ return cells

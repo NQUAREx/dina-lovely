@@ -39,7 +39,7 @@ def thicket(variant):
     im=Image.new('RGBA',(32,64));d=ImageDraw.Draw(im);r=random.Random(19103+variant*137)
     # Stable roots close the boundary; varied crowns and trunk positions keep
     # the visible silhouette irregular without changing its collision anchor.
-    d.polygon([(5,35),(25,33),(28,45),(25,53),(7,53),(3,47)],fill='#203d35')
+    d.polygon([(5,35),(25,33),(28,43),(24,48),(20,46),(16,53),(12,49),(8,52),(3,44)],fill='#203d35')
     trunks=[(r.randint(8,13),r.randint(42,47)),(r.randint(20,24),r.randint(43,48))]
     for x,y in trunks:
         d.rectangle((x-2,y-15,x+1,y+4),fill='#51483f')
@@ -60,6 +60,11 @@ def thicket(variant):
         for n in range(5):
             x=cx+r.randint(-rx//2,rx//2);y=cy+r.randint(-ry//2,ry//2)
             d.line((x,y,x+1,y),fill=r.choice(['#254c3c','#3f634b','#57745a']))
+    # Irregular rooted forest floor; no continuous flat green hem.
+    for cx,cy in [(5,43),(12,48),(21,46),(26,41)]:
+        cy+=r.randint(-3,3)
+        d.polygon([(cx-4,cy),(cx-3,cy-4),(cx,cy-6),(cx+4,cy-3),(cx+5,cy+1),(cx+1,cy+4)],fill='#254b3a')
+        d.line((cx-2,cy-3,cx+1,cy-4),fill='#487354')
     return im
 
 def earth(variant):
