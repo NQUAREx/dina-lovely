@@ -34,16 +34,16 @@ func bake()->ImageTexture:
    image.fill_rect(Rect2i(x*24+PAD-1,y*24+PAD-1,26,26),Color("493127"))
    # Three staggered rows interlock; spacing is smaller than every mound.
    # Full foundations remain hidden beneath overlap, even at concave corners.
-   for n in range(12):
+   for n in range(3):
     var hx:=3+(n%3)*8+rng.randi_range(-2,2)
-    var hy:=2+(n/3)*7+rng.randi_range(-2,2)
+    var hy:=7+(n%2)*12+rng.randi_range(-2,2)
     hills.append({"pos":Vector2(x*24+PAD+hx,y*24+PAD+hy),"w":rng.randi_range(6,9),"h":rng.randi_range(5,9),"light":rng.randf()<.12,"seed":rng.randi()})
    # Taller sparse masses remain legible above the close-packed small clods.
    # Their full width never exceeds one48px world block.
-   if rng.randf()<.70:
+   if rng.randf()<.92:
     hills.append({"pos":Vector2(x*24+PAD+12+rng.randi_range(-2,2),y*24+PAD+24),"w":rng.randi_range(11,12),"h":rng.randi_range(17,22),"light":rng.randf()<.20,"seed":rng.randi()})
-   if rng.randf()<.65:
-    hills.append({"pos":Vector2(x*24+PAD+rng.randi_range(5,19),y*24+PAD+26),"w":rng.randi_range(8,10),"h":rng.randi_range(11,15),"light":rng.randf()<.12,"seed":rng.randi()})
+   for m in range(2):
+    hills.append({"pos":Vector2(x*24+PAD+rng.randi_range(5,19),y*24+PAD+12+m*13),"w":rng.randi_range(9,12),"h":rng.randi_range(11,15),"light":rng.randf()<.12,"seed":rng.randi()})
  hills.sort_custom(func(a,b):return a.pos.y<b.pos.y)
  for hill in hills:
   var p:Vector2=hill.pos;var w:int=hill.w;var h:int=hill.h
