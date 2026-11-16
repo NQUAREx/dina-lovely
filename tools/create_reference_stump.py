@@ -35,7 +35,7 @@ def generate():
  put('quest_stump',stump)
  # Bark of the still-standing tree matches the stump's wood and root flare.
  for name in ['quest_tree']+['quest_tree_damage'+str(n) for n in range(1,7)]:
-  s=get(name);d=ImageDraw.Draw(s)
+  s=get("quest_tree");d=ImageDraw.Draw(s)
   # Only the existing woody trunk pixels are recoloured; crowns unchanged.
   for y in range(27,44):
    for x in range(32):
@@ -50,10 +50,13 @@ def generate():
   # Keep the authored chopping scars readable after bark recolouring.
   if name!='quest_tree':
    stage=int(name[-1])
-   for n in range(stage):
-    x=13+n%5;y=29+n*2
-    d.line((x,y,x+3,y+2,x+1,y+4,x+4,y+5),fill='#49382e')
-    d.point((x+1,y),fill='#c39a63')
+   depth=2+stage
+   top=34-stage//3;bottom=38+stage//3
+   # A growing axe wedge exposes pale wood; the rest is the exact base tree.
+   d.polygon([(11,top),(12+depth,36),(11,bottom)],fill=(0,0,0,0))
+   d.polygon([(12,top),(13+depth,36),(12,bottom),(14,bottom-1),(14+depth,36),(14,top+1)],fill='#b38a4e')
+   d.line([(12,top),(13+depth,36)],fill='#d0aa69')
+   d.line([(13+depth,36),(12,bottom)],fill='#795534')
   put(name,s)
  atlas.save(A/'atlas.png')
  print('Generated reference-style broad stump and matching dark tree bark')

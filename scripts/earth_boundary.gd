@@ -40,7 +40,6 @@ func bake()->ImageTexture:
  for y in range(3,g.grid.size()-3):
   for x in range(-2,g.grid[0].length()+2):
    if not wall(x,y):continue
-   image.fill_rect(Rect2i(x*24+PAD-1,y*24+PAD-1,26,26),Color("493127"))
    var depth:=clampf(edge_depth(Vector2(x*24+12,y*24+12))/48.,0.,1.)
    # Three staggered rows interlock; spacing is smaller than every mound.
    # Full foundations remain hidden beneath overlap, even at concave corners.

@@ -1,6 +1,7 @@
 extends RefCounted
 var g:Node2D
 var textures:Dictionary={}
+var grass_cache:Dictionary={}
 func _init(game:Node2D):g=game
 func stamp(owner:int,point:Vector2)->void:
  if not g.get_viewport_rect().grow(110).has_point(point):return
@@ -17,6 +18,7 @@ func stamp(owner:int,point:Vector2)->void:
  g.draw_texture_rect_region(texture,Rect2(point+Vector2(-32,-2),Vector2(64,36)),Rect2(0,34,32,30),tint)
  if layout.mirror and owner in [1,3]:g.draw_set_transform(Vector2.ZERO)
 func draw()->void:
+ if g.level==3:draw_extended_grass()
  if g.level==0:draw_outer_hedge()
  var width:int=g.grid[0].length()
  var height:int=g.grid.size()
@@ -76,3 +78,17 @@ func masonry_cells()->Array[Dictionary]:
     if (y<5 or y>=height-5) and absi(x-13)<=2:continue
     cells.append({"kind":"boundary_wall","id":"","pos":Vector2(x+.5,y+.5)*48,"owner":g.level,"wall":true})
  return cells
+
+func draw_extended_grass()->void:
+ if g.grass_texture==null:return
+ var key:int=g.grass_texture.get_instance_id()
+ if not grass_cache.has(key):
+  if grass_cache.size()>2:grass_cache.clear()
+  var source:Image=g.grass_texture.get_image()
+  var extended:=Image.create(source.get_width()+144,source.get_height()+144,false,Image.FORMAT_RGBA8)
+  for y in range(-72,source.get_height()+72,24):
+   for x in range(-72,source.get_width()+72,24):
+    extended.blit_rect(source,Rect2i(posmod(x,source.get_width()),posmod(y,source.get_height()),24,24),Vector2i(x+72,y+72))
+  grass_cache[key]=ImageTexture.create_from_image(extended)
+ var texture:Texture2D=grass_cache[key]
+ g.draw_texture_rect(texture,Rect2(g.screen(Vector2(-144,-144)),texture.get_size()*2),false)

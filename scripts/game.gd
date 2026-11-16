@@ -435,6 +435,7 @@ func update_action_icon()->void:
 	var pickup:=""
 	if nearest>=0 and nearest<objects.size():
 		var obj:Dictionary=objects[nearest]
+		if obj.kind in ["quest_pebble","quest_rock_fragments","quest_branch"]:pickup=str(obj.kind)+str(obj.get("stone_variant",0)) if obj.kind=="quest_pebble" else str(obj.kind)
 		if obj.kind in ["axe","quest_axe","pickaxe","shovel","can","rake","fertilizer","flashlight","shears","drill"]:pickup="axe" if obj.kind=="quest_axe" else str(obj.kind)
 	if not pickup.is_empty():
 		var cache_key:="tool:"+pickup
