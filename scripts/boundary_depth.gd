@@ -41,4 +41,9 @@ func _process(_delta:float)->void:
  material.set_shader_parameter("area_count",rects.size())
  while rects.size()<20:rects.append(Vector4(-10000,-10000,-10000,-10000))
  material.set_shader_parameter("visible_areas",rects)
+ var origin:Vector2=g.camera-size/2
+ for n in range(g.level):
+  if g.room_cache.has(n+1):origin.y-=g.room_cache[n+1].grid.size()*48
+ if g.level==0:origin.x-=96
+ material.set_shader_parameter("world_origin",origin)
  material.set_shader_parameter("view_size",size)

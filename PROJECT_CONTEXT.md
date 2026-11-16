@@ -190,3 +190,6 @@ Final six-corridor native audit: all12 terrain crops x110..215/x325..430,y290..6
 
 ## Cloud fog and loader strip constraints
 Boundary near fog RGB(.88,.89,.91), existing96..360px fade to black retained. Loader strip dimensions hardened with!important min/max widths/heights1024x128, object-fit fill and no flex shrink; clipping parent has own translateZ compositor layer/paint containment to avoid WebKit culling/resizing of translated image. Requires actual iOS followup; cannot claim hardware verified.
+
+## Textured external cloud boundary
+External boundary shader now renders dense procedural cloud texture with3 scales132/64/29px, randomized elliptical lobes/offsets and pixel-grid2px sampling. Continuous opaque cloud coverage, existing room/corridor alpha edge retained. Stable world_origin accumulates room heights and maze96px offset to avoid cloud reseed at corridor midpoint. Internal dark-room flashlight shader unchanged.
