@@ -199,3 +199,6 @@ Boundary builds8 original64x64 pixel cloud sprites in-memory, irregular layered 
 
 ## Opaque clouds with size/density boundary falloff
 Removed per-pixel alpha fade entirely. Each opaque sprite's centre distance to room/corridor union controls spawn probability and diameter (12..128px ramp), capped by distance to avoid protruding onto floor. Two deterministic jittered layers48/62pitch. Per-cloud global depth priority replaces bucket-local traversal overwrite; atlas sample snapped/clamped to individual64px sprite texel centres. These prevent bucket-boundary seams and neighbouring sprite bleed. Internal dark room unchanged.
+
+## Larger distant lilac cloud masses
+Added third world-anchored cloud layer152px pitch (vs48/62near), starts120px outside union, grows toward~340px diameter. Existing near-edge puffs retained. Four sprite shades now746581/9987a9/b6a3c4/d4bfdc, grey-lilac palette inspired only by reference colours. No changes to dark-room darkness.

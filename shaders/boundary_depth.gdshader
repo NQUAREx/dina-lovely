@@ -18,15 +18,15 @@ float boundary_distance(vec2 p){
  }
  return d;
 }
-vec4 cloud_layer(vec2 p,float pitch,float seed){
+vec4 cloud_layer(vec2 p,float pitch,float seed,float min_depth){
  vec2 cell=floor(p/pitch);vec4 colour=vec4(0.);float top=-1.e20;
  for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){
   vec2 id=cell+vec2(float(x),float(y));
   float a=hash21(id+seed),b=hash21(id+seed+19.);
   vec2 centre=(id+vec2(.5+(a-.5)*.65,.5+(b-.5)*.65))*pitch;
   float depth=boundary_distance(centre-world_origin);
-  if(depth<10.)continue;
-  float growth=smoothstep(12.,128.,depth);
+  if(depth<min_depth)continue;
+  float growth=smoothstep(min_depth+2.,min_depth+118.,depth);
   if(hash21(id+seed+47.)>mix(.20,1.,growth))continue;
   float diameter=min(pitch*mix(.30,2.25,growth)*( .85+b*.3),depth*1.65);
   vec2 uv=(p-centre)/diameter+.5;
@@ -45,7 +45,8 @@ vec4 cloud_layer(vec2 p,float pitch,float seed){
 void fragment(){
  vec2 p=UV*view_size;
  vec2 world=floor((p+world_origin)/2.)*2.;
- vec4 back=cloud_layer(world,62.,5.);
- vec4 front=cloud_layer(world,48.,71.);
- COLOR=front.a>.5?front:back;
+ vec4 back=cloud_layer(world,62.,5.,10.);
+ vec4 front=cloud_layer(world,48.,71.,10.);
+ vec4 distant=cloud_layer(world,152.,137.,120.);
+ COLOR=distant.a>.5?distant:(front.a>.5?front:back);
 }

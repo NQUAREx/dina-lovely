@@ -70,9 +70,9 @@ func make_cloud_atlas()->ImageTexture:
     for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
      var q:Vector2i=Vector2i(x,y)+d*2
      if q.x<0 or q.y<0 or q.x>=64 or q.y>=64 or shape.get_pixelv(q).a<.5:rim=true
-    var colour:=Color("9da6bc") if rim else Color("c6ccda") if y>37 else Color("e1e5ed")
+    var colour:=Color("746581") if rim else Color("9987a9") if y>37 else Color("b6a3c4")
     # Broad stepped highlights show individual puffs; no gradients/noise.
     for lobe in lobes:
-     if Vector2(x-lobe.x+2,(y-lobe.y+4)*1.3).length()<lobe.z*.55 and y<lobe.y:colour=Color("f0f1f5")
+     if Vector2(x-lobe.x+2,(y-lobe.y+4)*1.3).length()<lobe.z*.55 and y<lobe.y:colour=Color("d4bfdc")
     atlas.set_pixel(variant*64+x,y,colour)
  return ImageTexture.create_from_image(atlas)
