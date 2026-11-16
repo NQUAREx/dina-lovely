@@ -50,29 +50,33 @@ func _process(_delta:float)->void:
  material.set_shader_parameter("view_size",size)
 
 func make_cloud_atlas()->ImageTexture:
- # Eight original pixel sprites, drawn at the same2px/world scale as foliage.
- var atlas:=Image.create(64*8,64,false,Image.FORMAT_RGBA8)
+ # Original layered pixel cumulus: many shaded puffs, no dark outline.
+ var atlas:=Image.create(128*8,128,false,Image.FORMAT_RGBA8)
+ var palette:Array[Color]=[Color("655474"),Color("786187"),Color("8b709d"),Color("9c80ae"),Color("ad90bd"),Color("bea1cc"),Color("d0b3da"),Color("e2c9e5"),Color("eedbea")]
  for variant in range(8):
-  var rng:=RandomNumberGenerator.new();rng.seed=99173+variant*71
-  var shape:=Image.create(64,64,false,Image.FORMAT_RGBA8)
-  var lobes:Array[Vector3]=[Vector3(20,36,14),Vector3(43,36,13),Vector3(32,27,17)]
-  for n in range(5):lobes.append(Vector3(rng.randi_range(15,49),rng.randi_range(20,43),rng.randi_range(8,14)))
-  for y in range(64):
-   for x in range(64):
-    var inside:=false
+  var rng:=RandomNumberGenerator.new();rng.seed=78191+variant*173
+  var lobes:Array[Vector4]=[]
+  # Broad lower shelf, taller asymmetric central towers and small satellites.
+  for n in range(14):
+   var x:float=16+n*7+rng.randf_range(-3,3)
+   var rise:=sin(float(n)/13*PI)*rng.randf_range(16,29)
+   lobes.append(Vector4(x,83-rise,rng.randf_range(12,19),rng.randf_range(10,18)))
+  for n in range(36):
+   lobes.append(Vector4(rng.randf_range(19,111),rng.randf_range(65,91),rng.randf_range(5,13),rng.randf_range(5,10)))
+  lobes.sort_custom(func(a,b):return a.y<b.y)
+  for y in range(128):
+   for x in range(128):
+    var colour:=Color.TRANSPARENT
     for lobe in lobes:
-     if Vector2(x-lobe.x,(y-lobe.y)*1.15).length()<=lobe.z:inside=true;break
-    if inside:shape.set_pixel(x,y,Color.WHITE)
-  for y in range(64):
-   for x in range(64):
-    if shape.get_pixel(x,y).a<.5:continue
-    var rim:=false
-    for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
-     var q:Vector2i=Vector2i(x,y)+d*2
-     if q.x<0 or q.y<0 or q.x>=64 or q.y>=64 or shape.get_pixelv(q).a<.5:rim=true
-    var colour:=Color("746581") if rim else Color("9987a9") if y>37 else Color("b6a3c4")
-    # Broad stepped highlights show individual puffs; no gradients/noise.
-    for lobe in lobes:
-     if Vector2(x-lobe.x+2,(y-lobe.y+4)*1.3).length()<lobe.z*.55 and y<lobe.y:colour=Color("d4bfdc")
-    atlas.set_pixel(variant*64+x,y,colour)
+     var q:Vector2=(Vector2(x,y)-Vector2(lobe.x,lobe.y))/Vector2(lobe.z,lobe.w)
+     var rr:=q.length_squared()
+     if rr>=1.:continue
+     var z:=sqrt(1.-rr)
+     var illumination:=clampf(z*.67-q.x*.17-q.y*.35,0.,1.)
+     # Local flecks follow the rounded surface, never white random noise.
+     var fleck:=sin(x*1.7+y*.83+variant)*sin(y*1.13-x*.61)*.055
+     var shade:=clampi(int((illumination+fleck)*7),0,8)
+     if q.y< -.4 and z>.5:shade=mini(8,shade+1)
+     colour=palette[shade]
+    if colour.a>0:atlas.set_pixel(variant*128+x,y,colour)
  return ImageTexture.create_from_image(atlas)

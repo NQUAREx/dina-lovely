@@ -34,7 +34,7 @@ vec4 cloud_layer(vec2 p,float pitch,float seed,float min_depth){
   if(b>.5)uv.x=1.-uv.x;
   float variant=floor(a*8.);
   // Clamp inside each sprite: never sample an adjacent atlas cell.
-  uv=(floor(uv*64.)+.5)/64.;
+  uv=(floor(uv*128.)+.5)/128.;
   vec4 stamp=texture(cloud_atlas,vec2((variant+uv.x)/8.,uv.y));
   // Global per-cloud priority is independent of the current spatial bucket.
   float priority=centre.y+hash21(id+seed+83.)*pitch*.7;

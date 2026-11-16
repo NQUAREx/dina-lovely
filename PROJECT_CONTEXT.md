@@ -202,3 +202,6 @@ Removed per-pixel alpha fade entirely. Each opaque sprite's centre distance to r
 
 ## Larger distant lilac cloud masses
 Added third world-anchored cloud layer152px pitch (vs48/62near), starts120px outside union, grows toward~340px diameter. Existing near-edge puffs retained. Four sprite shades now746581/9987a9/b6a3c4/d4bfdc, grey-lilac palette inspired only by reference colours. No changes to dark-room darkness.
+
+## Refined reference-style cumulus texture
+Rebuilt8 atlas variants at128px each from layered asymmetric cumulus towers and36 small foreground puffs,9 grey-lilac shades, rounded local surface shading and subtle pixel flecks; removed thick dark rims and flat white patches. Wide lower shelf and taller centres follow user's reference cloud texture (original art). Nearest128px cell sampling, existing stable cloud packing retained.
