@@ -3728,13 +3728,13 @@ func bake_hedge_shadow(image:Image)->void:
 	for y in range(5,grid.size()-5):
 		for x in range(grid[0].length()):
 			if grid[y][x]!="#":continue
-			var centre:=Vector2(x*24+15,y*24+17)
+			var centre:=Vector2(x*24+14,y*24+16)
 			for py in range(maxi(0,y*24-4),mini(image.get_height(),y*24+40)):
 				for px in range(maxi(0,x*24-5),mini(width,x*24+38)):
 					var delta:Vector2=(Vector2(px,py)-centre).abs()-Vector2(9,10)
-					var distance:float=Vector2(maxf(delta.x,0),maxf(delta.y,0)).length()+minf(maxf(delta.x,delta.y),0)-5.0
+					var distance:float=Vector2(maxf(delta.x,0),maxf(delta.y,0)).length()+minf(maxf(delta.x,delta.y),0)-4.0
 					var ripple:float=.7*sin(float(px)*TAU/24.0)+.6*sin(float(py)*TAU/24.0)
-					var alpha:float=.38*(1.0-smoothstep(-1.0,3.0,distance+ripple))
+					var alpha:float=.24*(1.0-smoothstep(-1.0,3.0,distance+ripple))
 					coverage[py*width+px]=maxf(coverage[py*width+px],alpha)
 	for y in range(5*24,(grid.size()-5)*24):
 		for x in range(width):
