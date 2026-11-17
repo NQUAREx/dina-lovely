@@ -14,6 +14,24 @@ const base=process.env.TEST_URL||'http://127.0.0.1:8874/';
  const images=Array.from({length:8},(_,i)=>`<img class="garden-loading-heroine-image" style="animation-name:garden-loading-pose-${i};z-index:${i}" src="${base}assets/loading_heroine_${i}.png">`).join('');
  await p.setContent(`<style>${css}</style><body style="margin:0;background:#242538"><section id="garden-loading"><div class="garden-loading-heroine">${images}</div></section>`,{waitUntil:'domcontentloaded'});
  await p.locator('img').evaluateAll(images=>Promise.all(images.map(v=>v.decode())));
+ // Test every transition, including loop wrap, rather than merely counting
+ // nearly blank frames. A crossfade passed the old threshold despite dimming.
+ const phaseAudit=await p.locator('img').evaluateAll(images=>{
+  const animations=images.map(image=>image.getAnimations()[0]);
+  const start=document.timeline.currentTime;
+  for(const animation of animations){animation.startTime=start;animation.pause();}
+  const phases=Array.from({length:641},(_,i)=>i);
+  for(let i=0;i<=8;i++)phases.push(i*80-.001,i*80+.001);
+  const failures=[];
+  for(const time of phases.filter(time=>time>=0)){
+   for(const animation of animations)animation.currentTime=time;
+   const opacity=images.map(image=>Number(getComputedStyle(image).opacity));
+   if(opacity.filter(v=>v===1).length!==1||opacity.some(v=>v!==0&&v!==1))failures.push({time,opacity});
+  }
+  for(const animation of animations){animation.play();animation.startTime=start;}
+  return {samples:phases.length,failures};
+ });
+ if(phaseAudit.failures.length)throw new Error(JSON.stringify(phaseAudit));
  await p.waitForTimeout(700);
  const c=await p.context().newCDPSession(p),frames=[];
  c.on('Page.screencastFrame',e=>{frames.push({t:e.metadata.timestamp,data:e.data,h:crypto.createHash('sha256').update(e.data).digest('hex')});c.send('Page.screencastFrameAck',{sessionId:e.sessionId});});
@@ -28,8 +46,8 @@ const base=process.env.TEST_URL||'http://127.0.0.1:8874/';
  if(visibility.status!==0)throw new Error(visibility.stderr);
  const visible=JSON.parse(visibility.stdout);
  const poses=await p.locator('img').evaluateAll(images=>images.map(v=>({complete:v.complete,width:v.naturalWidth,height:v.naturalHeight})));
- console.log(JSON.stringify({blockedMs:end-start,frames:frames.length,distinct:new Set(frames.map(x=>x.h)).size,...visible,poses}));
+ console.log(JSON.stringify({blockedMs:end-start,frames:frames.length,distinct:new Set(frames.map(x=>x.h)).size,...visible,phaseAudit,poses}));
  await p.screenshot({path:'/tmp/bloom-resident-loader.png'});await b.close();
  fs.rmSync(folder,{recursive:true,force:true});
- if(frames.length<4||new Set(frames.map(x=>x.h)).size<4||visible.blankFrames||visible.minVisiblePixels<300||poses.some(x=>!x.complete||x.width!==64))process.exitCode=1;
+ if(frames.length<4||new Set(frames.map(x=>x.h)).size<4||visible.blankFrames||visible.minVisiblePixels<2200||poses.some(x=>!x.complete||x.width!==64))process.exitCode=1;
 })().catch(e=>{console.error(e);process.exit(1)});

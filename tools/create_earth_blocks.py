@@ -11,6 +11,7 @@ A = Path(__file__).resolve().parents[1] / 'assets'
 ROOF = [(7,11),(24,11),(27,14),(27,31),(24,34),(7,34),(4,31),(4,14)]
 
 def earth_block(variant):
+    variant %= 4
     r = random.Random(72541 + variant * 971)
     im = Image.new('RGBA', (32,64))
     d = ImageDraw.Draw(im)
@@ -44,6 +45,24 @@ def earth_block(variant):
         colour = r.choice(['#785439','#a17a50','#926c46','#6a4a33'])
         d.line((x,y,x+r.choice([0,1,1,2]),y),fill=colour)
         if n % 5 == 0:d.point((x,y+1),fill='#6a4a33')
+    # Distinct geological patches span multiple pixels, so variation reads at
+    # game scale rather than disappearing into random single-pixel noise.
+    if variant == 1:  # Moist, compacted soil: broad cool dark clods.
+        for points in [[(9,17),(14,15),(18,17),(17,21),(11,22),(8,20)],
+                       [(17,25),(22,23),(24,26),(22,29),(18,29)]]:
+            d.polygon(points, fill='#664b37')
+        d.line([(10,17),(14,16),(17,18)],fill='#96724d')
+        d.polygon([(8,42),(14,40),(18,42),(16,45),(9,45)],fill='#4b382c')
+    elif variant == 2:  # Pale mineral pocket and angular embedded stones.
+        d.polygon([(15,17),(21,16),(24,19),(21,23),(17,22)],fill='#a98a5b')
+        d.line([(16,18),(21,17),(23,19)],fill='#b89a6b')
+        for x,y in [(10,26),(20,38),(10,47)]:
+            d.polygon([(x,y),(x+3,y-1),(x+5,y+1),(x+4,y+3),(x,y+2)],fill='#676253')
+            d.line([(x,y),(x+3,y-1),(x+4,y)],fill='#a49c7d')
+    elif variant == 3:  # Deep humus with sparse exposed roots.
+        d.polygon([(8,23),(12,20),(17,22),(20,28),(17,31),(10,29)],fill='#614633')
+        d.line([(8,24),(12,22),(16,23)],fill='#856343')
+        d.polygon([(15,36),(21,35),(24,38),(22,42),(16,41)],fill='#49362b')
     # Small broken root fibres wrap onto the front soil face.
     x = 10 + variant * 3
     d.line([(x,30),(x+1,34),(x,37),(x+2,39)],fill='#a68054')
@@ -53,6 +72,16 @@ def earth_block(variant):
         x,y = r.randrange(9,22),r.randrange(36,51)
         d.polygon([(x,y),(x+2,y-1),(x+3,y+1),(x+1,y+2)],fill='#514d40')
         d.line((x,y,x+1,y-1),fill='#a29876')
+    # Two genuinely darker soils, not just identical surfaces with new noise.
+    # One cool damp loam, one deep humus; preserve roof/face lighting contrast.
+    if variant in (1,3):
+        factors = (.83,.86,.91) if variant == 1 else (.68,.73,.81)
+        pixels = im.load()
+        for y in range(64):
+            for x in range(32):
+                red,green,blue,alpha = pixels[x,y]
+                pixels[x,y] = (round(red*factors[0]),round(green*factors[1]),
+                               round(blue*factors[2]),alpha)
     # Clamp coverage to the same standard block shell used throughout game.
     mask = Image.open(A/'wall_exposed.png').convert('RGBA').getchannel('A')
     im.putalpha(mask)

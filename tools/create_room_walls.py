@@ -37,34 +37,36 @@ def foliage(variant,trees=False):
 
 def thicket(variant):
     im=Image.new('RGBA',(32,64));d=ImageDraw.Draw(im);r=random.Random(19103+variant*137)
-    # Stable roots close the boundary; varied crowns and trunk positions keep
-    # the visible silhouette irregular without changing its collision anchor.
-    d.polygon([(5,35),(25,33),(28,43),(24,48),(20,46),(16,53),(12,49),(8,52),(3,44)],fill='#203d35')
-    trunks=[(r.randint(8,13),r.randint(42,47)),(r.randint(20,24),r.randint(43,48))]
+    # Rounded broadleaf masses on the same small pixel grid as the maze.
+    # Every silhouette is a union of round lobes, not pointed polygon fans.
+    trunks=[(r.randint(9,13),r.randint(43,47)),(r.randint(20,23),r.randint(43,48))]
     for x,y in trunks:
         d.rectangle((x-2,y-15,x+1,y+4),fill='#51483f')
         d.line((x-1,y-12,x-1,y+2),fill='#796650')
-        d.polygon([(x-2,y),(x-5,y+5),(x+3,y+5),(x+1,y-4)],fill='#51483f')
-    crowns=[]
-    # Each variant has its own main mass and irregular satellite lobes.
-    crowns.append((r.randint(12,19),r.randint(15,23),r.randint(9,12),r.randint(9,14)))
-    for n in range(r.randint(3,5)):
-        crowns.append((r.randint(7,25),r.randint(25,39),r.randint(5,9),r.randint(6,10)))
+        d.line((x-2,y+2,x-4,y+4),fill='#51483f',width=2)
+        d.line((x,y+2,x+3,y+4),fill='#51483f',width=2)
+    crowns=[(r.randint(13,18),r.randint(17,21),r.randint(10,12),r.randint(10,13))]
+    crowns += [(r.randint(7,11),r.randint(29,34),r.randint(6,8),r.randint(7,9)),
+               (r.randint(22,24),r.randint(27,33),r.randint(6,8),r.randint(7,10)),
+               (r.randint(14,19),r.randint(37,40),r.randint(8,10),r.randint(7,9))]
     for cx,cy,rx,ry in crowns:
-        pts=[(cx-rx,cy),(cx-rx+2,cy-ry//2),(cx-rx//2,cy-ry),
-             (cx+rx//3,cy-ry),(cx+rx-1,cy-ry//2),(cx+rx,cy+2),
-             (cx+rx//2,cy+ry-1),(cx-2,cy+ry),(cx-rx+1,cy+ry//2)]
-        d.polygon(pts,fill='#193c32')
-        d.polygon([(x,y-2) for x,y in pts[:-2]]+[(cx-3,cy+ry-3),(cx-rx+2,cy+2)],fill='#315744')
-        d.line([(cx-rx+2,cy-2),(cx-rx+2,cy-ry//2),(cx-rx//2,cy-ry+2),(cx,cy-ry+2)],fill='#57745a')
-        for n in range(5):
-            x=cx+r.randint(-rx//2,rx//2);y=cy+r.randint(-ry//2,ry//2)
-            d.line((x,y,x+1,y),fill=r.choice(['#254c3c','#3f634b','#57745a']))
-    # Irregular rooted forest floor; no continuous flat green hem.
-    for cx,cy in [(5,43),(12,48),(21,46),(26,41)]:
-        cy+=r.randint(-3,3)
-        d.polygon([(cx-4,cy),(cx-3,cy-4),(cx,cy-6),(cx+4,cy-3),(cx+5,cy+1),(cx+1,cy+4)],fill='#254b3a')
-        d.line((cx-2,cy-3,cx+1,cy-4),fill='#487354')
+        rx=min(rx,cx,31-cx)
+        d.ellipse((cx-rx,cy-ry,cx+rx,cy+ry),fill='#193c32')
+        d.ellipse((cx-rx,cy-ry,cx+rx-1,cy+ry-3),fill='#254c3c')
+        d.ellipse((cx-rx+1,cy-ry,cx+rx-2,cy+ry-5),fill='#315744')
+        # Broken broad highlights follow round crown volumes. No sharp wedges
+        # or long diagonal outlines reaching the silhouette.
+        d.arc((cx-rx+2,cy-ry+2,cx+rx-3,cy+ry-7),190,272,fill='#57745a',width=1)
+        for ox,oy in [(-rx//3,-ry//4),(rx//3,0),(0,ry//3)]:
+            px=cx+ox+r.randint(-1,1);py=cy+oy+r.randint(-1,1)
+            d.line((px,py,px+2,py),fill=r.choice(['#254c3c','#3f634b','#57745a']))
+            if r.random()<.5:d.point((px+1,py-1),fill='#3f634b')
+    # Low round leaf clusters attach to roots without a triangular skirt.
+    for cx,cy in [(7,44),(14,48),(23,45)]:
+        cy+=r.randint(-2,2)
+        d.ellipse((cx-4,cy-4,cx+4,cy+3),fill='#193c32')
+        d.ellipse((cx-4,cy-4,cx+3,cy+1),fill='#254c3c')
+        d.line((cx-2,cy-3,cx,cy-3),fill='#3f634b')
     return im
 
 def earth(variant):

@@ -28,11 +28,8 @@ func draw_shared_corridors()->void:
   var height:int=map.size()
   var offset:=Vector2.ZERO if owner==old_level else Vector2(-96 if old_level==0 else 0,height*48)
   g.level=owner;g.grid=map;g.camera=old_camera+offset
-  # Reset the shared floor under wall chamfers, including extended grass.
-  for y in range(height-5,height+5):
-   for x in [11,15]:
-    var p:Vector2=g.screen(Vector2(x,y)*48)
-    g.draw_ground_region(g.ground,Rect2(p,Vector2(48,48)),Rect2(24,0,24,24))
+  # Floors are drawn exclusively in _draw_world, before actors. Repainting
+  # the wall underlay here used to cover the heroine near the tree trunks.
   for y in range(height-5,height+5):
    for x in [11,15]:
     stamp(owner,g.screen(Vector2(x+.5,y+.5)*48))
@@ -57,23 +54,25 @@ func draw_tree_shadows()->void:
  var height:int=map.size()
  var offset:=Vector2.ZERO if g.level==1 else Vector2(-96,height*48)
  g.level=1;g.grid=map;g.camera=old_camera+offset
- var floor_box:=Rect2(g.screen(Vector2(12*48,(height-5)*48)),Vector2(144,10*48))
- for y in range(height-5,height+5):
-  for x in [11,15]:
-   var cell:=Vector2i(x,y)
-   var layout:Dictionary=g.boundary_layout(cell,1)
-   var centre:Vector2=g.screen(Vector2(x+.5,y+.5)*48)+Vector2(layout.jitter)
-   var inward:=1. if x==11 else -1.
-   # Three low broad silhouettes merge under the thicket, avoiding a rigid
-   # rectangular edge strip and keeping the far side outside the floor clear.
-   for layer in range(3):
-    var polygon:=PackedVector2Array()
-    var radius:=Vector2(37-layer*5,19-layer*3)
-    var anchor:=centre+Vector2(inward*(8+layer*3),-5+layer*2)
-    for n in range(16):
-     var angle:=float(n)*TAU/16
-     polygon.append(anchor+Vector2(cos(angle)*radius.x,sin(angle)*radius.y))
-    var floor_polygon:=PackedVector2Array([floor_box.position,Vector2(floor_box.end.x,floor_box.position.y),floor_box.end,Vector2(floor_box.position.x,floor_box.end.y)])
-    for clipped in Geometry2D.intersect_polygons(polygon,floor_polygon):
-     if clipped.size()>2:g.draw_colored_polygon(clipped,Color(.035,.055,.065,.12 if layer<2 else .18))
+ # A continuous canopy shadow, not disconnected ellipses per tree. Its
+ # stepped irregular inner edge follows the pixel scale of the forest art.
+ var top:float=(height-5)*48
+ var bottom:float=(height+5)*48
+ for side in [-1,1]:
+  var edge:float=12*48 if side==-1 else 15*48
+  var inward:float=-side
+  for layer in range(3):
+   var polygon:=PackedVector2Array()
+   polygon.append(g.screen(Vector2(edge-inward*24,top)))
+   var y:=top
+   while y<bottom:
+    var step_index:=floori((y-top)/12)
+    var ripple:=float(posmod(step_index*17+step_index/3*7,5)*2)
+    var reach:=float(26-layer*7)+ripple
+    var next_y:=minf(y+12,bottom)
+    polygon.append(g.screen(Vector2(edge+inward*reach,y)))
+    polygon.append(g.screen(Vector2(edge+inward*reach,next_y)))
+    y=next_y
+   polygon.append(g.screen(Vector2(edge-inward*24,bottom)))
+   g.draw_colored_polygon(polygon,Color(.025,.045,.05,.16 if layer==0 else .23))
  g.level=old_level;g.grid=old_grid;g.camera=old_camera

@@ -4,8 +4,8 @@
  motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}';document.head.append(motifStyle);
  const roseStyle=document.createElement('style');
  const shellUI='10a4c55de987';
- // Keep all walking poses resident inside the viewport. WebKit can cull a
- // translated sprite strip despite its parent being visible during WASM startup.
+ // Keep decoded poses stationary: only discrete opacity changes run on the compositor.
+ // Never crossfade transparent sprites: source-over blending dims every step.
  const loadingHeroes=Array.from({length:8},(_,frame)=>{
   const image=new Image();image.src='loading-heroine-'+frame+'.png?v='+shellUI;
   image.alt='';image.decoding='sync';image.className='garden-loading-heroine-image';
@@ -16,11 +16,9 @@
  const loadingHeroReady=Promise.all(loadingHeroes.map(image=>image.decode().then(()=>true,()=>false)));
  const loadingHeroFallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAADGklEQVR4nO2aX0hTURzHv0vdg0FPRlhUW2s2kqCsqxI9RC9GCIU0+vsQCAqjtjfnSw+9NR+KiRgKQQ8ZwcQMJFhI9JKow1XISjPbosAHoR7CPdTi9nA5d7vzTjfxd85tng8I594d/Z3zPd/f73fvEJBIJBKJRCKRSCQSQajp76qo2DZRgRld/j598z29N7mvZxvvgGb4Al5hsSt5Buvy96mhuxcw/Oydfk9pVvRxZGhMBQDvtVYboKVGsHuU1BncBIgMjamxqRS+LlUVNRcAgt2j1MviUwPYhoDsiccmY4hNpXDCcQoA0Hi+Fv3hCJQmh/b5VAq+gBcO1y7SNZILkLt5QNsYAChNDijNCqafLwHQBACA/burEAw+gS/g1QVhKUGBkCLoC3h1IfJhm+cFqQPyTx/IWns9+sMRANBTgsoF3B0QCl0tae7FtpOEq+HcBgFgeGSioP0LzaeEuwClMDwyQVoAAQ4CNByvL+peOp2hXoopXGpAfCax5udrbX42vkD6omSJdwGRkKaAmdXzYadfkXhquP+3/rI+no0vqEca3OXRBq2GZbpA7onzhNwB8ZlEUakgii2fAmQCLM4lN619URVAwAIOqK4WW4aEC7AelKcPWESAQi6Y+zhPHptM3cW5pFpqB0inMwYxXB4n+TdWwp8DMpk/+thu5x+fLAWs3v8Zwh2Qz6+3DwAAR6/0cPnGmswB/8PpA4IckJv3hYh++Fz0g1TL4YMbdgs3AcZfvgEAdLS34FPyJwDg0Z17q+ZdattR8t9mYm1ECNLnAJfHaXN5nDa2eStCJgDr4QO9j3Ur557+ZrPRNBDaBd7/WDFc3/LdAH5HAQCp8Ul0+q+X94PQ/fBtw/WX+W/c12CJdwHGgUN7ucckdUBu/p8+01jU7yzZW9iIYkmrsJQDgKwL9u2p5RKPVABWxDo6z6HOXQNUVpjOe/1qGnXuGv3nbOsxymUZIK+yuWkAaGKYMTjwwnDNowMAAv5NLl8QM3htHhDYBjvatWI3+DBquNbGy6pt+87ydABDXVle0wm8BJBIJBKJRCLZsvwDe7Hq3xnkLO8AAAAASUVORK5CYII=";
  const loadingWalkFrames=Array.from({length:8},(_,frame)=>{
-  // Never make a resident layer fully transparent (Safari can discard it).
-  // Crossfades overlap: one pose remains visible throughout every handover.
-  const dim=.001,start=frame*12.5,end=(frame+1)*12.5;
-  const points=frame===0?[[0,1],[11.5,1],[12.5,dim],[99,dim],[100,1]]:
-   [[0,dim],[start-1,dim],[start,1],[end-1,1],[end,dim],[100,dim]];
+  const start=frame*12.5,end=(frame+1)*12.5;
+  const points=frame===0?[[0,1],[end,0],[100,0]]:
+   [[0,0],[start,1],[end,0],...(end<100?[[100,0]]:[])];
   return '@keyframes garden-loading-pose-'+frame+'{'+points.map(([t,o])=>t+'%{opacity:'+o+'}').join('')+'}';
  }).join('');
  roseStyle.textContent=`#mobile-gate,#portrait-gate,#garden-loading,#garden-recovery{isolation:isolate}#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{z-index:-1}
@@ -32,7 +30,7 @@
  #mobile-gate button::after,#garden-recovery button::after{content:'';pointer-events:none;position:absolute;left:50%;top:-17px;transform:translateX(-50%);width:44px;height:24px;background:url('ui-crest-button.png?v=${shellUI}') center/44px 24px no-repeat}
  #mobile-gate h1{color:#f4d3b4!important;text-shadow:2px 2px #49354f}#garden-loading progress{accent-color:#d49aab}
  #garden-loading .garden-loading-heroine{position:relative;display:block;width:128px;height:128px;margin:0 auto;isolation:isolate;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
- #garden-loading .garden-loading-heroine-image{position:absolute;inset:0;display:block;width:128px!important;min-width:128px!important;max-width:128px!important;height:128px!important;min-height:128px!important;max-height:128px!important;object-fit:contain!important;flex:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;opacity:.001;will-change:opacity;animation-duration:.64s;animation-timing-function:linear;animation-iteration-count:infinite} ${loadingWalkFrames}`;
+ #garden-loading .garden-loading-heroine-image{position:absolute;inset:0;display:block;width:128px!important;min-width:128px!important;max-width:128px!important;height:128px!important;min-height:128px!important;max-height:128px!important;object-fit:contain!important;flex:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;opacity:0;will-change:opacity;animation-duration:.64s;animation-timing-function:step-end;animation-iteration-count:infinite} ${loadingWalkFrames}`;
  document.head.append(roseStyle);
  const frameArtVersion='c57621a051f2';
  // The same room palette also colors browser-owned areas where textures cannot render.
@@ -266,7 +264,12 @@
     }
     const walkers=[...document.querySelectorAll('.garden-loading-heroine-image')];
     await Promise.all(walkers.map(image=>image.decode().catch(()=>{})));
-    await Promise.all(walkers.flatMap(image=>image.getAnimations?.()||[]).map(animation=>animation.ready));
+    const animations=walkers.flatMap(image=>image.getAnimations?.()||[]);
+    await Promise.all(animations.map(animation=>animation.ready));
+    // One document timeline origin for all eight discrete frame windows.
+    // Do not use independent negative delays or start each image on decode.
+    const walkStart=document.timeline.currentTime;
+    for(const animation of animations)animation.startTime=walkStart;
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     launch();
    };
