@@ -3721,18 +3721,26 @@ func prepare_grass_details() -> void:
 	grass_texture=ImageTexture.create_from_image(image)
 
 func bake_hedge_shadow(image:Image)->void:
-	var shadow:=Image.create(image.get_width(),image.get_height(),false,Image.FORMAT_RGBA8)
-	var stamp:=Image.create(40,32,false,Image.FORMAT_RGBA8)
-	for y in range(32):
-		for x in range(40):
-			var distance:=Vector2((x-20)/20.0,(y-16)/16.0).length()
-			if distance<1:stamp.set_pixel(x,y,Color(.07,.12,.14,.21*pow(1-distance,1.2)))
+	# Bake a union of crown silhouettes into grass, with light from upper left.
+	# Max coverage prevents overlapping bushes from producing black seams.
+	var width:=image.get_width()
+	var coverage:=PackedFloat32Array();coverage.resize(width*image.get_height())
 	for y in range(5,grid.size()-5):
 		for x in range(grid[0].length()):
-			if grid[y][x]=="#":shadow.blend_rect(stamp,Rect2i(0,0,40,32),Vector2i(x*24-8,y*24+3))
-	for y in range(5,grid.size()-5):
-		for x in range(grid[0].length()):
-			if grid[y][x] in [".","#"]:image.blend_rect(shadow,Rect2i(x*24,y*24,24,24),Vector2i(x*24,y*24))
+			if grid[y][x]!="#":continue
+			for lobe in [Vector3(10,17,15),Vector3(22,19,13),Vector3(16,27,12)]:
+				var centre:=Vector2(x*24,y*24)+Vector2(lobe.x,lobe.y)
+				for py in range(maxi(0,int(centre.y-15)),mini(image.get_height(),int(centre.y+16))):
+					for px in range(maxi(0,int(centre.x-19)),mini(width,int(centre.x+20))):
+						var distance:=Vector2((px-centre.x)/lobe.z,(py-centre.y)/(lobe.z*.68)).length()
+						var alpha:=.38*(1.0-smoothstep(.55,1.15,distance))
+						coverage[py*width+px]=maxf(coverage[py*width+px],alpha)
+	for y in range(5*24,(grid.size()-5)*24):
+		for x in range(width):
+			var alpha:=coverage[y*width+x]
+			if alpha<=0:continue
+			var color:=image.get_pixel(x,y)
+			image.set_pixel(x,y,Color(color.r*(1-alpha*.88),color.g*(1-alpha*.74),color.b*(1-alpha*.60),color.a))
 
 func draw_grass_details() -> void:
 	var viewport := get_viewport_rect().grow(55)
