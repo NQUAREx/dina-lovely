@@ -58,21 +58,23 @@ func draw_tree_shadows()->void:
  # stepped irregular inner edge follows the pixel scale of the forest art.
  var top:float=(height-5)*48
  var bottom:float=(height+5)*48
+ var cast_offset:Vector2=g.SHADOW_DIRECTION*10.0
  for side in [-1,1]:
   var edge:float=12*48 if side==-1 else 15*48
   var inward:float=-side
   for layer in range(3):
    var polygon:=PackedVector2Array()
-   polygon.append(g.screen(Vector2(edge-inward*24,top)))
+   polygon.append(g.screen(Vector2(edge-inward*24,top)+cast_offset))
    var y:=top
    while y<bottom:
     var step_index:=floori((y-top)/12)
     var ripple:=float(posmod(step_index*17+step_index/3*7,5)*2)
     var reach:=float(26-layer*7)+ripple
     var next_y:=minf(y+12,bottom)
-    polygon.append(g.screen(Vector2(edge+inward*reach,y)))
-    polygon.append(g.screen(Vector2(edge+inward*reach,next_y)))
+    polygon.append(g.screen(Vector2(edge+inward*reach,y)+cast_offset))
+    polygon.append(g.screen(Vector2(edge+inward*reach,next_y)+cast_offset))
     y=next_y
-   polygon.append(g.screen(Vector2(edge-inward*24,bottom)))
-   g.draw_colored_polygon(polygon,Color(.025,.045,.05,.16 if layer==0 else .23))
+   polygon.append(g.screen(Vector2(edge-inward*24,bottom)+cast_offset))
+   var alpha:float=[.14,.19,.21][layer]
+   g.draw_colored_polygon(polygon,Color(g.SHADOW_TINT.r,g.SHADOW_TINT.g,g.SHADOW_TINT.b,alpha))
  g.level=old_level;g.grid=old_grid;g.camera=old_camera

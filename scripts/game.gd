@@ -3,6 +3,12 @@ extends Node2D
 # Set true only for a temporary visual tuning build.
 const DEBUG_MODE := false
 const HEDGE_LIFT := 16.0
+# One soft upper-left light source for every cast and contact shadow.
+const SHADOW_DIRECTION := Vector2(.62,.78)
+const SHADOW_TINT := Color(.045,.055,.085,1.0)
+const SHADOW_CAST_LAYERS := [Vector2(7.0,.065),Vector2(3.0,.075),Vector2(0.0,.085)]
+const SHADOW_CONTACT_LAYERS := [Vector2(1.28,.045),Vector2(1.08,.045),Vector2(.88,.05),Vector2(.66,.055),Vector2(.42,.06)]
+const SHADOW_CAST_KINDS := {"tree":true,"tree_apples":true,"crate":true,"column":true,"column_wreath":true,"heart_stand":true,"well":true,"bench":true,"cat_hut":true,"house":true,"pond":true,"lamp":true,"lamp_off":true,"candle":true,"candle_heart":true,"letter_box":true,"chest":true,"skull_stand":true,"swing":true,"secret_book":true,"arch":true,"stats_stone":true,"quest_bench":true,"quest_rock":true,"quest_pebble":true,"flashlight_pedestal":true,"stand_flashlight":true,"riddle_stone":true,"stone":true}
 var hedge_shadow_settings := {"opacity":.31,"fade_start":-7.0,"fade_end":5.0,"offset_x":16.0,"offset_y":19.0,"width":10.0,"height":8.0,"rounding":4.0,"ripple_x":.45,"ripple_y":.45,"red":.84,"green":.78,"blue":.70}
 var hedge_shadow_base:Image
 var shadow_debug_panel:Control
@@ -2250,8 +2256,10 @@ func draw_pickup_outline_border(texture:Texture2D,box:Rect2)->void:
 	draw_texture_rect(texture,box,false)
 
 func draw_shadow(pos: Vector2, width: float = 24) -> void:
-	draw_set_transform(pos,0,Vector2(1,.3))
-	draw_circle(Vector2.ZERO,width,Color(0.06,.09,.15,.28))
+	var center:=pos+SHADOW_DIRECTION*6.0
+	draw_set_transform(center,0,Vector2(1,.28))
+	for layer in SHADOW_CONTACT_LAYERS:
+		draw_circle(Vector2.ZERO,width*layer.x,Color(SHADOW_TINT.r,SHADOW_TINT.g,SHADOW_TINT.b,layer.y))
 	draw_set_transform(Vector2.ZERO)
 
 func symbol(id: String, pos: Vector2, color: Color) -> void:
@@ -2488,12 +2496,12 @@ func _draw_world() -> void:
 			if side==1:draw_rect(Rect2(p+Vector2(6,0),Vector2(4,48)),Color(.12,.10,.19,.09))
 	for flower in objects:
 		if flower.kind in ["flowers","blueflowers"] and get_viewport_rect().grow(40).has_point(screen(flower.pos)):
-			var silhouette:=PackedVector2Array()
-			for n in range(16):silhouette.append(screen(flower.pos)+Vector2(cos(n*TAU/16)*19,sin(n*TAU/16)*5))
-			draw_floor_shadow(silhouette,Color(.06,.09,.15,.24))
+			draw_shadow(screen(flower.pos),14)
 	if level==6 and save_data.finished:draw_tool_table()
 	for tree in objects:
-		if tree.kind=="quest_tree":draw_cast_shadow("quest_tree",screen(tree.pos),2.0)
+		if tree.kind=="quest_tree":
+			draw_cast_shadow("quest_tree",screen(tree.pos),2.0)
+			draw_shadow(screen(tree.pos),24)
 	draw_footprints()
 	if not drawing_neighbor:companion.draw_prints()
 	battle.draw_poison()
@@ -2507,9 +2515,7 @@ func _draw_world() -> void:
 		if hole.kind=="dug":draw_sprite("dug",screen(hole.pos))
 	if not drawing_neighbor and (level not in [1,2,4] or not inside_main_room()):
 		draw_cast_shadow("hero"+str(visual_facing())+"_0",screen(player),1.0)
-		var contact_shadow:=PackedVector2Array()
-		for n in range(24):contact_shadow.append(screen(player)+Vector2(cos(n*TAU/24)*19,sin(n*TAU/24)*5.7))
-		draw_floor_shadow(contact_shadow,Color(.06,.09,.15,.28))
+		draw_shadow(screen(player),18)
 	var visible_crowns:=PackedInt32Array()
 	if hedge_field!=null:
 		visible_crowns=hedge_field.visible_ids(Rect2(camera-view/2-Vector2(48,96),view+Vector2(96,192)))
@@ -2586,8 +2592,7 @@ func _draw_world() -> void:
 				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p,1.0)
 				else:draw_pickup_outline(highlight,screen(item_display_position(item)),.65 if item.get("on_table",false) or kind in ["quest_axe","pickaxe","shovel"] else 3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
 			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false) and kind not in ["flowers","blueflowers","quest_tree"]:
-				if kind in ["tree","tree_apples","crate","column","column_wreath","heart_stand","well","bench"]:draw_cast_shadow(kind,p,1.0)
-				draw_shadow(p,30 if kind in ["tree","tree_apples"] else 20)
+				draw_object_shadows(item,kind,p)
 			if item.get("ground_tool",false):
 				draw_set_transform(p,float(item.get("ground_angle",PI/2)));draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 			elif item.get("on_table",false):draw_sprite(kind,p,Color.WHITE,.65)
@@ -3836,33 +3841,51 @@ func door_is_open(id: String) -> bool:
 
 func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
 	var origin := pos-(get_viewport_rect().size/2-camera+shake_offset).round()
-	var light := origin+Vector2(-180,-240)
-	var nearest_light := INF
-	var neutral_hall:=name.begins_with("hero") and not inside_main_room()
-	for obj in objects:
-		if neutral_hall:break
-		if obj.kind not in ["lamp","candle","candle_heart","heart_stand"]:continue
-		var d := origin.distance_squared_to(obj.pos)
-		if d<nearest_light:nearest_light=d;light=obj.pos-Vector2(0,50)
-	if level==1 and save_data.flashlight and not neutral_hall:light=player+aim*30
-	var away := (origin-light).normalized()
-	var stretch := .25+clampf(origin.distance_to(light)/900,0,.35)
-	var flicker := 0.0 if neutral_hall or name in ["tree","tree_apples","hedge_tree","hedge_tree_apples"] else .02*sin(time*4+origin.x*.01)
-	var projection:=Transform2D(Vector2(1,0),Vector2(-away.x*(.55+flicker),-away.y*stretch),pos+Vector2(0,3))
-	if level not in [1,2,4] and name.begins_with("hero"):
-		if absf(projection.determinant())<.01:return
-		var quad:=PackedVector2Array()
-		for vertex in [Vector2(-32,-86),Vector2(32,-86),Vector2(32,10),Vector2(-32,10)]:quad.append(projection*(vertex*scale_factor))
-		draw_floor_shadow(quad,Color(.06,.055,.1,.28),projection,sprites[name],scale_factor)
-		return
-	if name in ["tree","tree_apples","hedge_tree","hedge_tree_apples"]:
-		var world_projection:=projection;world_projection.origin=origin+Vector2(0,3)
-		if draw_tree_shadow_clipped(name,world_projection,scale_factor):return
-	draw_set_transform_matrix(projection)
-	draw_sprite(name,Vector2.ZERO,Color(.06,.055,.1,.28),scale_factor)
-	draw_set_transform(Vector2.ZERO)
+	# Fixed upper-left light: silhouettes always fall down-right, including
+	# rooms with lamps or the handheld flashlight.
+	for layer in SHADOW_CAST_LAYERS:
+		var offset:float=layer.x
+		var alpha:float=layer.y
+		var projection:=Transform2D(Vector2(1,0),Vector2(-SHADOW_DIRECTION.x*.5,-SHADOW_DIRECTION.y*.52),pos+SHADOW_DIRECTION*(4.0+offset))
+		if (level not in [1,2,4] and name.begins_with("hero")) or name.begins_with("cat_"):
+			if absf(projection.determinant())<.01:continue
+			var quad:=PackedVector2Array()
+			for vertex in [Vector2(-32,-86),Vector2(32,-86),Vector2(32,10),Vector2(-32,10)]:quad.append(projection*(vertex*scale_factor))
+			draw_floor_shadow(quad,Color(SHADOW_TINT.r,SHADOW_TINT.g,SHADOW_TINT.b,alpha),projection,sprites[name],scale_factor,name.begins_with("hero"))
+			continue
+		if name in ["tree","tree_apples","hedge_tree","hedge_tree_apples"]:
+			var world_projection:=projection;world_projection.origin=origin+SHADOW_DIRECTION*(4.0+offset)
+			if draw_tree_shadow_clipped(name,world_projection,scale_factor,alpha):continue
+		draw_set_transform_matrix(projection)
+		draw_sprite(name,Vector2.ZERO,Color(SHADOW_TINT.r,SHADOW_TINT.g,SHADOW_TINT.b,alpha),scale_factor)
+		draw_set_transform(Vector2.ZERO)
 
-func draw_tree_shadow_clipped(name: String, projection: Transform2D, scale_factor: float) -> bool:
+func draw_object_shadows(item:Dictionary,kind:String,pos:Vector2)->void:
+	# Keep one shared light direction, tint and layered softness while sizing the
+	# projected silhouette to the same scale as the sprite drawn below it.
+	var shadow_name:=kind
+	var shadow_scale:=1.0
+	var should_cast:bool=SHADOW_CAST_KINDS.has(kind)
+	if kind=="flashlight_pedestal":shadow_name="pedestal"
+	elif kind=="stand_flashlight":
+		if item.get("ground_tool",false):should_cast=false
+		else:shadow_name="flashlight_rest"
+	elif kind=="quest_pebble":shadow_name="quest_pebble%d"%int(item.get("stone_variant",0))
+	elif kind=="riddle_stone":shadow_name=rune_stones.texture(item)
+	elif kind=="stone" and level==6:shadow_name=rune_stones.texture(item)
+	elif kind=="chest" and item.id=="final":shadow_scale=3.0
+	elif kind in ["house","pond"]:shadow_scale=2.0
+	if kind=="weapon_crate":weapon_crates.draw_shadow(item,pos)
+	elif should_cast and sprites.has(shadow_name):draw_cast_shadow(shadow_name,pos,shadow_scale)
+	var width:=20.0
+	if kind in ["tree","tree_apples"]:width=30.0
+	elif kind in ["house","pond","quest_rock","weapon_crate"]:width=28.0
+	elif kind=="chest" and item.id=="final":width=38.0
+	elif kind=="cat_hut":width=24.0
+	elif item.get("on_table",false) or item.get("ground_tool",false) or kind in ["quest_axe","pickaxe","shovel","quest_pebble","gate_key","accessory"]:width=13.0
+	draw_shadow(pos,width)
+
+func draw_tree_shadow_clipped(name: String, projection: Transform2D, scale_factor: float, alpha:float) -> bool:
 	if absf(projection.determinant())<.0001:return true
 	var integrated:=name.begins_with("hedge_tree")
 	var anchor:=Vector2(32,96 if integrated else 86)
@@ -3883,7 +3906,7 @@ func draw_tree_shadow_clipped(name: String, projection: Transform2D, scale_facto
 		for point in clipped:
 			var local:Vector2=inverse*point/scale_factor+anchor
 			uv.append(local/Vector2(64,96) if integrated else (Vector2(id%16*32,id/16*48)+local/2)/Vector2(atlas.get_size()))
-		draw_polygon(clipped,PackedColorArray([Color(.06,.055,.1,.28)]),uv,texture)
+		draw_polygon(clipped,PackedColorArray([Color(SHADOW_TINT.r,SHADOW_TINT.g,SHADOW_TINT.b,alpha)]),uv,texture)
 	draw_set_transform(Vector2.ZERO)
 	return true
 
@@ -3949,7 +3972,7 @@ func shadow_ray_clear(destination: Vector2) -> bool:
 		if not shadow_floor_cell(Vector2i(player.lerp(destination,minf(1,step*4/distance))/TILE)):return false
 	return true
 
-func draw_floor_shadow(polygon: PackedVector2Array, color: Color, projection: Transform2D = Transform2D.IDENTITY, sprite_id: int = -1, scale_factor: float = 1.0) -> void:
+func draw_floor_shadow(polygon: PackedVector2Array, color: Color, projection: Transform2D = Transform2D.IDENTITY, sprite_id: int = -1, scale_factor: float = 1.0, use_player_ray:bool=true) -> void:
 	var bounds:=Rect2(polygon[0],Vector2.ZERO)
 	for point in polygon:bounds=bounds.expand(point)
 	var origin:=-(get_viewport_rect().size/2-camera+shake_offset).round()
@@ -3964,7 +3987,7 @@ func draw_floor_shadow(polygon: PackedVector2Array, color: Color, projection: Tr
 				if clipped.size()<3:continue
 				var centre:=Vector2.ZERO
 				for point in clipped:centre+=point
-				if not shadow_ray_clear(centre/clipped.size()+origin):continue
+				if use_player_ray and not shadow_ray_clear(centre/clipped.size()+origin):continue
 				if sprite_id<0:draw_colored_polygon(clipped,color)
 				else:
 					var uv:=PackedVector2Array()

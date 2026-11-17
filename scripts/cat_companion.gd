@@ -155,9 +155,8 @@ func update(delta:float)->void:
 func draw_cat()->void:
  var name:="cat_walk"+str(direction)+"_"+str(int(anim*10)%4) if moving else "cat_idle"+str(direction)+"_"+str(2 if fposmod(g.time,4.7)>4.55 else int(g.time*1.5)%2)
  var p:Vector2=g.screen(position)
- var shadow:=PackedVector2Array()
- for n in range(16):shadow.append(p+Vector2(cos(n*TAU/16)*10,sin(n*TAU/16)*3))
- g.draw_floor_shadow(shadow,Color(.06,.09,.15,.25))
+ g.draw_cast_shadow(name,p,.8)
+ g.draw_shadow(p,10)
  if g.hedge_field==null:g.draw_sprite(name,p,Color.WHITE,.8)
  else:draw_ground_cat(name,p)
 

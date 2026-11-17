@@ -54,6 +54,16 @@ func draw(crate:Dictionary,point:Vector2)->void:
  var age:float=g.time-float(crate.get("opened_at",g.time-1))
  var frame:=0 if not opened else mini(7,int(smoothstep(0,.65,age)*8))
  g.draw_texture_rect_region(ART,Rect2(point-Vector2(64,86),Vector2(128,96)),Rect2(frame*64,0,64,48))
+func draw_shadow(crate:Dictionary,point:Vector2)->void:
+ var opened:bool=crate.weapon in g.save_data.weapon_crates_opened
+ var age:float=g.time-float(crate.get("opened_at",g.time-1))
+ var frame:=0 if not opened else mini(7,int(smoothstep(0,.65,age)*8))
+ for layer in g.SHADOW_CAST_LAYERS:
+  var offset:float=layer.x;var alpha:float=layer.y
+  var projection:=Transform2D(Vector2(1,0),Vector2(-g.SHADOW_DIRECTION.x*.5,-g.SHADOW_DIRECTION.y*.52),point+g.SHADOW_DIRECTION*(4.0+offset))
+  g.draw_set_transform_matrix(projection)
+  g.draw_texture_rect_region(ART,Rect2(Vector2(-64,-86),Vector2(128,96)),Rect2(frame*64,0,64,48),Color(g.SHADOW_TINT.r,g.SHADOW_TINT.g,g.SHADOW_TINT.b,alpha))
+ g.draw_set_transform(Vector2.ZERO)
 func draw_fist()->void:
  if g.level!=4 or not g.weapon.is_empty() or g.attack_flash<=0 or g.combat_done:return
  var t:=clampf(1-g.attack_flash/.22,0,1)
