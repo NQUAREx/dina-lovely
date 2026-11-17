@@ -7,7 +7,7 @@ var hedge_shadow_settings := {"opacity":.28,"fade_start":-7.0,"fade_end":3.0,"of
 var hedge_shadow_base:Image
 var shadow_debug_panel:Control
 var shadow_debug_toggle:Control
-var shadow_debug_touches:Dictionary={}
+var shadow_debug_overlay:CanvasLayer
 var shadow_debug_timer:Timer
 
 const HedgeField := preload("res://scripts/hedge_field.gd")
@@ -1416,13 +1416,9 @@ func touch_button_at(node: Node, pos: Vector2) -> Button:
 	return null
 
 func _input(event: InputEvent) -> void:
-	if DEBUG_MODE and shadow_debug_panel!=null:
-		if event is InputEventScreenTouch:
-			if event.pressed and (shadow_debug_toggle.get_global_rect().has_point(event.position) or (shadow_debug_panel.visible and shadow_debug_panel.get_global_rect().has_point(event.position))):shadow_debug_touches[event.index]=true
-			if shadow_debug_touches.has(event.index):
-				if not event.pressed:shadow_debug_touches.erase(event.index)
-				return
-		elif event is InputEventScreenDrag and shadow_debug_touches.has(event.index):return
+	if DEBUG_MODE and shadow_debug_overlay!=null and shadow_debug_overlay.handle_touch(event):
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventScreenTouch or event is InputEventScreenDrag:
 		last_ui_pointer_position=event.position
 		last_ui_pointer_time=Time.get_ticks_msec()
@@ -3744,6 +3740,7 @@ func setup_shadow_debug()->void:
 	overlay.set_script(preload("res://scripts/shadow_debug.gd"))
 	# Supply the game reference without requiring a scene file.
 	overlay.game=self
+	shadow_debug_overlay=overlay
 	add_child(overlay)
 
 func refresh_debug_hedge_shadow()->void:
