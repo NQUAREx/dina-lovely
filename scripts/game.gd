@@ -1,6 +1,15 @@
 extends Node2D
 ## All coordinates are world pixels. Artwork is a shared nearest-filtered atlas.
+# Set false before exporting the final game to omit the developer panel.
+const DEBUG_MODE := true
 const HEDGE_LIFT := 16.0
+var hedge_shadow_settings := {"opacity":.28,"fade_start":-7.0,"fade_end":3.0,"offset_x":14.0,"offset_y":16.0,"width":9.0,"height":10.0,"rounding":4.0,"ripple_x":.7,"ripple_y":.6,"red":.88,"green":.74,"blue":.60}
+var hedge_shadow_base:Image
+var shadow_debug_panel:Control
+var shadow_debug_toggle:Control
+var shadow_debug_touches:Dictionary={}
+var shadow_debug_timer:Timer
+
 const HedgeField := preload("res://scripts/hedge_field.gd")
 const TILE := 48.0
 const GROUND_DEPTH := .58
@@ -229,6 +238,7 @@ func _ready() -> void:
 	pillar_overlay.set_script(preload("res://scripts/pillar_overlay.gd"))
 	add_child(pillar_overlay)
 	setup_ui()
+	if DEBUG_MODE:setup_shadow_debug()
 	var target := clampi(int(save_data.level),0,6) if save_data.started else 0
 	if OS.has_feature("web"):await prepare_rooms_web(target, false)
 	else:prepare_room_cache(target)
@@ -1406,6 +1416,13 @@ func touch_button_at(node: Node, pos: Vector2) -> Button:
 	return null
 
 func _input(event: InputEvent) -> void:
+	if DEBUG_MODE and shadow_debug_panel!=null:
+		if event is InputEventScreenTouch:
+			if event.pressed and (shadow_debug_toggle.get_global_rect().has_point(event.position) or (shadow_debug_panel.visible and shadow_debug_panel.get_global_rect().has_point(event.position))):shadow_debug_touches[event.index]=true
+			if shadow_debug_touches.has(event.index):
+				if not event.pressed:shadow_debug_touches.erase(event.index)
+				return
+		elif event is InputEventScreenDrag and shadow_debug_touches.has(event.index):return
 	if event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventScreenTouch or event is InputEventScreenDrag:
 		last_ui_pointer_position=event.position
 		last_ui_pointer_time=Time.get_ticks_msec()
@@ -3717,8 +3734,29 @@ func prepare_grass_details() -> void:
 		var id: int = sprites[detail.kind]
 		var stamp := sheet.get_region(Rect2i(id%16*32,id/16*48,32,48));stamp.resize(19,29,Image.INTERPOLATE_NEAREST)
 		image.blend_rect(stamp,Rect2i(0,0,19,29),Vector2i(detail.pos/2)+Vector2i(-10,-20))
-	if level==0:bake_hedge_shadow(image)
+	if level==0:
+		if DEBUG_MODE:hedge_shadow_base=image.duplicate()
+		bake_hedge_shadow(image)
 	grass_texture=ImageTexture.create_from_image(image)
+
+func setup_shadow_debug()->void:
+	var overlay:=CanvasLayer.new()
+	overlay.set_script(preload("res://scripts/shadow_debug.gd"))
+	# Supply the game reference without requiring a scene file.
+	overlay.game=self
+	add_child(overlay)
+
+func refresh_debug_hedge_shadow()->void:
+	if hedge_shadow_base==null or not room_cache.has(0):return
+	var old_grid:=grid
+	if level!=0:grid=room_cache[0].grid
+	var image:Image=hedge_shadow_base.duplicate()
+	bake_hedge_shadow(image)
+	var texture:=ImageTexture.create_from_image(image)
+	if level==0:grass_texture=texture
+	room_cache[0].grass_texture=texture
+	grid=old_grid
+	queue_redraw()
 
 func bake_hedge_shadow(image:Image)->void:
 	# Joined rounded footprints form one continuous hedge shadow. A shallow
@@ -3728,20 +3766,20 @@ func bake_hedge_shadow(image:Image)->void:
 	for y in range(5,grid.size()-5):
 		for x in range(grid[0].length()):
 			if grid[y][x]!="#":continue
-			var centre:=Vector2(x*24+14,y*24+16)
-			for py in range(maxi(0,y*24-4),mini(image.get_height(),y*24+40)):
-				for px in range(maxi(0,x*24-5),mini(width,x*24+38)):
-					var delta:Vector2=(Vector2(px,py)-centre).abs()-Vector2(9,10)
-					var distance:float=Vector2(maxf(delta.x,0),maxf(delta.y,0)).length()+minf(maxf(delta.x,delta.y),0)-4.0
-					var ripple:float=.7*sin(float(px)*TAU/24.0)+.6*sin(float(py)*TAU/24.0)
-					var alpha:float=.28*(1.0-smoothstep(-7.0,3.0,distance+ripple))
+			var centre:=Vector2(x*24+hedge_shadow_settings.offset_x,y*24+hedge_shadow_settings.offset_y)
+			for py in range(maxi(0,y*24-12),mini(image.get_height(),y*24+46)):
+				for px in range(maxi(0,x*24-12),mini(width,x*24+45)):
+					var delta:Vector2=(Vector2(px,py)-centre).abs()-Vector2(hedge_shadow_settings.width,hedge_shadow_settings.height)
+					var distance:float=Vector2(maxf(delta.x,0),maxf(delta.y,0)).length()+minf(maxf(delta.x,delta.y),0)-hedge_shadow_settings.rounding
+					var ripple:float=hedge_shadow_settings.ripple_x*sin(float(px)*TAU/24.0)+hedge_shadow_settings.ripple_y*sin(float(py)*TAU/24.0)
+					var alpha:float=hedge_shadow_settings.opacity*(1.0-smoothstep(hedge_shadow_settings.fade_start,hedge_shadow_settings.fade_end,distance+ripple))
 					coverage[py*width+px]=maxf(coverage[py*width+px],alpha)
 	for y in range(5*24,(grid.size()-5)*24):
 		for x in range(width):
 			var alpha:=coverage[y*width+x]
 			if alpha<=0:continue
 			var color:=image.get_pixel(x,y)
-			image.set_pixel(x,y,Color(color.r*(1-alpha*.88),color.g*(1-alpha*.74),color.b*(1-alpha*.60),color.a))
+			image.set_pixel(x,y,Color(color.r*(1-alpha*hedge_shadow_settings.red),color.g*(1-alpha*hedge_shadow_settings.green),color.b*(1-alpha*hedge_shadow_settings.blue),color.a))
 
 func draw_grass_details() -> void:
 	var viewport := get_viewport_rect().grow(55)
