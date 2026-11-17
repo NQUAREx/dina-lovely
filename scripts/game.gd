@@ -2423,6 +2423,7 @@ func _draw_world() -> void:
 			if grid[y][x]=="#" and not corridor_row(y) and level!=0:
 				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
+	if level==0:draw_hedge_ground_shadows()
 	if not drawing_neighbor:boundary_backdrop.draw_tree_shadows()
 
 	for obj in objects:
@@ -4091,6 +4092,27 @@ func update_food_hearts(delta: float) -> void:
 	while food_heart_clock<=0 and food_hearts_left>0:
 		food_heart_clock+=.13;food_hearts_left-=1
 		particles.append({"pos":player+Vector2(randf_range(-5,5),-48),"vel":Vector2(randf_range(-4,4),-23),"life":1.8,"color":Color("ef436b"),"heart":true})
+
+func draw_hedge_ground_shadows() -> void:
+	# Floor-only pass: dense continuous shade, before bushes and all actors.
+	var visible:=get_viewport_rect().grow(90)
+	for y in range(5,grid.size()-5):
+		for x in range(grid[y].length()):
+			if grid[y][x]!="#":continue
+			var p:=screen(Vector2(x,y)*TILE)
+			if not visible.has_point(p):continue
+			for direction in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
+				var n:Vector2i=Vector2i(x,y)+direction
+				if n.x<0 or n.x>=grid[y].length() or n.y<0 or n.y>=grid.size():continue
+				if grid[n.y][n.x] in ["#"," "]:continue
+				for layer in range(3):
+					var reach:=float(14-layer*4)
+					var box:Rect2
+					if direction==Vector2i.LEFT:box=Rect2(p+Vector2(-reach,0),Vector2(reach,48))
+					elif direction==Vector2i.RIGHT:box=Rect2(p+Vector2(48,0),Vector2(reach,48))
+					elif direction==Vector2i.UP:box=Rect2(p+Vector2(0,-reach),Vector2(48,reach))
+					else:box=Rect2(p+Vector2(0,48),Vector2(48,reach))
+					draw_rect(box,Color(.025,.045,.05,.16 if layer==0 else .23))
 
 func draw_hedge_tree_top(kind: String, position: Vector2) -> void:
 	var variant:=posmod(floori(position.x/48)*17+floori(position.y/48)*7,6)
