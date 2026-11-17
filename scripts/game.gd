@@ -1083,12 +1083,15 @@ func build_level(index: int) -> void:
 					if x<9 or x>17: set_cell(x,y,"#" if x in [8,18] else " ")
 			put_object("arch",Vector2i(13,2),"exit")
 		elif level==3:
+			dig_quest.migrate_room_height()
 			grid.clear()
-			for y in range(13): grid.append("#".repeat(27) if y in [0,12] else "#"+".".repeat(25)+"#")
-			player=Vector2(13.5,10.5)*TILE
+			# The playable distance between the north and south walls is now
+			# 24 tiles, twice the original 12; corridor padding is added below.
+			for y in range(25): grid.append("#".repeat(27) if y in [0,24] else "#"+".".repeat(25)+"#")
+			player=Vector2(13.5,22.5)*TILE
 
-			if save_data.dig_target.size()!=2 or float(save_data.dig_target[1])>=16*TILE or float(save_data.dig_target[1])<7*TILE:
-				save_data.dig_target=[randf_range(4,22)*TILE,randf_range(7,15)*TILE]
+			if save_data.dig_target.size()!=2 or float(save_data.dig_target[1])>=(grid.size()+3)*TILE or float(save_data.dig_target[1])<7*TILE:
+				save_data.dig_target=[randf_range(4,22)*TILE,randf_range(7,grid.size()+2)*TILE]
 			for key in save_data.dug:
 				var parts: PackedStringArray = str(key).split(":")
 				if parts.size()==2: objects.append({"kind":"dug","id":"","solid":false,"pos":Vector2(float(parts[0]),float(parts[1])-5*TILE)})
@@ -2194,6 +2197,11 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 		if not hedge_tree_textures.has(name+str(variant)):hedge_tree_textures[name+str(variant)]=load("res://assets/"+name+"_variant"+str(variant)+".png")
 		draw_texture_rect(hedge_tree_textures[name+str(variant)],Rect2(pos+Vector2(-32,-96)*scale_factor,Vector2(64,96)*scale_factor),false,color)
 		return
+	# These two sprites have a painted floor oval below the post. The pedestal
+	# belongs to the shared dark-room corridor, so trim it in both room passes.
+	if name=="pedestal" or (name=="lamp_off" and level==1):
+		draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,Vector2(64,78)*scale_factor),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,39)),color)
+		return
 	var size := Vector2(64,96)*scale_factor
 	draw_texture_rect_region(atlas,Rect2(pos-Vector2(32,86)*scale_factor,size),Rect2(Vector2(id%16*32,id/16*48),Vector2(32,48)),color)
 
@@ -2255,7 +2263,13 @@ func draw_pickup_outline_border(texture:Texture2D,box:Rect2)->void:
 	for offset in [Vector2(-2,0),Vector2(2,0),Vector2(0,-2),Vector2(0,2)]:draw_texture_rect(texture,Rect2(box.position+offset,box.size),false,Color(.2,.13,.25))
 	draw_texture_rect(texture,box,false)
 
+func shadow_hidden_in_dark_room(pos:Vector2)->bool:
+	if level!=1:return false
+	var world_y:float=pos.y-screen(Vector2.ZERO).y
+	return world_y>=5*TILE and world_y<(grid.size()-5)*TILE
+
 func draw_shadow(pos: Vector2, width: float = 24) -> void:
+	if shadow_hidden_in_dark_room(pos):return
 	var center:=pos+SHADOW_DIRECTION*6.0
 	draw_set_transform(center,0,Vector2(1,.28))
 	for layer in SHADOW_CONTACT_LAYERS:
@@ -2485,6 +2499,7 @@ func _draw_world() -> void:
 	# Fixed contact shade ties raised masonry to the ground grid. Only exposed
 	# floor edges receive it; no dynamic light or per-frame shadow projection.
 	for wall in renderables:
+		if level==1:continue
 		if wall.kind!="stone" or not wall.get("wall",false) or not wall.has("cell"):continue
 		if corridor_row(wall.cell.y):continue
 		var cell:Vector2i=wall.cell
@@ -2535,6 +2550,11 @@ func _draw_world() -> void:
 	draw_leaf_debris()
 	scene_fx.draw(true)
 	renderables.sort_custom(func(a,b):
+		# The torch and stand may differ by a fraction of a pixel after loading
+		# their saved coordinates. Match their order in the neighbour overlay.
+		if absf(a.pos.y-b.pos.y)<.5 and absf(a.pos.x-b.pos.x)<.5:
+			if a.kind=="flashlight_pedestal" and b.kind=="stand_flashlight":return true
+			if b.kind=="flashlight_pedestal" and a.kind=="stand_flashlight":return false
 		if a.pos.y==b.pos.y:
 			# Wall blocks support taller gate pillars at the same ground depth.
 			if a.get("wall",false)!=b.get("wall",false):return a.get("wall",false)
@@ -3035,6 +3055,7 @@ func setup_fog() -> void:
 	var shader:=preload("res://shaders/flashlight.gdshader")
 	var material := ShaderMaterial.new()
 	material.shader = shader
+	material.set_shader_parameter("hero_atlas",atlas)
 	fog.material = material
 	layer.add_child(fog)
 
@@ -3065,6 +3086,25 @@ func update_fog() -> void:
 	material.set_shader_parameter("light_pos",screen(held_tool_pose().tip) if held_item=="flashlight" else screen(player)+Vector2(14,-33))
 	material.set_shader_parameter("hero_pos",screen(player)+Vector2(0,-35))
 	material.set_shader_parameter("view_size",get_viewport_rect().size)
+	var facing_id:=visual_facing()
+	var occlude_hero:=held_item=="flashlight" and level==1 and facing_id in [0,4,5] and resting.is_empty()
+	material.set_shader_parameter("hero_occludes_light",occlude_hero)
+	if occlude_hero:
+		var frame:=player_walk_frame()
+		var frame_names:Array[String]=["hero%d_%d"%[facing_id,frame]]
+		for item in OUTFIT_ORDER:
+			if item in save_data.wearing:frame_names.append("wear_%s_%d_%d"%[item,facing_id,frame])
+		var tiles:=PackedVector2Array()
+		for frame_name in frame_names:
+			if not sprites.has(frame_name):continue
+			if tiles.size()>=6:break
+			var id:int=sprites[frame_name]
+			tiles.append(Vector2(id%16,id/16))
+		var tile_count:=tiles.size()
+		while tiles.size()<6:tiles.append(Vector2.ZERO)
+		material.set_shader_parameter("hero_tiles",tiles)
+		material.set_shader_parameter("hero_tile_count",tile_count)
+		material.set_shader_parameter("hero_top_left",screen(player)+body_motion()-Vector2(32,86))
 	var stride := 1.0 if moving and not paused else 0.0
 	flashlight_motion=move_toward(flashlight_motion,stride,minf(get_process_delta_time(),.1)*3)
 	var motion := flashlight_motion
@@ -3521,7 +3561,7 @@ func draw_leaf_debris() -> void:
 		var floating: bool = not part.get("landed",false)
 		var color: Color = part.color
 		color.a=minf(1,float(part.life)/.7)
-		if height>2 and shadow_floor_cell(part.pos):
+		if height>2 and shadow_floor_cell(part.pos) and not shadow_hidden_in_dark_room(screen(part.pos)):
 			draw_set_transform(screen(part.pos).round(),0,Vector2(1,.4))
 			draw_circle(Vector2.ZERO,2,Color(0,0,0,.12*color.a))
 			draw_set_transform(Vector2.ZERO)
@@ -3840,6 +3880,7 @@ func door_is_open(id: String) -> bool:
 	return id=="back" or level in save_data.get("open_gates",[])
 
 func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
+	if shadow_hidden_in_dark_room(pos):return
 	var origin := pos-(get_viewport_rect().size/2-camera+shake_offset).round()
 	# Fixed upper-left light: silhouettes always fall down-right, including
 	# rooms with lamps or the handheld flashlight.
@@ -3861,6 +3902,10 @@ func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
 		draw_set_transform(Vector2.ZERO)
 
 func draw_object_shadows(item:Dictionary,kind:String,pos:Vector2)->void:
+	# Room-one props also include the flashlight pedestal in the shared
+	# corridor. Its other half draws that prop in the neighbour overlay, so
+	# keep it shadowless in both halves as well as inside the dark room.
+	if level==1:return
 	# Keep one shared light direction, tint and layered softness while sizing the
 	# projected silhouette to the same scale as the sprite drawn below it.
 	var shadow_name:=kind
@@ -4043,6 +4088,9 @@ func place_accessory(rng: RandomNumberGenerator) -> void:
 			var point:=(Vector2(x,y)+Vector2(.5,.5))*TILE
 			if not valid_ground(point) or blocked(point):continue
 			if level==2 and y<30:continue
+			# The excavation tree is installed after accessories; reserve its
+			# centered trunk and crown so random pickups cannot spawn inside it.
+			if level==3 and point.distance_to(Vector2(grid[0].length(),grid.size())*TILE*.5)<105:continue
 			if level==6 and Rect2(Vector2(21.2*48,9*48),Vector2(2.6*48,9*48)).has_point(point):continue
 			if level in [4,6]:
 				var reserved:=[Vector2i(3,10),Vector2i(23,10),Vector2i(22,19),Vector2i(4,19),Vector2i(4,11),Vector2i(22,18),Vector2i(5,8),Vector2i(21,8),Vector2i(3,20),Vector2i(23,20),Vector2i(9,10),Vector2i(17,10),Vector2i(8,20),Vector2i(18,20)]

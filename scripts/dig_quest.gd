@@ -12,21 +12,48 @@ func state()->Dictionary:
 func owns(obj:Dictionary)->bool:return obj.kind.begins_with("quest_") or obj.kind=="pickaxe" or (g.level==3 and obj.id=="shovel")
 func point(id:String)->Vector2:
  var a:Array=state().layout[id];return Vector2(a[0],a[1])
+func migrate_room_height()->void:
+ # The old southern corridor moved down by twelve tiles. Keep dropped items
+ # and the companion in that corridor when an existing save is first loaded.
+ var d:=state()
+ if int(d.get("room_height_version",0))>=2:return
+ var old_south:=17.5*48.0
+ var extension:=12.0*48.0
+ var move_south=func(pos):
+  if pos is Array and pos.size()==2 and float(pos[1])>=old_south:pos[1]=float(pos[1])+extension
+ for key in g.save_data.tool_positions:
+  if str(key).begins_with("3:"):move_south.call(g.save_data.tool_positions[key])
+ for entry in g.save_data.loose_accessories:
+  if int(entry.get("room",-1))==3:move_south.call(entry.get("pos",[]))
+ for entry in g.save_data.loose_weapons:
+  if int(entry.get("room",-1))==3:move_south.call(entry.get("pos",[]))
+ for key in g.save_data.world_tool_locations:
+  var entry:Dictionary=g.save_data.world_tool_locations[key]
+  if int(entry.get("room",-1))==3:move_south.call(entry.get("pos",[]))
+ if g.save_data.gate_key_drops.has("3"):move_south.call(g.save_data.gate_key_drops["3"].get("pos",[]))
+ if g.save_data.riddle_stone_positions.has("3"):move_south.call(g.save_data.riddle_stone_positions["3"])
+ if int(g.save_data.cat_room)==3:move_south.call(g.save_data.cat_position)
+ d.room_height_version=2
 func install()->void:
  if g.level!=3:return
  var d:=state()
  if g.held_item=="shovel" and not d.shovel:g.held_item="";g.sync_hands()
+ # Keep the tree (or its stump) centered after enlarging the room, including
+ # existing saves. Other persisted positions and quest progress stay intact.
+ var tree_center:=Vector2(g.grid[0].length(),g.grid.size())*24.0
  if d.layout.is_empty():
   var rng:=RandomNumberGenerator.new();rng.seed=int(g.save_data.seed)^912321
-  d.layout.tree=[13.5*48,11.5*48]
+  d.layout.tree=[tree_center.x,tree_center.y]
   var choices:Array[Vector2]=[]
-  for y in range(8,15):
+  for y in range(8,g.grid.size()-8):
    for x in range(3,24):
     var p:=Vector2(x+.5,y+.5)*48
     if p.distance_to(point("tree"))>135 and not g.objects.any(func(o):return o.pos.distance_to(p)<95):choices.append(p)
   for id in ["bench","axe","rock"]:
    var p:Vector2=choices[rng.randi_range(0,choices.size()-1)];d.layout[id]=[p.x,p.y]
    choices=choices.filter(func(q):return q.distance_to(p)>120)
+ else:
+  d.layout.tree=[tree_center.x,tree_center.y]
  g.objects.assign(g.objects.filter(func(o):return not owns(o)))
  add("quest_bench","bench",point("bench"),true)
  add("quest_stump" if d.tree_down else "quest_tree","tree",point("tree"),true)

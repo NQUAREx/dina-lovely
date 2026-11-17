@@ -1,3 +1,35 @@
+// Resume the Godot-owned context after mobile browsers interrupt page audio.
+// Do not create a second context or try to unlock one before it has played.
+(()=>{
+ let context=null,hasPlayed=false,needsRecovery=false,lastAttempt=-Infinity;
+ const wake=(fromGesture=false)=>{
+  if(!context||!hasPlayed||!needsRecovery||document.hidden||context.state==='closed')return;
+  if(context.state==='running'){needsRecovery=false;return;}
+  const now=performance.now();
+  if(!fromGesture&&now-lastAttempt<250)return;
+  lastAttempt=now;
+  try{context.resume()?.catch(()=>{});}catch{}
+ };
+ const stateChanged=()=>{
+  if(!context)return;
+  if(context.state==='running'){hasPlayed=true;if(!document.hidden)needsRecovery=false;return;}
+  if(hasPlayed&&context.state==='interrupted')needsRecovery=true;
+  if(needsRecovery&&!document.hidden&&(context.state==='suspended'||context.state==='interrupted'))wake();
+ };
+ window.gardenBindAudioContext=next=>{
+  if(context===next)return;
+  context?.removeEventListener('statechange',stateChanged);
+  context=next;hasPlayed=context?.state==='running';needsRecovery=false;lastAttempt=-Infinity;
+  context?.addEventListener('statechange',stateChanged);
+ };
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)needsRecovery=hasPlayed;else wake();});
+ window.addEventListener('pagehide',()=>{needsRecovery=hasPlayed;});
+ window.addEventListener('pageshow',()=>wake());
+ window.addEventListener('focus',()=>wake());
+ // Capture the genuine gesture before the game starts its next short sound.
+ for(const event of ['pointerdown','touchstart','keydown'])document.addEventListener(event,()=>wake(true),{capture:true,passive:true});
+})();
+
 (()=>{
  const motifStyle=document.createElement('style');
  const motifSvg='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="96" viewBox="0 0 120 96"><g fill="none" stroke="#efb5c7" stroke-opacity=".055" stroke-width="2" shape-rendering="crispEdges"><path d="M18 25v-9h6v3h6v-3h6v9h-3v6h-3v3h-3v3h-3v-3h-3v-6h-3z"/><path d="M84 55h3v6h3v3h6v3h-6v3h-3v6h-3v-6h-3v-3h-6v-3h6v-3h3z"/></g></svg>';

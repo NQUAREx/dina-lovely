@@ -3,7 +3,16 @@ from pathlib import Path
 
 def patch_loader(path: Path):
  s=path.read_text()
- if 'gardenFetchAsset' in s:return
+ # The engine keeps its AudioContext in a private closure. Attach a lifecycle
+ # observer to that existing context; do not intercept browser constructors.
+ audio_marker='GodotAudio.ctx=ctx;window.gardenBindAudioContext?.(ctx);'
+ if audio_marker not in s:
+  anchor='GodotAudio.ctx=ctx;'
+  assert s.count(anchor)==1, 'Godot audio initialization changed; review the lifecycle hook'
+  s=s.replace(anchor,audio_marker,1)
+ if 'gardenFetchAsset' in s:
+  path.write_text(s)
+  return
  old='return fetch(file).then(function (response) {'
  assert old in s
  s=s.replace(old,'return (window.gardenFetchAsset ? window.gardenFetchAsset(file) : fetch(file)).then(function (response) {',1)

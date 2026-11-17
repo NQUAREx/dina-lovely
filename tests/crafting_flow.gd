@@ -6,7 +6,7 @@ func run():
  g.build_level(3)
  var q=g.dig_quest;var d=q.state()
  assert(g.objects.filter(func(o):return o.id=="shovel").is_empty())
- assert(q.point("tree")==Vector2(13.5,11.5)*48)
+ assert(q.point("tree")==Vector2(g.grid[0].length(),g.grid.size())*24)
  assert(d.durability>=9 and d.durability<=18)
  g.save_data.dig_target=[q.point("bench").x,q.point("bench").y]
  g.save_data.riddle_stone_positions["3"]=[q.point("tree").x,q.point("tree").y]

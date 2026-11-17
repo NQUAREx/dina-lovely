@@ -1,6 +1,7 @@
 extends RefCounted
 var g:Node2D
 var textures:Dictionary={}
+var tree_shadow_textures:Array[Texture2D]=[]
 func _init(game:Node2D):g=game
 func stamp(owner:int,point:Vector2)->void:
  if not g.get_viewport_rect().grow(110).has_point(point):return
@@ -43,6 +44,22 @@ func draw_shared_corridors()->void:
     if lower[5][x]=="#":g.draw_sprite("stone",g.screen(Vector2(x+.5,5.5)*48))
  g.level=old_level;g.grid=old_grid;g.camera=old_camera
 
+func prepare_tree_shadows()->void:
+ if not tree_shadow_textures.is_empty():return
+ # One continuous soft penumbra, sampled at world-pixel resolution so the
+ # edge does not break into the old twelve-pixel staircase.
+ var image:=Image.create(80,480,false,Image.FORMAT_RGBA8)
+ for y in range(image.get_height()):
+  var end_fade:=smoothstep(0.0,18.0,float(y))*smoothstep(0.0,18.0,float(image.get_height()-1-y))
+  var ripple:=sin(float(y)*.040)*2.0+sin(float(y)*.075)*1.4
+  for x in range(image.get_width()):
+   var distance:=float(x)-24.0-ripple
+   var alpha:=.31*(1.0-smoothstep(8.0,34.0,distance))*end_fade
+   image.set_pixel(x,y,Color(1,1,1,alpha))
+ tree_shadow_textures.append(ImageTexture.create_from_image(image))
+ image.flip_x()
+ tree_shadow_textures.append(ImageTexture.create_from_image(image))
+
 func draw_tree_shadows()->void:
  # Floor pass only, before actors. The same upper-room coordinates describe
  # both corridor halves, so entering room1 cannot reroll the tree silhouettes.
@@ -54,27 +71,15 @@ func draw_tree_shadows()->void:
  var height:int=map.size()
  var offset:=Vector2.ZERO if g.level==1 else Vector2(-96,height*48)
  g.level=1;g.grid=map;g.camera=old_camera+offset
- # A continuous canopy shadow, not disconnected ellipses per tree. Its
- # stepped irregular inner edge follows the pixel scale of the forest art.
+ # Keep the shadow in the upper room's coordinates in either corridor half.
+ prepare_tree_shadows()
  var top:float=(height-5)*48
- var bottom:float=(height+5)*48
- var cast_offset:Vector2=g.SHADOW_DIRECTION*10.0
+ # Keep the feathered ends inside the shared corridor: otherwise the later
+ # neighbour floor pass covers a few pixels on only one side of the seam.
+ var cast_offset:=Vector2(g.SHADOW_DIRECTION.x*10.0,0)
  for side in [-1,1]:
   var edge:float=12*48 if side==-1 else 15*48
-  var inward:float=-side
-  for layer in range(3):
-   var polygon:=PackedVector2Array()
-   polygon.append(g.screen(Vector2(edge-inward*24,top)+cast_offset))
-   var y:=top
-   while y<bottom:
-    var step_index:=floori((y-top)/12)
-    var ripple:=float(posmod(step_index*17+step_index/3*7,5)*2)
-    var reach:=float(26-layer*7)+ripple
-    var next_y:=minf(y+12,bottom)
-    polygon.append(g.screen(Vector2(edge+inward*reach,y)+cast_offset))
-    polygon.append(g.screen(Vector2(edge+inward*reach,next_y)+cast_offset))
-    y=next_y
-   polygon.append(g.screen(Vector2(edge-inward*24,bottom)+cast_offset))
-   var alpha:float=[.14,.19,.21][layer]
-   g.draw_colored_polygon(polygon,Color(g.SHADOW_TINT.r,g.SHADOW_TINT.g,g.SHADOW_TINT.b,alpha))
+  var left:float=edge-24 if side==-1 else edge-56
+  var texture:Texture2D=tree_shadow_textures[0 if side==-1 else 1]
+  g.draw_texture_rect(texture,Rect2(g.screen(Vector2(left,top)+cast_offset),Vector2(80,480)),false,g.SHADOW_TINT)
  g.level=old_level;g.grid=old_grid;g.camera=old_camera

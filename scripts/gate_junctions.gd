@@ -43,29 +43,47 @@ func draw_hinges(pos:Vector2,amount:float)->void:
    g.draw_rect(Rect2(start+Vector2(length*.5,2),Vector2(2,2)),Color("b5a5aa"))
 
 var lamps:Dictionary={}
+var lamp_texture:Texture2D
 func update_lights()->void:
  for lamp in lamps.values():lamp.visible=false
- for door in g.objects:
+ update_room_lights(g.level,g.objects,Vector2.ZERO)
+ # Both halves of a shared corridor show the same two gates. Their lights
+ # must follow the canonical room offset just like the neighbour's sprites.
+ for room_id in [g.level-1,g.level+1]:
+  if not g.room_cache.has(room_id):continue
+  var state:Dictionary=g.room_cache[room_id]
+  var north:bool=room_id>g.level
+  var center:float=(15.5 if g.level==0 else 13.5)*48 if north else 13.5*48
+  var other:float=13.5*48 if north else (15.5 if room_id==0 else 13.5)*48
+  var offset:=Vector2(center-other,-state.grid.size()*48-2*g.HALL_SEAM if north else g.grid.size()*48+2*g.HALL_SEAM)
+  update_room_lights(room_id,state.objects,offset)
+
+func update_room_lights(room_id:int,room_objects:Array,offset:Vector2)->void:
+ for door in room_objects:
   if door.kind!="doorway":continue
+  var position:Vector2=g.screen(door.pos+offset)
+  if not g.get_viewport_rect().grow(180).has_point(position):continue
   for side in [-1,1]:
-   var key:=str(door.id)+str(side)
+   var key:=str(room_id)+":"+str(door.id)+":"+str(side)
    if not lamps.has(key):
     var lamp:=PointLight2D.new()
-    var image:=Image.create(96,96,false,Image.FORMAT_RGBA8)
-    for y in range(96):
-     for x in range(96):
-      var down:=float(y-48)
-      var across:=absf(float(x-48))
-      var value:=0.0
-      if down>=0:
-       var width:=9.0+down*.30
-       value=pow(maxf(0,1.0-across/width),2)*pow(maxf(0,1.0-down/44.0),1.6)
-      image.set_pixel(x,y,Color(1,1,1,value))
-    lamp.texture=ImageTexture.create_from_image(image)
+    if lamp_texture==null:
+     var image:=Image.create(96,96,false,Image.FORMAT_RGBA8)
+     for y in range(96):
+      for x in range(96):
+       var down:=float(y-48)
+       var across:=absf(float(x-48))
+       var value:=0.0
+       if down>=0:
+        var width:=9.0+down*.30
+        value=pow(maxf(0,1.0-across/width),2)*pow(maxf(0,1.0-down/44.0),1.6)
+       image.set_pixel(x,y,Color(1,1,1,value))
+     lamp_texture=ImageTexture.create_from_image(image)
+    lamp.texture=lamp_texture
     lamp.texture_scale=1.0
     lamp.color=Color(1,.70,.38)
     g.add_child(lamp);lamps[key]=lamp
    var lamp:PointLight2D=lamps[key]
    lamp.visible=true
-   lamp.position=g.screen(door.pos)+Vector2(side*99,-47)
-   lamp.energy=.055 if g.level==1 else .32
+   lamp.position=position+Vector2(side*99,-47)
+   lamp.energy=.055 if room_id==1 else .32

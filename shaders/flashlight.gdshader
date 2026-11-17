@@ -10,6 +10,12 @@ uniform vec2 light_dir = vec2(0.0,-1.0);
 uniform vec4 optics = vec4(1.0);
 uniform bool enabled = false;
 uniform bool ground_light = false;
+// Atlas frames use the same pixel geometry as the heroine's world sprites.
+uniform sampler2D hero_atlas : filter_nearest, repeat_disable;
+uniform bool hero_occludes_light = false;
+uniform vec2 hero_top_left = vec2(0.0);
+uniform vec2 hero_tiles[6];
+uniform int hero_tile_count = 0;
 uniform vec2 gate_lights[4];
 uniform int gate_light_count=0;
 void fragment(){
@@ -33,6 +39,19 @@ void fragment(){
  vec2 reflected=offset-body*body_t;
  float bounce=(ground_light?0.0:1.0)*exp(-dot(reflected,reflected)/(26.0*26.0))*(.34-.14*body_t);
  float light=enabled?clamp(max(beam,max(lens_spill,bounce))*optics.w,0.0,1.0):0.0;
+ float hero_alpha=0.0;
+ vec2 hero_uv=(pixel-hero_top_left)/vec2(64.0,96.0);
+ if(hero_occludes_light && all(greaterThanEqual(hero_uv,vec2(0.0))) && all(lessThan(hero_uv,vec2(1.0)))){
+  vec2 atlas_size=vec2(textureSize(hero_atlas,0));
+  for(int i=0;i<6;i++){
+   if(i>=hero_tile_count)break;
+   vec2 sprite_pixel=hero_tiles[i]*vec2(32.0,48.0)+hero_uv*vec2(32.0,48.0);
+   hero_alpha=max(hero_alpha,texture(hero_atlas,sprite_pixel/atlas_size).a);
+  }
+  // Keep just enough indirect light to read the sprite in the dark; the beam
+  // and its warm tint stay behind the body and its worn accessories.
+  light=mix(light,min(light,0.12),hero_alpha);
+ }
  float gate_light=0.0;
  for(int i=0;i<4;i++){
   if(i>=gate_light_count)break;
@@ -43,5 +62,5 @@ void fragment(){
  }
  light=max(light,gate_light);
  float in_room=smoothstep(room_band.x-64.0,room_band.x+64.0,pixel.y)*(1.0-smoothstep(room_band.y-64.0,room_band.y+64.0,pixel.y));
- COLOR=vec4(vec3(.08,.043,.016)*max(beam,bounce)*(enabled?1.0:0.0),(1.0-light)*max(room_opacity,in_room));
+ COLOR=vec4(vec3(.08,.043,.016)*max(beam,bounce)*(enabled?1.0:0.0)*(1.0-hero_alpha),(1.0-light)*max(room_opacity,in_room));
 }
