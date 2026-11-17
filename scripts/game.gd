@@ -3721,20 +3721,21 @@ func prepare_grass_details() -> void:
 	grass_texture=ImageTexture.create_from_image(image)
 
 func bake_hedge_shadow(image:Image)->void:
-	# Bake a union of crown silhouettes into grass, with light from upper left.
-	# Max coverage prevents overlapping bushes from producing black seams.
+	# Joined rounded footprints form one continuous hedge shadow. A shallow
+	# scallop only modulates the outer edge, never separate crown circles.
 	var width:=image.get_width()
 	var coverage:=PackedFloat32Array();coverage.resize(width*image.get_height())
 	for y in range(5,grid.size()-5):
 		for x in range(grid[0].length()):
 			if grid[y][x]!="#":continue
-			for lobe in [Vector3(10,17,15),Vector3(22,19,13),Vector3(16,27,12)]:
-				var centre:=Vector2(x*24,y*24)+Vector2(lobe.x,lobe.y)
-				for py in range(maxi(0,int(centre.y-15)),mini(image.get_height(),int(centre.y+16))):
-					for px in range(maxi(0,int(centre.x-19)),mini(width,int(centre.x+20))):
-						var distance:=Vector2((px-centre.x)/lobe.z,(py-centre.y)/(lobe.z*.68)).length()
-						var alpha:=.38*(1.0-smoothstep(.55,1.15,distance))
-						coverage[py*width+px]=maxf(coverage[py*width+px],alpha)
+			var centre:=Vector2(x*24+15,y*24+17)
+			for py in range(maxi(0,y*24-4),mini(image.get_height(),y*24+40)):
+				for px in range(maxi(0,x*24-5),mini(width,x*24+38)):
+					var delta:Vector2=(Vector2(px,py)-centre).abs()-Vector2(9,10)
+					var distance:float=Vector2(maxf(delta.x,0),maxf(delta.y,0)).length()+minf(maxf(delta.x,delta.y),0)-5.0
+					var ripple:float=.7*sin(float(px)*TAU/24.0)+.6*sin(float(py)*TAU/24.0)
+					var alpha:float=.38*(1.0-smoothstep(-1.0,3.0,distance+ripple))
+					coverage[py*width+px]=maxf(coverage[py*width+px],alpha)
 	for y in range(5*24,(grid.size()-5)*24):
 		for x in range(width):
 			var alpha:=coverage[y*width+x]
