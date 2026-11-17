@@ -1,9 +1,9 @@
 extends Node2D
 ## All coordinates are world pixels. Artwork is a shared nearest-filtered atlas.
-# Set false before exporting the final game to omit the developer panel.
-const DEBUG_MODE := true
+# Set true only for a temporary visual tuning build.
+const DEBUG_MODE := false
 const HEDGE_LIFT := 16.0
-var hedge_shadow_settings := {"opacity":.28,"fade_start":-7.0,"fade_end":3.0,"offset_x":14.0,"offset_y":16.0,"width":9.0,"height":10.0,"rounding":4.0,"ripple_x":.7,"ripple_y":.6,"red":.88,"green":.74,"blue":.60}
+var hedge_shadow_settings := {"opacity":.31,"fade_start":-7.0,"fade_end":5.0,"offset_x":16.0,"offset_y":19.0,"width":10.0,"height":8.0,"rounding":4.0,"ripple_x":.45,"ripple_y":.45,"red":.84,"green":.78,"blue":.70}
 var hedge_shadow_base:Image
 var shadow_debug_panel:Control
 var shadow_debug_toggle:Control

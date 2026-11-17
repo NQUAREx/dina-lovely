@@ -41,7 +41,7 @@ func _ready():
  output=TextEdit.new();output.custom_minimum_size.y=58;output.editable=false;output.visible=false;vertical.add_child(output)
  toggle.pressed.connect(func():panel.visible=not panel.visible;toggle.text="Свернуть ✕" if panel.visible else "Тени ⚙")
  reset_button.pressed.connect(func():
-  var defaults={"opacity":.28,"fade_start":-7.0,"fade_end":3.0,"offset_x":14.0,"offset_y":16.0,"width":9.0,"height":10.0,"rounding":4.0,"ripple_x":.7,"ripple_y":.6,"red":.88,"green":.74,"blue":.60}
+  var defaults={"opacity":.31,"fade_start":-7.0,"fade_end":5.0,"offset_x":16.0,"offset_y":19.0,"width":10.0,"height":8.0,"rounding":4.0,"ripple_x":.45,"ripple_y":.45,"red":.84,"green":.78,"blue":.70}
   for key in defaults:sliders[key].value=defaults[key]
  )
  copy_button.pressed.connect(copy_settings)
