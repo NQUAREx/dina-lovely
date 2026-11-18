@@ -20,14 +20,14 @@ func run():
   g.save_data.seed=seed;g.build_level(5)
   var beds=g.objects.filter(func(o):return o.kind=="sprout")
   assert(beds.size()==6)
-  for bed in beds:assert(g.garden_bed_clear(bed.pos,false))
+  for bed in beds:assert(g.garden_layout_clear(bed.pos))
   var well=g.objects.filter(func(o):return o.kind=="well")[0]
   assert(not g.garden_bed_clear(well.pos+Vector2(0,-50)))
  var well=g.objects.filter(func(o):return o.kind=="well")[0]
  var paths=g.paths.duplicate(true)
  g.world_tools.state().beds.append({"id":"991","pos":[well.pos.x,well.pos.y]});g.plants["991"]={"stage":1,"remaining":0}
  g.world_tools.install();var repaired=g.objects.filter(func(o):return o.id=="991")[0]
- assert(repaired.pos!=well.pos and g.garden_bed_clear(repaired.pos,false) and g.plants["991"].stage==1 and g.paths==paths)
+ assert(repaired.pos!=well.pos and g.garden_bed_clear(repaired.pos,true,repaired.id) and g.plants["991"].stage==1 and g.paths==paths)
  g.build_level(0);var spawn=g.player
  var hut=g.objects.filter(func(o):return o.kind=="cat_hut")[0];var fish=g.objects.filter(func(o):return o.kind=="cat_fish")[0]
  assert(route(g,Vector2i(spawn/48),Vector2i(fish.pos/48)).size()>0)

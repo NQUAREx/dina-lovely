@@ -29,7 +29,7 @@ var reply_deposit_active := false
 var reply_deposit_progress := -1.0
 var reply_slot := Vector2.ZERO
 var reply_hand_start := Vector2.ZERO
-const ROOM_FIELDS := ["pending_spawns","prepared_wave","poison_zones","grid","objects","enemies","shots","particles","skulls","damage_numbers","path_meshes","path_texture","path_pads","hedge_trees","grass_details","path_targets","path_navigation","path_terminals","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","obstacle_specs","skull_clock","obstacle_cooldown","room_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","bloom_times","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
+const ROOM_FIELDS := ["pending_spawns","prepared_wave","arena_barrier_lift","poison_zones","grid","objects","enemies","shots","particles","skulls","damage_numbers","path_meshes","path_texture","path_pads","hedge_trees","grass_details","path_targets","path_navigation","path_terminals","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","obstacle_specs","skull_clock","obstacle_cooldown","room_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","bloom_times","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
 var room_cache:Dictionary={}
 var room_cache_seed := -1
 var room_build_count := 0
@@ -67,6 +67,7 @@ var glow: Texture2D = preload("res://assets/glow.png")
 var hand_grips:Dictionary=JSON.parse_string(FileAccess.get_file_as_string("res://assets/hand_grips.json"))
 var body_font: Font = preload("res://assets/body.ttf")
 var label_atlas_pixels:Image
+var garden_sprite_masks:Dictionary={}
 var label_sprite_bounds:Dictionary={}
 var title_font: Font = preload("res://assets/title.ttf")
 var outlines: Dictionary = {}
@@ -146,6 +147,7 @@ var aim := Vector2.RIGHT
 var wave := 0
 var pending_spawns:Array[Dictionary]=[]
 var prepared_wave:=0
+var arena_barrier_lift:=0.0
 var wave_timer := 2.0
 var combat_done := false
 var garden_can := false
@@ -1018,6 +1020,7 @@ func build_level(index: int) -> void:
 	health = 8
 	invincible = 1.0
 	wave = 0
+	arena_barrier_lift=0.0
 	pending_spawns.clear();prepared_wave=0
 	wave_timer = 2.5
 	combat_done = "courage" in save_data.letters
@@ -1159,12 +1162,12 @@ func build_level(index: int) -> void:
 		for y in range(8,grid.size()-9,3):
 			for x in range(4,grid[0].length()-4,4):
 				var candidate := Vector2(x+.5,y+.5)*TILE
-				if garden_bed_clear(candidate,false):choices.append(candidate)
+				if garden_layout_clear(candidate):choices.append(candidate)
 		if choices.size()<6:
 			for y in range(8,grid.size()-7):
 				for x in range(3,grid[0].length()-3):
 					var point:=Vector2(x+.5,y+.5)*TILE
-					if garden_bed_clear(point,false) and point not in choices:choices.append(point)
+					if garden_layout_clear(point) and point not in choices:choices.append(point)
 		for bed in beds:
 			if choices.is_empty():break
 			var n := rng.randi_range(0,choices.size()-1);bed.pos=choices[n];choices=choices.filter(func(point):return point.distance_to(bed.pos)>=112)
@@ -1221,12 +1224,20 @@ func camera_target() -> Vector2:
 func arena_exit_sealed()->bool:
 	return level==4 and wave>0 and not combat_done
 
+func arena_barrier_limit() -> float:
+	return (grid.size()-7)*TILE
+
+func arena_barrier_position() -> Vector2:
+	return Vector2(13.5,grid.size()-5.5)*TILE
+
 func projectile_blocked(pos:Vector2)->bool:
 	return blocked(pos+Vector2(0,26),true)
 
 func blocked(pos: Vector2,projectile:bool=false) -> bool:
 	if dig_quest.blocks(pos):return true
-	if not projectile and arena_exit_sealed() and pos.y>(grid.size()-7)*TILE and absf(pos.x-13.5*TILE)<82:return true
+	if arena_exit_sealed() and absf(pos.x-13.5*TILE)<82:
+		if not projectile and pos.y>arena_barrier_limit():return true
+		if projectile and absf(pos.y-arena_barrier_position().y)<TILE*.5:return true
 	if level==6 and save_data.finished and Rect2(Vector2(21.75*48,12.9*48),Vector2(1.5*48,4.0*48)).grow(8).has_point(pos):return true
 	if pos.y<0 or pos.y>=grid.size()*TILE:
 		for offset in ([Vector2.ZERO] if projectile else [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]):
@@ -1397,6 +1408,8 @@ func _process(delta: float) -> void:
 			if rpg_windup<0 and weapon=="rpg":attack(true)
 		if attack_held and task_time<=0: attack()
 		if level == 4 and not combat_done and battle.player_in_arena(): update_combat(minf(delta,0.04))
+		if level==4:
+			arena_barrier_lift=move_toward(arena_barrier_lift,1.0 if arena_exit_sealed() else 0.0,delta*2.2)
 		for id in bloom_times: bloom_times[id] = minf(1.0,bloom_times[id]+delta/2.8)
 		interaction_clock-=delta
 		if interaction_clock<=0:
@@ -1729,8 +1742,8 @@ func interact() -> void:
 	if not resting.is_empty(): stand_up();return
 	if task_time>0:return
 	if nearest>=0 and dig_quest.use(objects[nearest]):return
-	if nearest>=0 and world_tools.use_object(objects[nearest]):return
 	if new_bed_action_ready():world_tools.make_bed();return
+	if nearest>=0 and world_tools.use_object(objects[nearest]):return
 	if held_item=="drill" and nearest<0:return
 	if level==3 and held_item=="shovel" and task_time<=0 and nearest<0:
 		dig_here()
@@ -1954,7 +1967,8 @@ func draw_garden_needs() -> void:
 		if bed.kind!="sprout":continue
 		var kind:=garden_need(bed)
 		if kind.is_empty():continue
-		var plant_name:="weeds" if bed.id not in save_data.cleaned else "seedling"+str(world_tools.variant(bed.id)) if int(plants.get(bed.id,{}).get("stage",0))==1 else "bloom"+str(world_tools.variant(bed.id)) if int(plants.get(bed.id,{}).get("stage",0))>=2 else "bed_empty"
+		var plant_name:String=world_tools.bed_plant(bed.id)
+		if plant_name.is_empty():plant_name="bed_empty"
 		if not label_sprite_bounds.has(plant_name):
 			var plant_id:int=sprites[plant_name]
 			label_sprite_bounds[plant_name]=Rect2(label_atlas_pixels.get_region(Rect2i(plant_id%16*32,plant_id/16*48,32,48)).get_used_rect())
@@ -2030,8 +2044,9 @@ func update_hud() -> void:
 		enemy_count_progress.value = enemies.size()+pending_spawns.size()
 		enemy_count_label.text = str(enemies.size()+pending_spawns.size())
 	action_button.disabled = task_time>0
-	action_button.visible = (nearest>=0 or world_tools.can_bed() or (level==3 and save_data.shovel) or (held_item=="drill" and world_tools.soil(world_tools.ground_point()))) and playing
-	if new_bed_action_ready():action_button.text=tx("new_bed_action")
+	var can_make_bed:=new_bed_action_ready()
+	action_button.visible = (nearest>=0 or can_make_bed or (level==3 and save_data.shovel) or (held_item=="drill" and world_tools.soil(world_tools.ground_point()))) and playing
+	if can_make_bed:action_button.text=tx("new_bed_action")
 	elif nearest>=0:action_button.text=action_text(objects[nearest])
 	if level==3 and held_item=="shovel" and nearest<0: action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
 	if held_item=="drill" and nearest<0:action_button.text=tx("drill_action")
@@ -2070,7 +2085,11 @@ func update_combat(delta: float) -> void:
 		if wave<battle.WAVE_COUNT and wave_timer<=1.3 and prepared_wave!=wave+1:
 			prepared_wave=wave+1;weapon_crates.install(true);persist()
 		if wave_timer<=0:
-			if wave<battle.WAVE_COUNT: spawn_wave()
+			if wave<battle.WAVE_COUNT:
+				# Returning towards the entrance during the first countdown must
+				# not leave the heroine on the wrong side of the rising blocks.
+				if wave==0 and player.y>arena_barrier_limit()-10.0 and absf(player.x-13.5*TILE)<82:return
+				spawn_wave()
 			else:
 				combat_done = true
 				shots.assign(shots.filter(func(shot):return shot.kind not in ["enemy_bullet","enemy_rocket"]))
@@ -2163,6 +2182,26 @@ func hurt(amount:float=1.0) -> void:
 func screen(pos: Vector2) -> Vector2:
 	return pos+(get_viewport_rect().size/2-camera+shake_offset).round()
 
+func wall_block_texture(room_id:int,stacked:bool,variant:int) -> Texture2D:
+	var key:="wall_room%d_%s"%[room_id,"stacked" if stacked else "exposed"]
+	if variant>0:key+=str(variant)
+	if not hedge_tree_textures.has(key):
+		hedge_tree_textures[key]=load("res://assets/"+key+".png")
+	return hedge_tree_textures[key]
+
+func draw_arena_barrier(pos:Vector2) -> void:
+	# Move the real arena wall top upwards out of its floor slot and reveal
+	# the front bricks below it. The base stays fixed at floor level.
+	var lift:=roundf(24.0*smoothstep(0.0,1.0,arena_barrier_lift))
+	for column in range(12,15):
+		var layout:=boundary_layout(Vector2i(column,grid.size()-6),4)
+		var texture:=wall_block_texture(4,false,layout.variant)
+		var anchor:=pos+Vector2((column-13)*TILE,0)
+		draw_texture_rect_region(texture,Rect2(anchor+Vector2(-32,-46-lift),Vector2(64,68)),Rect2(0,0,32,34))
+		if lift>0.0:
+			var face_height:=lift+2.0
+			draw_texture_rect_region(texture,Rect2(anchor+Vector2(-32,22-lift),Vector2(64,face_height)),Rect2(0,34,32,face_height/1.2))
+
 func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_factor: float = 1.0) -> void:
 	if name=="quest_axe":name="axe"
 	if name=="quest_tree" or name.begins_with("quest_tree_damage"):scale_factor*=2.0
@@ -2175,16 +2214,12 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 		var cell:=Vector2i(floori(world.x/TILE),floori(world.y/TILE))
 		var stacked:=cell.y>=0 and cell.y+1<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#" and grid[cell.y+1][cell.x]=="#"
 		var wall_room:=boundary_room(floori(world.y/TILE))
-		var texture_name:="wall_room%d_%s"%[wall_room,"stacked" if stacked else "exposed"]
 		var organic:=wall_room==1
 		var layout:=boundary_layout(cell,wall_room)
-		var stone_variant:int=layout.variant
 		if organic:pos+=Vector2(layout.jitter)*scale_factor
-		if stone_variant>0:texture_name+=str(stone_variant)
-		if not hedge_tree_textures.has(texture_name):hedge_tree_textures[texture_name]=load("res://assets/"+texture_name+".png")
 		# Keep the roof footprint and original stone pixels, reduce only the
 		# vertical extrusion from 20 to 12 source pixels (base stays fixed).
-		var stone_texture:Texture2D=hedge_tree_textures[texture_name]
+		var stone_texture:=wall_block_texture(wall_room,stacked,layout.variant)
 		var mirrored:bool=organic and layout.mirror
 		if mirrored:
 			draw_set_transform(pos,0,Vector2(-1,1));pos=Vector2.ZERO
@@ -2496,6 +2531,11 @@ func _draw_world() -> void:
 	if not drawing_neighbor and playing and save_data.cat_tamed:renderables.append({"kind":"pet_cat","pos":companion.position,"id":"pet_cat"})
 	draw_paths()
 	world_tools.draw_ground()
+	if level==4:
+		var entrance:=arena_barrier_position()
+		if get_viewport_rect().grow(96).has_point(screen(entrance)):
+			draw_rect(Rect2(screen(entrance)-Vector2(72,24),Vector2(144,48)),Color("322d3d"))
+			renderables.append({"kind":"arena_barrier","pos":entrance,"id":"","wall":true})
 	# Fixed contact shade ties raised masonry to the ground grid. Only exposed
 	# floor edges receive it; no dynamic light or per-frame shadow projection.
 	for wall in renderables:
@@ -2584,6 +2624,7 @@ func _draw_world() -> void:
 				draw_arc(p+Vector2(0,-20),101,angle-.8,angle+.8,18,Color(1,.65,.79,attack_flash/.19),3)
 			if hedge_field!=null:
 				draw_hedge_canopy(visible_crowns,1)
+		elif kind=="arena_barrier":draw_arena_barrier(p)
 		elif kind=="pet_cat":companion.draw_cat()
 		elif item.get("integrated_tree",false):
 			if not drawing_neighbor and task_time<=0 and available(item) and item.pos.distance_squared_to(player)<9025 and interaction_reachable(item):
@@ -2626,18 +2667,12 @@ func _draw_world() -> void:
 			elif kind=="sprout":
 				var stage := int(plants.get(item.id,{}).get("stage",0))
 				var remaining := float(plants.get(item.id,{}).get("remaining",0))
-				var texture := "weeds"
-				if item.id in save_data.cleaned:
-					texture="bed_empty"
-					if item.id in fertilized:texture="bed_fertilized"
-					if remaining>0 and stage==0:texture="bed_wet"
-					if stage==1:texture="seedling"+str(world_tools.variant(item.id))
-					if stage>=2:texture="bloom"+str(world_tools.variant(item.id))
+				var texture:String=world_tools.bed_plant(item.id)
 				var bed_scale:=.9+float(world_tools.variant(item.id))*.035
 				# Soil and stones are foreground layers above the shared path pad.
 				draw_sprite("bed_wet" if stage>0 or remaining>0 else "bed_fertilized" if item.id in fertilized else "bed_empty",p,Color.WHITE,bed_scale)
 				draw_sprite("bed_border"+str(world_tools.variant(item.id)),p,Color.WHITE,bed_scale)
-				if sprites.has(texture+"_plant"):draw_sprite(texture+"_plant",p,Color.WHITE,bed_scale)
+				if not texture.is_empty():draw_sprite(texture,p,Color.WHITE,bed_scale)
 
 			elif kind=="swing":
 				draw_sprite(kind,p)
@@ -4310,7 +4345,13 @@ func draw_tool_table() -> void:
 	draw_texture_rect(tool_table_texture,Rect2(screen(Vector2(22.5*48-36,14.5*48-116)),Vector2(72,232)),false)
 
 func new_bed_action_ready() -> bool:
-	return world_tools.can_bed() and (nearest<0 or objects[nearest].kind in ["bench","swing","tree","tree_apples"])
+	if level!=5 or held_item!="rake" or not resting.is_empty():return false
+	if nearest>=0 and objects[nearest].kind not in ["bench","swing","tree","tree_apples"]:
+		var toward:Vector2=objects[nearest].pos-player
+		# Keep the usual interaction when facing a nearby object. Facing away
+		# lets the player use clear ground even within its interaction radius.
+		if toward.length_squared()<1.0 or toward.normalized().dot(walk_facing)>.72:return false
+	return world_tools.can_bed()
 
 func restore_weapon_drops() -> void:
 	objects.assign(objects.filter(func(obj):return not str(obj.id).begins_with("drop_")))
@@ -4326,13 +4367,12 @@ func rpg_muzzle() -> Vector2:
 func update_gunner(enemy: Dictionary, delta: float) -> void:
 	battle.gunner(enemy,delta)
 
-func garden_bed_clear(point:Vector2,include_beds:bool=true,ignore_id:String="") -> bool:
+# Preserve the six original bed positions for existing world seeds.
+func garden_layout_clear(point:Vector2) -> bool:
 	if not valid_ground(point) or blocked(point):return false
 	var plant:=Rect2(point-Vector2(42,96),Vector2(84,110))
 	for obj in objects:
-		if obj.kind=="sprout":
-			if include_beds and obj.id!=ignore_id and obj.pos.distance_to(point)<64:return false
-			continue
+		if obj.kind=="sprout":continue
 		var obstacle:=Rect2()
 		if obj.kind=="well":obstacle=Rect2(obj.pos-Vector2(42,90),Vector2(84,104)).grow(12)
 		elif obj.kind in ["tree","tree_apples","bench","swing"]:obstacle=Rect2(obj.pos-Vector2(38,95),Vector2(76,110)).grow(10)
@@ -4340,6 +4380,85 @@ func garden_bed_clear(point:Vector2,include_beds:bool=true,ignore_id:String="") 
 		elif obj.kind!="pet_cat" and obj.pos.distance_to(point)<60:return false
 		if obstacle.has_area() and plant.intersects(obstacle):return false
 	return true
+
+func garden_bed_clear(point:Vector2,include_beds:bool=true,ignore_id:String="") -> bool:
+	if not valid_ground(point):return false
+	var id:=ignore_id if not ignore_id.is_empty() else str(100+int(save_data.bed_serial))
+	var layers:=garden_bed_layers(point,id)
+	# Only the soil and stones need to stay on solid grass. Leaves extend up
+	# the screen like every other sprite.
+	var footprint:Rect2=layers[0].bounds.merge(layers[1].bounds)
+	for offset in [Vector2.ZERO,Vector2(footprint.size.x,0),Vector2(0,footprint.size.y),footprint.size]:
+		var corner:Vector2=footprint.position+offset
+		if corner.y<6*TILE or corner.y>=(grid.size()-6)*TILE:return false
+		if not valid_ground(corner) or world_tools.is_excavated(corner):return false
+	if world_tools.is_excavated(point):return false
+	for obj in objects:
+		if absf(obj.pos.x-point.x)>146 or absf(obj.pos.y-point.y)>192:continue
+		if obj.kind=="sprout":
+			if not include_beds or obj.id==ignore_id:continue
+			var existing:=garden_bed_layers(obj.pos,obj.id)
+			var visible:String=world_tools.bed_plant(obj.id)
+			if not visible.is_empty():
+				existing.append(garden_sprite_mask(visible,obj.pos,.9+float(world_tools.variant(obj.id))*.035))
+			if garden_layers_overlap(layers,existing):return false
+			continue
+		var sprite:=garden_obstacle_mask(obj)
+		if not sprite.is_empty() and garden_layers_overlap(layers,[sprite]):return false
+	return true
+
+func garden_bed_layers(point:Vector2,id:String) -> Array[Dictionary]:
+	var border:int=world_tools.variant(id)
+	var plant:="bloom%d_plant"%world_tools.flower_variant(id)
+	var scale_factor:=.9+float(border)*.035
+	return [
+		garden_sprite_mask("bed_empty",point,scale_factor),
+		garden_sprite_mask("bed_border%d"%border,point,scale_factor),
+		garden_sprite_mask(plant,point,scale_factor),
+	]
+
+func garden_obstacle_mask(obj:Dictionary) -> Dictionary:
+	var kind:String=obj.kind
+	if kind in ["doorway","pet_cat","dug"] or (kind=="accessory" and not available(obj)):return {}
+	if (obj.id=="can" and garden_can) or (obj.id=="rake" and save_data.rake) or (obj.id=="fertilizer" and has_fertilizer):return {}
+	if obj.id=="garden" and not required_flowers_ready():return {}
+	if kind=="riddle_stone" and obj.id in save_data.riddle_stones:return {}
+	if obj.get("ground_tool",false):return {"bounds":item_visual_bounds(obj)}
+	var scale_factor:=.5 if kind=="gate_key" else 2.0 if kind in ["house","pond"] else 1.0
+	if kind in ["tree","tree_apples"]:
+		if obj.id in save_data.eaten:kind="tree"
+		var cell:=Vector2i(obj.pos/TILE)
+		kind+="_variant%d"%posmod(cell.x*17+cell.y*7,6)
+	elif kind=="accessory":kind="accessory_"+str(obj.accessory)
+	elif kind=="riddle_stone":kind=rune_stones.texture(obj)
+	elif kind=="note" and obj.id in save_data.letters:kind="note_open"
+	return garden_sprite_mask(kind,obj.pos,scale_factor) if sprites.has(kind) else {}
+
+func garden_sprite_mask(name:String,point:Vector2,scale_factor:float) -> Dictionary:
+	if not garden_sprite_masks.has(name):
+		var id:int=sprites[name]
+		var image:=label_atlas_pixels.get_region(Rect2i(id%16*32,id/16*48,32,48))
+		var mask:=BitMap.new()
+		mask.create_from_image_alpha(image,.15)
+		garden_sprite_masks[name]={"mask":mask,"source":Rect2(image.get_used_rect())}
+	var cached:Dictionary=garden_sprite_masks[name]
+	var origin:=point-Vector2(32,86)*scale_factor
+	var pixel_size:=2.0*scale_factor
+	return {"mask":cached.mask,"bounds":Rect2(origin+cached.source.position*pixel_size,cached.source.size*pixel_size),"origin":origin,"pixel_size":pixel_size}
+
+func garden_layers_overlap(bed:Array[Dictionary],obstacle:Array[Dictionary]) -> bool:
+	for a in bed:
+		for b in obstacle:
+			var overlap:Rect2=a.bounds.intersection(b.bounds)
+			if not overlap.has_area():continue
+			# Check the visible pixels only, so transparent sprite corners do not
+			# take up buildable space. Rotated dropped tools use their drawn bounds.
+			for y in range(floori(overlap.position.y),ceili(overlap.end.y)):
+				for x in range(floori(overlap.position.x),ceili(overlap.end.x)):
+					var p:=Vector2(x+.5,y+.5)
+					if not overlap.has_point(p):continue
+					if a.mask.get_bitv(Vector2i((p-a.origin)/a.pixel_size)) and (not b.has("mask") or b.mask.get_bitv(Vector2i((p-b.origin)/b.pixel_size))):return true
+	return false
 
 func draw_ground_region(texture:Texture2D,destination:Rect2,source:Rect2)->void:
 	var world:Vector2=destination.position-screen(Vector2.ZERO)

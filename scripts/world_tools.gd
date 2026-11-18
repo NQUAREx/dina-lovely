@@ -2,6 +2,7 @@ extends RefCounted
 const PIT_WALL := [Color("76543c"),Color("674832"),Color("5c3f2e"),Color("51382b"),Color("473229"),Color("402e28"),Color("382b27"),Color("332925"),Color("2e2724"),Color("2b2523")]
 ## Optional world editing. Only the current room runs; other rooms keep saved data.
 const TOOLS := ["axe","shears","drill"]
+const FLOWER_SPECIES := 16
 var dig_shapes:Image=preload("res://assets/dig_shapes.png").get_image()
 var soil_fx_clock:=0.0
 var stubble:Texture2D=preload("res://assets/hedge_stubble.png")
@@ -16,6 +17,8 @@ var drill_voice:AudioStreamPlayer
 var drilling:=false
 var drill_held:=false
 var falling:Array[Dictionary]=[]
+var flower_seed: int = -1
+var flower_order: Array[int] = []
 func _init(game:Node2D):g=game
 func state() -> Dictionary:
  var key:=str(g.level)
@@ -23,6 +26,36 @@ func state() -> Dictionary:
  return g.save_data.world_edits[key]
 func key_for(obj:Dictionary)->String:return "%s_%d_%d"%["tree" if obj.kind in ["tree","tree_apples","fallen_tree"] else "flower",roundi(obj.pos.x),roundi(obj.pos.y)]
 func variant(id:String)->int:return posmod(int(id),6)
+
+func flower_variant(id:String)->int:
+ var seed_id:int=int(g.save_data.seed)
+ var bed_id:=int(id)
+ if bed_id>=6:
+  var rng:=RandomNumberGenerator.new()
+  rng.seed=seed_id^(bed_id*104729)^0x464c4f57
+  return rng.randi_range(0,FLOWER_SPECIES-1)
+ if flower_order.is_empty() or flower_seed!=seed_id:
+  flower_seed=seed_id
+  flower_order.clear()
+  for index in range(FLOWER_SPECIES):flower_order.append(index)
+  var rng:=RandomNumberGenerator.new()
+  rng.seed=seed_id^0x464c4f57
+  for index in range(FLOWER_SPECIES-1,0,-1):
+   var other:=rng.randi_range(0,index)
+   var species:=flower_order[index]
+   flower_order[index]=flower_order[other]
+   flower_order[other]=species
+ return flower_order[clampi(bed_id,0,5)]
+
+func bed_plant(id:String)->String:
+ if id not in g.save_data.cleaned:return "weeds_plant"
+ var plant:Dictionary=g.plants.get(id,{})
+ var stage:=int(plant.get("stage",0))
+ if stage==0:return ""
+ var species:=flower_variant(id)
+ if stage>=2:return "bloom%d_plant"%species
+ if species>=6 and float(plant.get("remaining",0))>0:return "flower_bud%d_plant"%species
+ return "seedling%d_plant"%species
 func install()->void:
  if seed_value!=int(g.save_data.seed):images.clear();masks.clear();textures.clear();sample_indices.clear();falling.clear();seed_value=int(g.save_data.seed)
  var data:=state()
@@ -120,13 +153,13 @@ func soil(pos:Vector2)->bool:
  if g.level in [4,6] or not g.valid_ground(pos) or g.corridor_row(floori(pos.y/48)) or pos.y<7*48 or pos.y>(g.grid.size()-7)*48:return false
  return not g.blocked(pos) and not g.objects.any(func(obj):return (obj.solid or obj.kind=="doorway") and obj.pos.distance_to(pos)<38)
 func can_bed()->bool:
- var pos:=ground_point()
- return g.level==5 and g.held_item=="rake" and soil(pos) and g.garden_bed_clear(pos)
+ return g.level==5 and g.held_item=="rake" and g.garden_bed_clear(ground_point())
 func make_bed()->void:
  if can_bed():g.begin_task("new_bed",ground_point(),.65)
 func complete(kind:String,pos:Vector2)->bool:
  var data:=state()
  if kind=="new_bed":
+  if not g.garden_bed_clear(pos):return true
   g.stats.add(g,"beds")
   var id:=str(100+int(g.save_data.bed_serial));g.save_data.bed_serial+=1
   data.beds.append({"id":id,"pos":[pos.x,pos.y]});g.objects.append({"kind":"sprout","id":id,"pos":pos,"solid":false,"extra_bed":true})
@@ -141,7 +174,7 @@ func complete(kind:String,pos:Vector2)->bool:
  if kind.begins_with("snip_decor:"):
   data.flowers.append(kind.trim_prefix("snip_decor:"));g.objects.assign(g.objects.filter(func(obj):return obj.kind not in ["flowers","blueflowers"] or key_for(obj)!=kind.trim_prefix("snip_decor:")));g.burst(pos,30,Color("e9a3c6"));return true
  if kind.begins_with("uproot:") or kind.begins_with("snip:"):
-  var id:=kind.split(":")[1];var texture:="bloom"+str(variant(id))+"_plant"
+  var id:=kind.split(":")[1];var texture:="bloom%d_plant"%flower_variant(id)
   if kind.begins_with("uproot:"):falling.append({"room":g.level,"pos":pos,"texture":texture,"age":0.0})
   else:g.burst(pos,30,Color("e9a3c6"))
   g.plants.erase(id);g.watered.erase(id);g.save_data.watered=g.watered.duplicate();g.fertilized.erase(id);g.bloom_times.erase(id);return true
