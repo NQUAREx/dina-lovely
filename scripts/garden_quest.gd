@@ -284,7 +284,9 @@ func complete(task:String,point:Vector2)->bool:
 	var saved:=state()
 	match parts[0]:
 		"garden_rake":
-			if parts[1] not in saved.grass:saved.grass.append(parts[1])
+			if parts[1] not in saved.grass:
+				saved.grass.append(parts[1])
+				g.garden_lawn.begin_growth(parts[1])
 			g.world_tools.cut_particles(point)
 		"garden_trim":
 			saved.bushes[parts[1]]={"phase":Bush.TRIMMED}

@@ -41,6 +41,7 @@ func make_plot(note:Dictionary)->Dictionary:
  return {"room":g.level,"age":0.0,"points":points}
 func bake()->void:
  if g.grass_texture==null:return
+ if g.level==5 and not g.garden_lawn.complete():return
  var room:=str(g.level)
  if not grounds.has(room) or grounds[room].texture!=g.grass_texture:
   grounds[room]={"texture":g.grass_texture,"image":g.grass_texture.get_image(),"counts":{}}

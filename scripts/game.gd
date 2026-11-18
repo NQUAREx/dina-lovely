@@ -52,6 +52,7 @@ var dig_quest := preload("res://scripts/dig_quest.gd").new(self)
 var note_flowers := preload("res://scripts/note_flowers.gd").new(self)
 var world_tools := preload("res://scripts/world_tools.gd").new(self)
 var garden_quest := preload("res://scripts/garden_quest.gd").new(self)
+var garden_lawn := preload("res://scripts/garden_lawn.gd").new()
 const SPEED := 150.0
 const SAVE_PATH := "user://garden_save_v1.json"
 const TITLES := ["room_maze", "room_darkness", "room_obstacles", "room_digging", "room_combat", "room_garden", "room_final"]
@@ -1418,6 +1419,7 @@ func _process(delta: float) -> void:
 		if level==5:
 			update_plants(delta)
 			garden_quest.update(delta)
+			garden_lawn.update(delta)
 		if not shots.is_empty():update_shots(delta)
 		if level<6 and player.y < -HALL_SEAM:next_level()
 		elif level>0 and player.y>grid.size()*TILE+HALL_SEAM:travel(level-1)
@@ -3912,6 +3914,7 @@ func prepare_grass_details() -> void:
 	if level in [4,6]:return
 	var base := grass_variants.get_image();base.convert(Image.FORMAT_RGBA8)
 	var image := Image.create(grid[0].length()*24,grid.size()*24,false,Image.FORMAT_RGBA8)
+	var lawn_stamps:Array[Dictionary]=[]
 	for y in range(grid.size()):
 		for x in range(grid[0].length()):
 			image.blit_rect(base,Rect2i(posmod(x+int(save_data.seed),4)*24,(96 if level==0 else 0)+posmod(y+int(save_data.seed/7),4)*24,24,24),Vector2i(x*24,y*24))
@@ -3936,12 +3939,20 @@ func prepare_grass_details() -> void:
 			var variant:=rng.randi_range(0,11) if chance<.975 else rng.randi_range(12,13) if chance<.992 else rng.randi_range(14,15)
 			var motif:Image=motifs[variant*5+rng.randi_range(0,4)]
 			var motif_size:=motif.get_width()
-			image.blend_rect(motif,Rect2i(0,0,motif_size,motif_size),point-Vector2i(motif_size/2,motif_size*3/4))
+			var origin:=point-Vector2i(motif_size/2,motif_size*3/4)
+			if level==5:lawn_stamps.append({"art":motif,"pos":origin,"root":point,"blades":variant<12})
+			else:image.blend_rect(motif,Rect2i(Vector2i.ZERO,motif.get_size()),origin)
 	var sheet := atlas.get_image();sheet.convert(Image.FORMAT_RGBA8)
 	for detail in grass_details:
 		var id: int = sprites[detail.kind]
 		var stamp := sheet.get_region(Rect2i(id%16*32,id/16*48,32,48));stamp.resize(19,29,Image.INTERPOLATE_NEAREST)
-		image.blend_rect(stamp,Rect2i(0,0,19,29),Vector2i(detail.pos/2)+Vector2i(-10,-20))
+		var point:=Vector2i(detail.pos/2)
+		if level==5:lawn_stamps.append({"art":stamp,"pos":point+Vector2i(-10,-20),"root":point,"blades":false})
+		else:image.blend_rect(stamp,Rect2i(0,0,19,29),point+Vector2i(-10,-20))
+	if level==5:
+		var piles:=objects.filter(func(obj):return obj.kind=="garden_grass")
+		grass_texture=garden_lawn.prepare(image,lawn_stamps,piles,garden_quest.state().grass)
+		return
 	if level==0:
 		if DEBUG_MODE:hedge_shadow_base=image.duplicate()
 		bake_hedge_shadow(image)
