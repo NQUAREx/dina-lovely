@@ -1,6 +1,12 @@
 extends RefCounted
 # Strong references keep short effects decoded before input is accepted.
 const STREAMS := {
+ "garden_rake":preload("res://assets/garden_rake.wav"),
+ "garden_trim":preload("res://assets/garden_trim.wav"),
+ "garden_water":preload("res://assets/garden_water.wav"),
+ "garden_harvest":preload("res://assets/garden_harvest.wav"),
+ "garden_deposit":preload("res://assets/garden_deposit.wav"),
+ "garden_pickup":preload("res://assets/garden_pickup.wav"),
  "shovel_break":preload("res://assets/shovel_break.wav"),
  "chop_wood":preload("res://assets/chop_wood.ogg"),
  "pick_stone":preload("res://assets/pick_stone.ogg"),

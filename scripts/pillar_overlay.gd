@@ -50,6 +50,14 @@ func held_mask(shader:ShaderMaterial)->void:
    name="weapon_"+g.weapon
    var grip:=Vector2(15,38) if g.weapon=="sword" else Vector2(13,30)
    box=Rect2(-grip*1.2,Vector2(32,48)*1.2)
+ elif g.level==5 and g.held_item in g.garden_quest.TOOLS:
+  enabled=true
+  var pose:Dictionary=g.garden_quest.held_pose()
+  texture=g.garden_quest.texture()
+  origin=pose.origin;rotation=pose.rotation;flip=pose.flip;box=pose.box
+  var source:Rect2=pose.source
+  var size:=Vector2(texture.get_size())
+  uv=Vector4(source.position.x/size.x,source.position.y/size.y,source.size.x/size.x,source.size.y/size.y)
  elif g.held_item in ["can","rake","fertilizer","shovel","flashlight","axe","shears","drill","quest_axe","pickaxe"]:
   enabled=true
   var pose:Dictionary=g.held_tool_pose()
