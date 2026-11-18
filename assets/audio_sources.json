@@ -293,53 +293,5 @@
     "source_file": "tools/audio_source/materials",
     "processing": "tools/create_material_audio.py",
     "sha256": "1e6a661051741e8462d4c7b417a1cef6d958e035b4a49728e6ca4ed712709df0"
-  },
-  "garden_rake": {
-    "source_file": "raking leaves field recording",
-    "pack": "Freesound / Garuda1982",
-    "source_url": "https://freesound.org/people/Garuda1982/sounds/448966/",
-    "license": "CC0",
-    "processing": "4.470s to 5.120s; mono conversion, filtering, fades and gain",
-    "sha256": "4b0aa139dbd9a6a24bebe18c36b8979ac90bdb220cad0029a382361356269301"
-  },
-  "garden_trim": {
-    "source_file": "Cutting tree",
-    "pack": "Freesound / CarikaDarvall",
-    "source_url": "https://freesound.org/people/CarikaDarvall/sounds/764469/",
-    "license": "CC0",
-    "processing": "4.260s to 5.230s; mono conversion, filtering, fades and gain",
-    "sha256": "6002b037d811d711a14ad3e31b848f50a1b1b51a4fb231a9117a3e4be54094a5"
-  },
-  "garden_water": {
-    "source_file": "Watering with a Watering Can",
-    "pack": "Freesound / Bricklover",
-    "source_url": "https://freesound.org/people/Bricklover/sounds/532890/",
-    "license": "CC0",
-    "processing": "4.210s to 5.720s; mono conversion, filtering, fades and gain",
-    "sha256": "2a01fdfcd85d2164222b9827640f8cebff2f429c06cf48c2328c86251415099b"
-  },
-  "garden_harvest": {
-    "source_file": "Jo_drop_grapes.wav",
-    "pack": "Freesound / jopimblett",
-    "source_url": "https://freesound.org/people/jopimblett/sounds/388744/",
-    "license": "CC0",
-    "processing": "0.061s to 0.821s; mono conversion, filtering, fades and gain",
-    "sha256": "088539b69f71601db2b84bb9a72942f16ef434cfd22adb32c998ed06e276b6d0"
-  },
-  "garden_deposit": {
-    "source_file": "Foley_Object_Basket_WithWood_PickUp_Release_Sequence_Stereo",
-    "pack": "Freesound / Nox_Sound",
-    "source_url": "https://freesound.org/people/Nox_Sound/sounds/846926/",
-    "license": "CC0",
-    "processing": "4.520s to 5.170s; mono conversion, filtering, fades and gain",
-    "sha256": "c8bc62f484c56c10fcc7515705dbc79a0eed2710351f08dbd9f95c24655049e2"
-  },
-  "garden_pickup": {
-    "source_file": "Foley_Object_Basket_WithWood_PickUp_Release_Sequence_Stereo",
-    "pack": "Freesound / Nox_Sound",
-    "source_url": "https://freesound.org/people/Nox_Sound/sounds/846926/",
-    "license": "CC0",
-    "processing": "5.560s to 6.040s; mono conversion, filtering, fades and gain",
-    "sha256": "868616ba4763accf1599881cec4bc10d0047024ecaa7a3c42bb3033b0d154d1c"
   }
 }

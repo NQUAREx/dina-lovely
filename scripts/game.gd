@@ -186,7 +186,7 @@ var objective: Label
 var enemy_wave_bar: Control
 var enemy_count_progress: ProgressBar
 var enemy_count_label: Label
-var status: Label
+var garden_need_art: Dictionary = {}
 var hint: Label
 var drop_button:Button
 var action_button: Button
@@ -557,14 +557,6 @@ func setup_ui() -> void:
 	objective.size = Vector2(358, 100)
 	objective.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hud.add_child(objective)
-	status = label("", 18, Color("c1bdce"))
-	status.add_theme_font_override("font", title_font)
-	status.autowrap_mode = TextServer.AUTOWRAP_OFF
-	status.clip_text = true
-	status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	status.position = Vector2(48, 102)
-	status.size = Vector2(374, 30)
-	hud.add_child(status)
 	setup_enemy_progress()
 	var menu_button := button("", show_menu, 68)
 	menu_button.tooltip_text=tx("menu_action")
@@ -1205,8 +1197,8 @@ func build_level(index: int) -> void:
 		if not plants.has(id): plants[id] = {"stage":FLOWER_STAGE_FULL,"remaining":0.0}
 	normalize_dig_site()
 	place_accessory(rng)
-	if level==5:garden_quest.place(true)
 	prepare_foliage_and_paths(rng)
+	if level==5:garden_quest.place(true)
 	prepare_room_details(rng)
 	prepare_gate_jambs()
 	if level==0:
@@ -1915,7 +1907,10 @@ func item_drop_spot(origin:Vector2)->Vector2:
 	for offset in [Vector2.ZERO,Vector2(28,0),Vector2(-28,0),Vector2(0,28),Vector2(0,-28),Vector2(28,28),Vector2(-28,28)]:
 		var point:Vector2=origin+offset
 		if not (valid_ground(point) or corridor_floor_point(point)) or blocked(point):continue
-		var occupied:=objects.any(func(o):return o.id!=held_item and o.pos.distance_squared_to(point)<26*26 and (o.kind in ["note","accessory","medkit","gate_key","cat_fish","stand_flashlight","axe","shears","drill"] or o.id in ["can","rake","fertilizer","shovel","garden_shears","garden_basket"] or o.kind.begins_with("weapon_")))
+		var occupied:=objects.any(func(o):
+			if o.pos.distance_squared_to(point)>=26*26:return false
+			if level==5 and o.kind in garden_quest.TOOLS:return garden_quest.visible(o)
+			return o.id!=held_item and (o.kind in ["note","accessory","medkit","gate_key","cat_fish","stand_flashlight","axe","shears","drill"] or o.id in ["can","rake","fertilizer","shovel"] or o.kind.begins_with("weapon_")))
 		if not occupied:return point
 	return accessory_drop_position(origin)
 
@@ -2025,26 +2020,38 @@ func draw_garden_needs() -> void:
 		var top:float=bed.pos.y+(label_sprite_bounds[plant_name].position.y*2-86)*(.9+float(world_tools.variant(bed.id))*.035)
 		var pos:=screen(Vector2(bed.pos.x,top-42+sin(time*2.2+float(world_tools.variant(bed.id)))*3)).round()
 		if not get_viewport_rect().grow(45).has_point(pos):continue
-		var name:="need_"+kind;var id:int=sprites[name]
-		if not outlines.has(name):
-			var source:=label_atlas_pixels.get_region(Rect2i(id%16*32+4,id/16*48+16,24,28))
-			var border:=Image.create(26,30,false,Image.FORMAT_RGBA8)
-			for y in range(28):
-				for x in range(24):
-					if source.get_pixel(x,y).a<.2:continue
-					for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:border.set_pixel(x+1+d.x,y+1+d.y,Color("fff3a6"))
-			outlines[name]=ImageTexture.create_from_image(border)
-		for offset in [Vector2(-1,0),Vector2(1,0),Vector2(0,-1),Vector2(0,1)]:draw_texture_rect(outlines[name],Rect2(pos+Vector2(-19.5,-1.5)+offset,Vector2(39,45)),false,Color(.2,.13,.25))
-		draw_texture_rect(outlines[name],Rect2(pos+Vector2(-19.5,-1.5),Vector2(39,45)),false)
-		draw_texture_rect_region(atlas,Rect2(pos-Vector2(18,0),Vector2(36,42)),Rect2(Vector2(id%16*32+4,id/16*48+16),Vector2(24,28)))
-		var arrow:=pos+Vector2(0,38)
-		draw_colored_polygon(PackedVector2Array([arrow+Vector2(-5,-3),arrow+Vector2(5,-3),arrow+Vector2(0,3)]),Color("ffe4a8"))
+		draw_garden_need(kind,pos)
 		var plant:Dictionary=plants.get(bed.id,{})
 		if kind=="water" and int(plant.get("stage",0))>0:
 			var dry_fraction:=clampf(float(plant.get("dry_in",SPROUT_DRY_TIME))/SPROUT_DRY_TIME,0,1)
 			var meter:=Rect2(pos+Vector2(-15,43),Vector2(30,5))
 			draw_rect(meter,INK)
 			draw_rect(Rect2(meter.position+Vector2.ONE,Vector2(roundf(28*dry_fraction),3)),Color("e7ad84"))
+
+func draw_garden_need(kind:String,pos:Vector2)->void:
+	if not get_viewport_rect().grow(45).has_point(pos):return
+	if not garden_need_art.has(kind):
+		var name:="need_"+kind
+		var source:Image
+		if sprites.has(name):
+			var id:int=sprites[name]
+			source=label_atlas_pixels.get_region(Rect2i(id%16*32+4,id/16*48+16,24,28))
+		else:source=garden_quest.hint_source(kind)
+		var border:=Image.create(26,30,false,Image.FORMAT_RGBA8)
+		for y in range(source.get_height()):
+			for x in range(source.get_width()):
+				if source.get_pixel(x,y).a<.2:continue
+				for offset in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
+					border.set_pixelv(Vector2i(x+1,y+1)+offset,Color("fff3a6"))
+		garden_need_art[kind]={"texture":ImageTexture.create_from_image(source),"outline":ImageTexture.create_from_image(border)}
+	var art:Dictionary=garden_need_art[kind]
+	var box:=Rect2(pos-Vector2(19.5,1.5),Vector2(39,45))
+	for offset in [Vector2.LEFT,Vector2.RIGHT,Vector2.UP,Vector2.DOWN]:
+		draw_texture_rect(art.outline,Rect2(box.position+offset,box.size),false,Color(.2,.13,.25))
+	draw_texture_rect(art.outline,box,false)
+	draw_texture_rect(art.texture,Rect2(pos-Vector2(18,0),Vector2(36,42)),false)
+	var arrow:=pos+Vector2(0,38)
+	draw_colored_polygon(PackedVector2Array([arrow+Vector2(-5,-3),arrow+Vector2(5,-3),arrow+Vector2(0,3)]),Color("ffe4a8"))
 
 func use_exit(walking: bool = false) -> void:
 	if transition:return
@@ -2093,12 +2100,6 @@ func update_hud() -> void:
 	if not is_instance_valid(objective): return
 	if nearest>=objects.size() or (nearest>=0 and not available(objects[nearest])):nearest=-1
 	objective.text = tx(TITLES[level])
-	status.text=""
-	objective.position.y=36
-	if level==5:
-		var chores:=garden_quest.state()
-		status.text=tx("garden_chores_progress").format({"grass":chores.grass.size(),"flowers":required_flower_count(),"baskets":chores.baskets})
-		objective.position.y=28
 	enemy_wave_bar.visible = playing and level==4 and wave>0 and not combat_done and (not enemies.is_empty() or not pending_spawns.is_empty())
 	toast.position.y = 198 if enemy_wave_bar.visible else 146
 	if enemy_wave_bar.visible:
@@ -2692,7 +2693,7 @@ func _draw_world() -> void:
 			if hedge_field!=null:
 				draw_hedge_canopy(visible_crowns,1)
 		elif level==5 and kind in garden_quest.KINDS:
-			draw_shadow(p,16.0 if kind in garden_quest.TOOLS or kind=="garden_grass" else 24.0)
+			draw_shadow(p,16.0 if kind in garden_quest.TOOLS else 24.0)
 			var highlighted:bool=not drawing_neighbor and task_time<=0 and nearest>=0 and objects[nearest].id==item.id
 			garden_quest.draw_object(item,p,highlighted)
 		elif kind=="pet_cat":companion.draw_cat()
@@ -2933,8 +2934,9 @@ func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	walk_facing=toward.normalized()
 	if absf(toward.x)>absf(toward.y):direction=1 if toward.x<0 else 3
 	else:direction=0 if toward.y<0 else 2
-	if kind.begins_with("garden_"):
-		sfx(kind.get_slice(":",0));return
+	var garden_sound:String=garden_quest.TASK_SOUNDS.get(kind.get_slice(":",0),"")
+	if not garden_sound.is_empty():
+		sfx(garden_sound);return
 	sfx("chop_wood" if kind=="quest_chop" else "pick_stone" if kind=="quest_mine" else "craft_bench" if kind.begins_with("quest_") else "axe" if kind.begins_with("axe:") else "shears" if kind.begins_with("snip") else "rake" if kind in ["new_bed"] or kind.begins_with("uproot:") else "rake" if kind.begins_with("rake:") else "fill" if kind=="fill" else "dig" if kind.begins_with("dig:") else "paper" if kind.begins_with("fertilize:") else "paper" if kind.begins_with("quest_") else "water")
 
 func update_tasks(delta: float) -> void:
@@ -3593,7 +3595,7 @@ func add_garden_quest_paths() -> void:
 	# Short offshoots join the existing network in front of each station. Use
 	# the same footprint, surface, and seeded irregular edges as garden paths.
 	for obj in objects:
-		if obj.kind not in garden_quest.KINDS:continue
+		if obj.kind not in garden_quest.KINDS or obj.kind=="garden_grass":continue
 		var point:Vector2=obj.pos+Vector2(0,44 if obj.solid else 24)
 		var closest:=INF
 		var origin:=point

@@ -1,6 +1,5 @@
 """Draw the garden quest sprites at the game's two-screen-pixel scale."""
 
-import random
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -12,13 +11,9 @@ COLUMNS = 8
 
 SOIL_RIM = "#765d50"
 SOIL = "#544746"
-SOIL_SHADE = "#403c43"
 GREEN_EDGE = "#244b45"
-GREEN_SHADE = "#365c4c"
-GREEN_MID = "#497454"
 GREEN_TOP = "#5b8964"
 GREEN_LIGHT = "#7ca06c"
-GREEN_TIP = "#a1b778"
 WOOD_EDGE = "#47383d"
 WOOD_SHADE = "#664b45"
 WOOD_MID = "#886351"
@@ -42,73 +37,70 @@ def shape(draw, points, color, x=0, y=0):
 
 def grass_pile(variant):
     sprite, d = canvas()
-    shapes = [
-        [(23, 51), (26, 48), (30, 48), (31, 45), (34, 46), (39, 49), (41, 51), (38, 54), (28, 55)],
-        [(23, 53), (25, 53), (28, 50), (31, 50), (36, 47), (40, 48), (41, 51), (36, 53), (27, 56)],
-        [(25, 53), (26, 49), (28, 48), (29, 44), (32, 42), (35, 44), (36, 48), (40, 50), (40, 53), (35, 56), (28, 56)],
-        [(23, 52), (26, 48), (31, 46), (34, 50), (37, 48), (40, 50), (41, 52), (36, 55), (25, 54)],
-        [(23, 53), (24, 51), (27, 49), (31, 51), (34, 49), (38, 50), (41, 52), (40, 54), (28, 55)],
-        [(24, 52), (25, 48), (29, 47), (32, 45), (36, 45), (38, 48), (41, 52), (36, 55), (28, 55)],
+    silhouettes = [
+        [(16,51),(19,48),(22,48),(20,43),(26,46),(29,44),(28,39),(33,43),(36,42),(39,46),(45,47),(44,50),(48,53),(45,55),(39,56),(26,56),(20,54)],
+        [(16,53),(19,49),(23,49),(24,45),(27,47),(32,44),(37,46),(44,43),(42,48),(48,51),(47,54),(40,56),(25,56),(21,54)],
+        [(17,51),(21,47),(24,47),(25,42),(29,44),(32,37),(34,43),(37,43),(39,47),(43,47),(47,50),(47,54),(42,56),(24,56),(19,54)],
+        [(16,52),(20,49),(25,47),(24,43),(29,44),(32,48),(37,46),(42,46),(44,49),(48,52),(46,55),(38,56),(27,56),(21,54)],
+        [(16,52),(19,50),(21,47),(25,48),(29,46),(33,48),(36,44),(41,47),(46,47),(44,50),(48,52),(46,55),(29,56),(22,55)],
+        [(16,52),(20,49),(22,45),(26,47),(28,43),(30,45),(35,41),(36,45),(42,46),(44,49),(48,50),(47,54),(43,56),(23,56)],
     ]
-    base, body, light, straw = [
-        ("#334c39", "#697646", "#94a060", "#b6b276"),
-        ("#404e32", "#7c8049", "#a6a269", "#c3b884"),
-        ("#35483b", "#56764e", "#829e61", "#a3b17b"),
-        ("#414d39", "#738553", "#a5a873", "#cab888"),
-        ("#3c483b", "#617650", "#89a566", "#b2bd87"),
-        ("#394a31", "#7c8954", "#a6ad6f", "#c6bc82"),
+    base, shade, body, light, straw = [
+        ("#3a4938", "#57603d", "#79834c", "#a9a766", "#c3b883"),
+        ("#414931", "#605e3e", "#84794e", "#aea66c", "#c9b784"),
+        ("#334c3b", "#4c6b48", "#688657", "#91a46c", "#b6bd82"),
+        ("#414b37", "#606945", "#838759", "#a8ac73", "#cbbb88"),
+        ("#364d3f", "#567153", "#738963", "#a1ae76", "#c1c38e"),
+        ("#3e4a34", "#627046", "#818a53", "#aeb36e", "#cdbf8b"),
     ][variant]
-    d.polygon(shapes[variant], fill=base)
-    d.polygon([(x, y - (1 if y >= 51 else 0)) for x, y in shapes[variant][1:-1]], fill=body)
-    rng = random.Random(1507 + variant)
-    for _ in range(22):
-        x, y = rng.randint(24, 40), rng.randint(45, 54)
-        if sprite.getpixel((x, y))[3] and sprite.getpixel((x + 1, y - 1))[3]:
-            color = rng.choices([base, light, straw], weights=[4, 4, 1])[0]
-            d.line((x, y, x + 1, y - 1), fill=color)
-    # Strands thrown across the heap make the cuttings distinct from lawn grass.
+    silhouette = silhouettes[variant]
+    d.polygon(silhouette, fill=base)
+    d.polygon([(x + (1 if x < 32 else -1), y - (2 if y >= 53 else 0))
+               for x, y in silhouette], fill=shade)
     strands = [
-        [(24, 49, 30, 51), (33, 48, 38, 51), (29, 52, 34, 51)],
-        [(28, 52, 34, 47), (31, 49, 37, 50), (35, 52, 39, 53)],
-        [(27, 50, 31, 47), (30, 46, 36, 49), (32, 52, 37, 51)],
-        [(25, 52, 30, 50), (30, 51, 36, 48), (33, 53, 37, 52)],
-        [(24, 49, 30, 52), (29, 49, 35, 49), (34, 51, 40, 52)],
-        [(27, 52, 32, 49), (33, 46, 35, 48), (35, 50, 39, 51)],
+        [(19,49,28,51),(21,46,30,50),(27,47,36,42),(30,43,37,49),(35,50,42,47),(41,51,47,52)],
+        [(17,51,31,49),(21,52,32,47),(26,48,37,45),(31,51,43,48),(37,52,45,52),(36,48,43,44)],
+        [(20,49,29,51),(24,46,31,41),(30,48,33,40),(32,49,39,45),(35,50,44,49),(40,52,46,53)],
+        [(18,51,27,48),(23,46,31,49),(24,52,33,50),(30,49,39,47),(34,53,42,49),(40,52,46,52)],
+        [(18,50,28,49),(21,52,31,48),(27,51,37,46),(32,52,39,50),(38,51,45,48),(40,53,47,53)],
+        [(18,51,28,47),(22,52,31,48),(29,49,36,43),(33,51,42,48),(37,53,46,51),(41,51,46,50)],
     ][variant]
-    for index, strand in enumerate(strands):
-        d.line(strand, fill=straw if index == 1 else light)
+    for n, segment in enumerate(strands):
+        d.line(segment, fill=body, width=3)
+        x0, y0, x1, y1 = segment
+        start = (x0 + (x1-x0)//3, y0 + (y1-y0)//3)
+        d.line((*start,x1,y1), fill=straw if n in (1,3) else light)
+        d.point((x1,y1+1), fill=body)
+    for x, y in [(18,54),(20,56),(24,54),(35,54),(41,55),(46,55)]:
+        if sprite.getpixel((x,y))[3]:
+            d.point((x,y), fill=body)
     return sprite
 
 
-def leaf(d, x, y, direction, color, light=None):
-    shape(d, [(0, 0), (direction, -2), (direction * 4, -3),
-              (direction * 3, -1), (direction, 1)], color, x, y)
-    if light:
-        d.point((x + direction * 2, y - 2), fill=light)
+def shoot_leaves(d, x, y, side, palette):
+    """A paired, serrated leaf tip at the end of a small twig."""
+    dark, middle, lit = palette
+    shape(d, [(0,0),(side,-2),(3*side,-2),(5*side,-4),
+              (5*side,-1),(3*side,1),(side,1)], dark, x, y)
+    shape(d, [(side,-1),(3*side,-1),(4*side,-3),(4*side,-1),
+              (2*side,0)], middle, x, y)
+    d.point((x+4*side,y-2), fill=lit)
 
 
-def foliage_lobe(d, x, y, radius_x, radius_y, palette):
-    edge, shade, mid, top, highlight = palette
-    w, h = radius_x, radius_y
-    shape(d, [(-w, 2), (-w, -1), (-w + 1, -2), (-w + 2, -h + 1),
-              (-w + 4, -h + 1), (-w + 5, -h), (w - 4, -h),
-              (w - 3, -h + 1), (w - 1, -h + 2), (w - 1, -2),
-              (w, -1), (w, 2), (w - 1, 3), (w - 1, h - 1),
-              (w - 3, h - 1), (w - 4, h), (-w + 4, h),
-              (-w + 3, h - 1), (-w + 1, h - 2), (-w + 1, 3)], edge, x, y)
-    shape(d, [(-w + 1, -1), (-w + 2, -3), (-w + 4, -h + 1),
-              (w - 4, -h + 1), (w - 2, -h + 2), (w - 1, 0),
-              (w - 2, 3), (w - 4, h - 1), (-w + 4, h - 1),
-              (-w + 2, h - 2)], shade, x, y)
-    shape(d, [(-w + 2, -1), (-w + 3, -3), (-w + 5, -h + 1),
-              (w - 4, -h + 1), (w - 2, -2), (w - 2, 1),
-              (w - 4, 3), (1, h - 2), (-w + 3, h - 2)], mid, x, y)
-    shape(d, [(-w + 3, -2), (-w + 4, -3), (-w + 6, -h + 1),
-              (w - 4, -h + 1), (w - 3, -2), (w - 5, 0),
-              (1, 1), (-w + 3, 1)], top, x, y)
-    d.line((x - w + 5, y - h + 1, x - w + 8, y - h + 1), fill=highlight)
-    d.point((x - w + 4, y - h + 2), fill=highlight)
-
+def leaf_spray(d, x, y, side, colors):
+    shadow, mid, face, lit = colors
+    points = [(0,0),(-2,-1),(-3,-3),(-3,-6),(-1,-7),(0,-9),
+              (2,-8),(4,-8),(4,-6),(6,-5),(5,-3),(6,-2),
+              (3,0),(2,2)]
+    shape(d, [(dx*side,dy) for dx,dy in points], shadow, x, y)
+    points = [(-2,-4),(-2,-6),(0,-7),(1,-8),(4,-7),(4,-6),(5,-5),
+              (4,-3),(5,-2),(2,-1),(2,1),(0,0),(-1,-1)]
+    shape(d, [(dx*side,dy) for dx,dy in points], mid, x, y)
+    points = [(-1,-5),(1,-6),(1,-7),(3,-7),(3,-5),(4,-4),(1,-3),
+              (0,-1),(-1,-2)]
+    shape(d, [(dx*side,dy) for dx,dy in points], face, x, y)
+    d.line((x-side,y-4,x+side,y-5), fill=lit)
+    d.point((x+2*side,y-6), fill=lit)
 
 def berry(d, x, y, style, small=False):
     dark, medium, highlight = {
@@ -127,114 +119,119 @@ def berry(d, x, y, style, small=False):
 
 def bush(variant, stage):
     sprite, d = canvas()
-    rng = random.Random(713 + variant)
-    is_wild, wet = stage == "wild", stage == "watered"
-    d.ellipse((19, 49, 45, 56), fill=SOIL_SHADE if wet else SOIL)
-    d.ellipse((20, 49, 44, 54), fill="#4b605d" if wet else SOIL_RIM)
-    d.ellipse((21, 51, 43, 55), fill="#404c49" if wet else SOIL)
-    d.line((22, 54, 28, 54), fill="#6f8d82" if wet else "#796454")
-    for x, y in [(23, 52), (41, 54), (28, 55), (36, 53), (43, 51)]:
-        d.point((x, y), fill="#82938a" if wet else "#ab8e70")
-    # A dark rooted trunk stays in the same place while the canopy changes.
-    d.line((32, 54, 31, 42, 27, 38), fill=WOOD_EDGE, width=3)
-    d.line((32, 53, 32, 44, 38, 40), fill=WOOD_SHADE, width=2)
-    d.line((31, 51, 31, 45, 29, 43), fill=WOOD_TOP)
-    if is_wild:
+    wild, wet = stage == "wild", stage == "watered"
+    soil_rim = "#54605a" if wet else SOIL_RIM
+    soil_body = "#434b47" if wet else SOIL
+    shape(d, [(-9,1),(-10,-1),(-6,-3),(5,-3),(9,-1),(10,1),(6,2),(-6,2)], soil_body,32,54)
+    d.line((25,54,28,55,33,55), fill=soil_rim)
+    d.line((37,55,40,54), fill=soil_rim)
+    # Bark fans from the root collar: the picked bush still has woody stems.
+    branches = [
+        [(28,54),(28,48),(26,43),(23,39)],
+        [(31,54),(32,49),(31,42),(30,35)],
+        [(34,54),(35,49),(38,44),(41,40)],
+        [(30,53),(30,48),(34,44),(34,40)],
+    ]
+    for branch in branches:
+        d.line(branch, fill=WOOD_EDGE, width=2)
+        d.line(branch, fill=WOOD_TOP if wild else WOOD_MID)
+    d.point((28,53), fill=WOOD_LIGHT)
+    d.point((31,53), fill=WOOD_LIGHT)
+    if wild:
         shoots = [
-            [(19, 43), (17, 38), (20, 34), (17, 29)],
-            [(39, 42), (46, 38), (48, 33), (46, 26)],
-            [(30, 34), (32, 24), (29, 19), (31, 14)],
-            [(37, 36), (41, 28), (45, 22)],
-        ]
-        for index, shoot in enumerate(shoots):
-            if variant % 2 == index % 2 or index == 2:
-                d.line(shoot, fill=GREEN_EDGE, width=2)
-                d.line(shoot, fill="#688159")
-                for x, y in shoot[1:]:
-                    direction = 1 if x < 22 else -1 if x > 44 else rng.choice([-1, 1])
-                    leaf(d, x, y, direction, "#6b8e5b", "#96a668")
-        lobes = [
-            [(23, 41, 7, 6), (39, 43, 9, 6), (28, 34, 10, 8), (33, 42, 10, 7), (25, 28, 7, 7)],
-            [(23, 42, 7, 6), (40, 37, 9, 9), (31, 31, 8, 8), (33, 43, 10, 7), (40, 27, 7, 6)],
-            [(22, 38, 7, 7), (40, 43, 8, 6), (28, 30, 7, 10), (31, 43, 10, 7), (37, 37, 7, 8)],
-            [(24, 43, 7, 6), (40, 42, 8, 7), (31, 31, 8, 9), (33, 42, 9, 7), (40, 30, 8, 7)],
+            [[(25,45),(22,40),(23,36),(21,31)],[(33,43),(34,37),(32,32),(34,25)]],
+            [[(27,46),(26,42),(28,36),(26,28)],[(39,44),(42,40),(42,35),(43,27)]],
+            [[(25,46),(24,39),(21,36),(23,26)],[(33,43),(34,37),(39,32),(38,29)]],
+            [[(24,45),(22,39),(21,35),(22,30)],[(38,45),(37,39),(39,34),(42,25)]],
         ][variant]
-        palette = (GREEN_EDGE, "#3a5f46", "#52764f", "#668a58", "#8a9f63")
-    else:
-        lobes = [
-            (23, 43 - (variant == 1), 7, 6), (41, 43 - (variant == 2), 7, 6),
-            (32, 36 - variant % 2, 11 + (variant != 3), 8 - (variant == 3)),
-            (32, 43, 11, 7),
-        ]
-        palette = (GREEN_EDGE, GREEN_SHADE, GREEN_MID, GREEN_TOP, GREEN_LIGHT)
-    for x, y, w, h in lobes:
-        foliage_lobe(d, x, y, w, h, palette)
-    for x, y in [(23, 41), (40, 41), (29, 33), (34, 38), (28, 44), (39, 45)]:
-        x += rng.choice([-1, 0, 1])
-        y += rng.choice([-1, 0, 1])
-        leaf(d, x, y, rng.choice([-1, 1]), GREEN_TOP if is_wild else GREEN_LIGHT, GREEN_TIP)
-    if is_wild:
-        # Some stems hang below the lobes; they disappear after pruning.
-        for index, x in enumerate([21, 28, 40]):
-            direction = 1 if index == 2 else -1
-            d.line((x + 1, 46, x + direction, 49, x, 53), fill="#5f8051", width=1)
-            leaf(d, x, 51, direction, "#7c925e")
+        for branch in shoots:
+            d.line(branch, fill=WOOD_SHADE, width=2)
+            d.line(branch, fill="#99916b")
+            for x,y in branch[1:]:
+                side = 1 if x < 31 else -1
+                shoot_leaves(d,x,y,side,(GREEN_EDGE,GREEN_TOP,GREEN_LIGHT))
+    # Leaf sprays grow at different angles. Dark pockets between them let the
+    # wood and irregular crown read as a berry shrub rather than a clipped dome.
+    sprays = [
+        [(24,46,1),(29,42,-1),(40,47,-1),(36,42,1),(36,48,-1),(29,49,1)],
+        [(25,45,1),(30,42,-1),(41,45,-1),(35,43,1),(38,48,-1),(29,49,1)],
+        [(25,46,1),(29,42,-1),(41,47,-1),(35,42,1),(35,48,-1),(30,49,1)],
+        [(24,47,1),(30,42,-1),(41,45,-1),(35,42,1),(38,48,-1),(30,49,1)],
+    ][variant]
+    if wild:
+        sprays = [*sprays[:4],(28+variant,38,-1),(39-variant,36,1),*sprays[4:]]
+    elif stage != "picked":
+        sprays = [*sprays[:4],(32+variant%2,41,1),*sprays[4:]]
+    leaf_colors = [
+        (GREEN_EDGE,"#41694f","#61895e","#82a473"),
+        (GREEN_EDGE,"#416c57","#5d8c6a","#83aa7b"),
+        (GREEN_EDGE,"#4a6e50","#729361","#91a56d"),
+        (GREEN_EDGE,"#43694e","#63875d","#88a474"),
+    ]
+    for i,(x,y,side) in enumerate(sprays):
+        palette=leaf_colors[(variant+i//2)%len(leaf_colors)]
+        leaf_spray(d,x,y,side,palette)
     if wet:
-        for x, y in [(24, 42), (35, 34), (40, 41), (32, 46), (44, 48)]:
-            d.line((x, y + 1, x + 1, y + 1), fill="#4f857b")
-            d.point((x, y), fill="#a5c8bc")
+        for x,y in [(24,42),(34,39),(40,42),(29,46),(38,47)]:
+            d.line((x,y+1,x+1,y+1), fill="#5b9489")
+            d.point((x+1,y), fill="#b7d3c1")
+        d.line((36,54,39,54), fill="#8aafa0")
     if stage in ["ripe", "picked"]:
-        clusters = [
-            [(22, 42), (31, 34), (40, 41), (33, 45)],
-            [(24, 40), (36, 35), (43, 43), (30, 45)],
-            [(21, 44), (29, 33), (39, 38), (38, 46)],
-            [(25, 38), (33, 33), (42, 42), (27, 46)],
+        berry_sites = [
+            [(26,43),(33,40),(39,45),(31,48)],
+            [(26,42),(35,40),(39,44),(30,48)],
+            [(26,43),(31,38),(40,45),(34,48)],
+            [(26,44),(31,39),(39,43),(34,47)],
         ][variant]
-        for index, (x, y) in enumerate(clusters):
-            d.line((x + 1, y - 3, x, y - 1), fill="#a4aa76")
+        for n,(x,y) in enumerate(berry_sites):
+            shift=-2 if n%2 else 2
+            d.line((x+1,y-4,x+1,y-2,x,y-1), fill="#b0b17d")
+            d.line((x+1,y-2,x+shift,y), fill="#89955c")
             if stage == "ripe":
-                berry(d, x, y, "ripe")
-                berry(d, x + (-3 if index % 2 else 3), y + 2, "ripe", small=True)
-            elif index % 2 == 0:
-                berry(d, x, y, "unripe", small=True)
+                berry(d,x,y,"ripe")
+                berry(d,x+shift,y+2,"ripe",small=True)
+                d.point((x+shift-1,y+2), fill="#bc4d76")
+            elif n in (0,2):
+                berry(d,x,y+1,"unripe",small=True)
             else:
-                d.point((x, y - 1), fill="#bd9874")
-    bounds = sprite.getbbox()
-    assert bounds[2] - bounds[0] <= 34, (variant, stage, bounds)
+                d.point((x,y-1), fill=WOOD_LIGHT)
+    bounds=sprite.getbbox()
+    assert bounds[0]>=19 and bounds[2]<=46 and bounds[2]-bounds[0]<=26, (variant,stage,bounds)
     return sprite
 
 
 def shears(on_ground, opened=False):
     sprite, d = canvas()
+    metal_edge, metal_dark = "#515967", "#74818c"
+    metal_back, metal_face = "#b9c9c5", "#e0e4db"
+    grip_edge, grip_shade, grip_light, hole = "#786a65","#ab8c68","#d9bb80","#302d48"
     if opened:
-        shape(d, [(31, 48), (33, 44), (41, 40), (43, 40), (40, 44),
-                  (34, 48)], "#424951")
-        d.line((33, 46, 41, 41), fill="#b2bec0", width=2)
-        d.line((37, 43, 41, 41), fill="#e0dfd6")
-        shape(d, [(32, 47), (35, 49), (43, 54), (41, 54), (35, 52),
-                  (32, 50)], "#424951")
-        d.line((34, 49, 41, 53), fill="#9ca9ac", width=2)
-        d.line((37, 51, 41, 53), fill="#c2cac3")
+        shape(d, [(29,47),(33,43),(40,40),(44,40),(42,43),
+                  (37,45),(34,48),(31,50)], metal_edge)
+        d.line((33,46,38,43,42,41), fill=metal_face, width=2)
+        shape(d, [(31,46),(34,47),(37,50),(44,54),(41,55),
+                  (35,52),(31,51)], metal_edge)
+        d.line((33,49,38,52,42,53), fill=metal_back, width=2)
     else:
-        shape(d, [(31, 47), (34, 45), (42, 46), (43, 47), (39, 49),
-                  (34, 50), (31, 50)], "#424951")
-        shape(d, [(31, 47), (34, 46), (42, 46), (40, 47), (34, 48), (31, 49)], "#b2bec0")
-        d.line((35, 46, 41, 46), fill="#e0dfd6")
-        d.line((35, 49, 39, 48), fill="#798a92")
-    # Hinge rivet and wrapped grips share a hand anchor across both poses.
-    shape(d, [(31, 46), (26, 44), (23, 45), (23, 47), (27, 48), (31, 48)], WOOD_EDGE)
-    shape(d, [(31, 48), (27, 48), (23, 49), (23, 52), (26, 53), (31, 51)], WOOD_EDGE)
-    d.line((24, 46, 26, 45, 29, 46, 31, 47), fill="#b98b68")
-    d.line((24, 50, 24, 51, 26, 52, 29, 51), fill="#a67860")
-    d.point((25, 46), fill="#e0b28a")
-    d.point((25, 50), fill="#d4a681")
-    d.rectangle((30, 47, 33, 49), fill="#a3a9a8")
-    d.point((32, 47), fill="#e3d5b1")
-    d.point((32, 49), fill="#5e6468")
+        shape(d, [(29,46),(33,44),(40,44),(44,46),(43,48),
+                  (37,49),(34,51),(29,51)], metal_edge)
+        d.line((33,46,42,46), fill=metal_face, width=2)
+        d.line((33,48,40,48), fill=metal_back, width=2)
+        d.line((34,50,38,49), fill=metal_dark)
+    # Two solid, square brass handles echo the game's rake and optional shears.
+    for top in [42,49]:
+        shape(d, [(22,top+1),(24,top),(28,top),(31,top+2),
+                  (31,top+5),(28,top+6),(23,top+6),(22,top+4)], grip_edge)
+        d.rectangle((23,top+1,28,top+5), fill=grip_light)
+        d.line((24,top+5,29,top+5), fill=grip_shade)
+        d.rectangle((25,top+2,27,top+4), fill=hole)
+    d.rectangle((29,46,33,50), fill="#9eaaab")
+    d.line((30,50,33,50),fill=metal_dark)
+    d.rectangle((30,47,31,48), fill="#f5e7c8")
     if on_ground:
-        piece = sprite.crop(sprite.getbbox()).rotate(36, resample=Image.Resampling.NEAREST, expand=True)
-        sprite = Image.new("RGBA", (CELL, CELL))
-        sprite.paste(piece, (32 - piece.width // 2, 55 - piece.height))
+        piece=sprite.crop(sprite.getbbox()).rotate(38,resample=Image.Resampling.NEAREST,expand=True)
+        sprite=Image.new("RGBA",(CELL,CELL))
+        sprite.paste(piece,(32-piece.width//2,55-piece.height))
     return sprite
 
 
