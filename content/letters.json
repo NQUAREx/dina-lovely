@@ -1405,7 +1405,7 @@
   ],
   "reply_delivery": {
     "_comment": "Прямая доставка из браузера. Endpoint содержит публичный токен по явному решению владельца игры.",
-    "endpoint": "https://api.telegram.org/bot9253373927:AAFslfcrUiflr8H1cbeOzPQ_xvMXN8W3MFg/sendMessage",
+    "endpoint": "https://api.telegram.org/bot9171057878:AAEVR-Gpltp5LHbcfpN9XeAE51ornKcf14k/sendMessage",
     "chat_id": "8370650143"
   },
   "demo_mode": true
