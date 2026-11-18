@@ -112,6 +112,70 @@ def plant(tips, foliage, shape, colors, stage):
     return image
 
 
+GROWTH_FRAMES = 12
+ROOT_Y = 43
+
+
+def scaled_plant(image, factor):
+    region = image.crop((0, 0, CELL[0], ROOT_Y + 1))
+    width, height = max(1, round(region.width * factor)), max(1, round(region.height * factor))
+    output = Image.new("RGBA", CELL)
+    output.paste(region.resize((width, height), Image.Resampling.NEAREST),
+                 ((CELL[0] - width) // 2, ROOT_Y + 1 - height))
+    return output
+
+
+def transition(source, target, progress):
+    if progress == 1:
+        return target
+    early = scaled_plant(source, 1 + 0.12 * progress)
+    late = scaled_plant(target, 0.80 + 0.20 * progress)
+    output = Image.new("RGBA", CELL)
+    for y in range(CELL[1]):
+        for x in range(CELL[0]):
+            # The lower stem fills before the upper leaves and petal tips.
+            jitter = ((x * 17 + y * 13) % 11) / 55
+            threshold = 0.13 + (ROOT_Y - y) * 0.013 + jitter
+            layer = late if progress > threshold else early
+            output.putpixel((x, y), layer.getpixel((x, y)))
+    return output
+
+
+def growth_sheet(atlas, ids):
+    def tile(name):
+        index = ids[name]
+        x, y = index % 16 * CELL[0], index // 16 * CELL[1]
+        return atlas.crop((x, y, x + CELL[0], y + CELL[1]))
+
+    sheet = Image.new("RGBA", (CELL[0] * 16, CELL[1] * (3 * GROWTH_FRAMES + 1)))
+    for species in range(16):
+        sprout = tile(f"seedling{species}_plant")
+        bloom = tile(f"bloom{species}_plant")
+        if species < 6:
+            bud = tile(f"flower_bud{species}")
+            soil = {(74, 59, 54), (71, 60, 53), (102, 82, 67)}
+            for y in range(30, CELL[1]):
+                for x in range(CELL[0]):
+                    if bud.getpixel((x, y))[:3] in soil:
+                        bud.putpixel((x, y), (0, 0, 0, 0))
+        else:
+            bud = tile(f"flower_bud{species}_plant")
+        for n in range(GROWTH_FRAMES):
+            progress = (n + 1) / GROWTH_FRAMES
+            frames = (scaled_plant(sprout, progress), transition(sprout, bud, progress),
+                      transition(bud, bloom, progress))
+            for stage, frame in enumerate(frames):
+                sheet.paste(frame, (species * CELL[0], (stage * GROWTH_FRAMES + n) * CELL[1]))
+        dry = scaled_plant(sprout, 0.69)
+        for y in range(CELL[1]):
+            for x in range(CELL[0]):
+                r, g, b, alpha = dry.getpixel((x, y))
+                if alpha:
+                    dry.putpixel((x, y), (min(187, g + 15), round(g * 0.73), round(g * 0.48), alpha))
+        sheet.paste(dry, (species * CELL[0], 3 * GROWTH_FRAMES * CELL[1]))
+    sheet.save(ASSETS / "garden_growth.png")
+
+
 def main():
     atlas_path = ASSETS / "atlas.png"
     manifest = ASSETS / "atlas.json"
@@ -133,6 +197,7 @@ def main():
         output.paste(sprite, ((index % 16) * CELL[0], (index // 16) * CELL[1]))
     output.save(atlas_path)
     manifest.write_text(json.dumps(ids))
+    growth_sheet(output, ids)
 
 
 if __name__ == "__main__":

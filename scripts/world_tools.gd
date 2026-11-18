@@ -3,6 +3,8 @@ const PIT_WALL := [Color("76543c"),Color("674832"),Color("5c3f2e"),Color("51382b
 ## Optional world editing. Only the current room runs; other rooms keep saved data.
 const TOOLS := ["axe","shears","drill"]
 const FLOWER_SPECIES := 16
+const GROWTH_FRAMES := 12
+const GROWTH_ART:Texture2D = preload("res://assets/garden_growth.png")
 var dig_shapes:Image=preload("res://assets/dig_shapes.png").get_image()
 var soil_fx_clock:=0.0
 var stubble:Texture2D=preload("res://assets/hedge_stubble.png")
@@ -30,7 +32,7 @@ func variant(id:String)->int:return posmod(int(id),6)
 func flower_variant(id:String)->int:
  var seed_id:int=int(g.save_data.seed)
  var bed_id:=int(id)
- if bed_id>=6:
+ if bed_id>=g.GARDEN_BEDS:
   var rng:=RandomNumberGenerator.new()
   rng.seed=seed_id^(bed_id*104729)^0x464c4f57
   return rng.randi_range(0,FLOWER_SPECIES-1)
@@ -45,7 +47,7 @@ func flower_variant(id:String)->int:
    var species:=flower_order[index]
    flower_order[index]=flower_order[other]
    flower_order[other]=species
- return flower_order[clampi(bed_id,0,5)]
+ return flower_order[clampi(bed_id,0,g.GARDEN_BEDS-1)]
 
 func bed_plant(id:String)->String:
  if id not in g.save_data.cleaned:return "weeds_plant"
@@ -53,9 +55,28 @@ func bed_plant(id:String)->String:
  var stage:=int(plant.get("stage",0))
  if stage==0:return ""
  var species:=flower_variant(id)
- if stage>=2:return "bloom%d_plant"%species
- if species>=6 and float(plant.get("remaining",0))>0:return "flower_bud%d_plant"%species
+ if stage>=g.FLOWER_STAGE_FULL:return "bloom%d_plant"%species
+ if stage==2:return ("flower_bud%d_plant" if species>=6 else "flower_bud%d")%species
  return "seedling%d_plant"%species
+
+func draw_bed_plant(id:String,point:Vector2,scale_factor:float)->void:
+ if id not in g.save_data.cleaned:
+  g.draw_sprite("weeds_plant",point,Color.WHITE,scale_factor)
+  return
+ var plant:Dictionary=g.plants.get(id,{})
+ var stage:=int(plant.get("stage",0))
+ var remaining:=float(plant.get("remaining",0.0))
+ var row:=stage*GROWTH_FRAMES-1
+ if plant.get("withered",false):
+  row=g.FLOWER_STAGE_FULL*GROWTH_FRAMES
+ elif stage<g.FLOWER_STAGE_FULL and remaining>0.0:
+  var duration:float=g.FLOWER_GROWTH_SECONDS[stage]
+  var progress:=clampf(1.0-remaining/duration,0.0,1.0)
+  row=stage*GROWTH_FRAMES+mini(GROWTH_FRAMES-1,floori(progress*GROWTH_FRAMES))
+ if row<0:return
+ var source:=Rect2(flower_variant(id)*32,row*48,32,48)
+ var destination:=Rect2(point-Vector2(32,86)*scale_factor,Vector2(64,96)*scale_factor)
+ g.draw_texture_rect_region(GROWTH_ART,destination,source)
 func install()->void:
  if seed_value!=int(g.save_data.seed):images.clear();masks.clear();textures.clear();sample_indices.clear();falling.clear();seed_value=int(g.save_data.seed)
  var data:=state()
@@ -146,7 +167,7 @@ func use_object(obj:Dictionary)->bool:
  if tree_target(obj):g.begin_task("axe:"+key_for(obj),obj.pos,.65);return true
  if obj.kind=="hedge_target" and g.held_item=="shears":g.begin_task("snip_hedge:"+str(obj.cell.x)+":"+str(obj.cell.y),obj.pos,.35);return true
  if flower_target(obj):g.begin_task("snip:"+str(obj.id) if obj.kind=="sprout" else "snip_decor:"+key_for(obj),obj.pos,.35);return true
- if obj.kind=="sprout" and g.held_item=="rake" and int(g.plants.get(obj.id,{}).get("stage",0))>=2:g.begin_task("uproot:"+str(obj.id),obj.pos,.65);return true
+ if obj.kind=="sprout" and g.held_item=="rake" and int(g.plants.get(obj.id,{}).get("stage",0))>=g.FLOWER_STAGE_FULL:g.begin_task("uproot:"+str(obj.id),obj.pos,.65);return true
  return false
 func ground_point()->Vector2:return (g.player+g.walk_facing.normalized()*34).snapped(Vector2(12,12))
 func soil(pos:Vector2)->bool:

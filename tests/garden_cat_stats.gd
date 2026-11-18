@@ -19,7 +19,7 @@ func run():
  for seed in [17,113,723]:
   g.save_data.seed=seed;g.build_level(5)
   var beds=g.objects.filter(func(o):return o.kind=="sprout")
-  assert(beds.size()==6)
+  assert(beds.size()==12 and beds.all(func(bed):return bed.get("layout_placed",false)))
   for bed in beds:assert(g.garden_layout_clear(bed.pos))
   var well=g.objects.filter(func(o):return o.kind=="well")[0]
   assert(not g.garden_bed_clear(well.pos+Vector2(0,-50)))
