@@ -2221,12 +2221,13 @@ func draw_arena_barrier(pos:Vector2) -> void:
 	# Move the real arena wall top upwards out of its floor slot and reveal
 	# the front bricks below it. The base stays fixed at floor level.
 	var lift:=roundf(24.0*smoothstep(0.0,1.0,arena_barrier_lift))
+	var edge_trim:=roundf(5.0*(1.0-lift/24.0))
 	for column in range(12,15):
 		var layout:=boundary_layout(Vector2i(column,grid.size()-6),4)
 		var texture:=wall_block_texture(4,false,layout.variant)
 		var anchor:=pos+Vector2((column-13)*TILE,0)
-		var left:=5.0 if column==12 else 0.0
-		var width:=27.0 if column!=13 else 32.0
+		var left:=edge_trim if column==12 else 0.0
+		var width:=32.0-edge_trim if column!=13 else 32.0
 		var x:=left*2-32
 		draw_texture_rect_region(texture,Rect2(anchor+Vector2(x,-46-lift),Vector2(width*2,68)),Rect2(left,0,width,34))
 		if lift>0.0:
@@ -2714,8 +2715,9 @@ func _draw_world() -> void:
 			elif kind=="letter_box":draw_sprite("letter_box_open" if item.get("archive_open",false) else "letter_box",p)
 			elif kind=="skull_stand":draw_sprite("skull_stand_full" if save_data.get("skull_inserted",false) else "skull_stand",p)
 			elif kind=="doorway":
-				if level==4 and item.id=="back":draw_arena_barrier(p)
 				gate_junctions.draw(item,p)
+				# The raised blocks cover the inner lip of each footing.
+				if level==4 and item.id=="back":draw_arena_barrier(p)
 				if item.id=="exit":draw_gate(p,1.0 if drawing_neighbor and (neighbor_return_gate or door_is_open("exit")) else float(item.get("gate_amount",0.0)))
 			elif kind=="flashlight_pedestal":draw_sprite("pedestal",p)
 			elif kind=="stand_flashlight":draw_sprite("flashlight_rest",p)
