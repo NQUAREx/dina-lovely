@@ -28,6 +28,7 @@ const ACCESSORIES := ["black_dress","dark_scarf","wreath","veil","crown","rose_s
 const ACCESSORY_SLOTS := {"black_dress":"dress","dark_scarf":"scarf","wreath":"head","crown":"head","heart_tiara":"head","daisy_wreath":"head","silver_crown":"head","rose_wreath":"head","veil":"face","white_veil":"face","rose_scarf":"scarf","white_scarf":"scarf","peach_dress":"dress","white_dress":"dress","lavender_dress":"dress","pink_watch":"wrist","gold_brocade":"dress","gold_mantle":"scarf","gold_veil":"face","emerald_diadem":"head","gold_beads":"neck"}
 const ROOM_ACCESSORIES := [["wreath","pink_watch"],["veil","white_scarf"],["crown","white_dress"],["rose_scarf","daisy_wreath"],["peach_dress","silver_crown"],["rose_wreath","lavender_dress"],["heart_tiara","white_veil","gold_brocade","gold_mantle","gold_veil","emerald_diadem","gold_beads"]]
 const OUTFIT_ORDER := ["black_dress","peach_dress","white_dress","lavender_dress","gold_brocade","dark_scarf","rose_scarf","white_scarf","gold_mantle","veil","white_veil","gold_veil","gold_beads","wreath","crown","heart_tiara","daisy_wreath","silver_crown","rose_wreath","emerald_diadem","pink_watch"]
+var royal_cloth:=preload("res://scripts/royal_cloth.gd").new()
 const HALL_SEAM := 0.0
 var drawing_neighbor := false
 var reply_deposit_active := false
@@ -812,6 +813,7 @@ func cache_current_room() -> void:
 	room_cache[level]=state
 
 func activate_cached_room(index: int) -> void:
+	royal_cloth.reset()
 	var state:Dictionary=room_cache[index]
 	level=index
 	if index!=1 and held_item=="flashlight":held_item="";sync_hands()
@@ -1412,6 +1414,7 @@ func touching_hedge(pos: Vector2) -> bool:
 	return false
 
 func _physics_process(delta: float) -> void:
+	var previous_position:=player
 	if playing and not transition and level!=1 and held_item=="flashlight":torch.drop_at_exit()
 	if playing and not paused and not transition:update_vegetation(minf(delta,.04))
 	# Simulation must not depend on audio, particles or HUD updating successfully.
@@ -1421,12 +1424,13 @@ func _physics_process(delta: float) -> void:
 	if not resting.is_empty():
 		moving=false
 		if joy_vector.length()>.2:stand_up()
-		else:return
-	if playing and not paused and not transition and task_time<=0:
+	if resting.is_empty() and playing and not paused and not transition and task_time<=0:
 		var previous_foot:=player
 		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
 		release_at_gate(previous_foot)
 		hedge_contact=pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
+	if playing and not paused and not transition and ("gold_brocade" in save_data.wearing or "gold_mantle" in save_data.wearing):
+		royal_cloth.update(player-previous_position,walk_facing,delta)
 
 func _process(delta: float) -> void:
 	dig_quest.update(delta)
@@ -2324,10 +2328,13 @@ func wall_block_texture(room_id:int,stacked:bool,variant:int) -> Texture2D:
 		hedge_tree_textures[key]=load("res://assets/"+key+".png")
 	return hedge_tree_textures[key]
 
-func draw_arena_barrier(pos:Vector2) -> void:
+func arena_barrier_pixels() -> float:
+	return roundf(24.0*smoothstep(0.0,1.0,arena_barrier_lift))
+
+func draw_arena_barrier(pos:Vector2,lift:float) -> void:
 	# Move the real arena wall top upwards out of its floor slot and reveal
 	# the front bricks below it. The base stays fixed at floor level.
-	var lift:=roundf(24.0*smoothstep(0.0,1.0,arena_barrier_lift))
+	var roof_depth:=roundf(lerpf(46.0,68.0,lift/24.0))
 	var edge_trim:=roundf(5.0*(1.0-lift/24.0))
 	for column in range(12,15):
 		var layout:=boundary_layout(Vector2i(column,grid.size()-6),4)
@@ -2336,7 +2343,7 @@ func draw_arena_barrier(pos:Vector2) -> void:
 		var left:=edge_trim if column==12 else 0.0
 		var width:=32.0-edge_trim if column!=13 else 32.0
 		var x:=left*2-32
-		draw_texture_rect_region(texture,Rect2(anchor+Vector2(x,-46-lift),Vector2(width*2,68)),Rect2(left,0,width,34))
+		draw_texture_rect_region(texture,Rect2(anchor+Vector2(x,22-lift-roof_depth),Vector2(width*2,roof_depth)),Rect2(left,0,width,34))
 		if lift>0.0:
 			var face_height:=lift+2.0
 			draw_texture_rect_region(texture,Rect2(anchor+Vector2(x,22-lift),Vector2(width*2,face_height)),Rect2(left,34,width,face_height/1.2))
@@ -2671,12 +2678,15 @@ func _draw_world() -> void:
 	renderables.append({"kind":"player","pos":player,"id":""})
 	if not drawing_neighbor and playing and save_data.cat_tamed:renderables.append({"kind":"pet_cat","pos":companion.position,"id":"pet_cat"})
 	draw_paths()
-	world_tools.draw_ground()
+	var barrier_rise:=arena_barrier_pixels() if level==4 else 0.0
 	if level==4:
 		var entrance:=arena_barrier_position()
-		if get_viewport_rect().grow(96).has_point(screen(entrance)):
+		var entrance_screen:=screen(entrance)
+		if get_viewport_rect().grow(96).has_point(entrance_screen):
 			var slot := arena_barrier_floor()
 			draw_rect(Rect2(screen(slot.position)+Vector2(2,0),slot.size-Vector2(4,0)),Color("322d3d"))
+			if barrier_rise==0.0:draw_arena_barrier(entrance_screen,0.0)
+	world_tools.draw_ground()
 	# Fixed contact shade ties raised masonry to the ground grid. Only exposed
 	# floor edges receive it; no dynamic light or per-frame shadow projection.
 	for wall in renderables:
@@ -2835,7 +2845,7 @@ func _draw_world() -> void:
 			elif kind=="doorway":
 				gate_junctions.draw(item,p)
 				# The raised blocks cover the inner lip of each footing.
-				if level==4 and item.id=="back":draw_arena_barrier(p)
+				if level==4 and item.id=="back" and barrier_rise>0.0:draw_arena_barrier(p,barrier_rise)
 				if item.id=="exit":draw_gate(p,1.0 if drawing_neighbor and (neighbor_return_gate or door_is_open("exit")) else float(item.get("gate_amount",0.0)))
 			elif kind=="flashlight_pedestal":draw_sprite("pedestal",p)
 			elif kind=="stand_flashlight":draw_sprite("flashlight_rest",p)
@@ -3301,16 +3311,23 @@ func update_fog() -> void:
 	if occlude_hero:
 		var frame:=player_walk_frame()
 		var frame_names:Array[String]=["hero%d_%d"%[facing_id,frame]]
+		var cloth_tiles:=PackedVector2Array([Vector2(-1,0),Vector2(-1,0)])
 		for item in OUTFIT_ORDER:
-			if item in save_data.wearing:frame_names.append("wear_%s_%d_%d"%[item,facing_id,frame])
+			if item not in save_data.wearing:continue
+			var garment:int=royal_cloth.ITEMS.find(item)
+			if garment<0:frame_names.append("wear_%s_%d_%d"%[item,facing_id,frame])
+			else:cloth_tiles[garment]=royal_cloth.tile(garment,facing_id,frame)
+		if cloth_tiles[0].x>=0 or cloth_tiles[1].x>=0:
+			material.set_shader_parameter("cloth_atlas",royal_cloth.atlas())
+		material.set_shader_parameter("cloth_tiles",cloth_tiles)
 		var tiles:=PackedVector2Array()
 		for frame_name in frame_names:
 			if not sprites.has(frame_name):continue
-			if tiles.size()>=6:break
+			if tiles.size()>=7:break
 			var id:int=sprites[frame_name]
 			tiles.append(Vector2(id%16,id/16))
 		var tile_count:=tiles.size()
-		while tiles.size()<6:tiles.append(Vector2.ZERO)
+		while tiles.size()<7:tiles.append(Vector2.ZERO)
 		material.set_shader_parameter("hero_tiles",tiles)
 		material.set_shader_parameter("hero_tile_count",tile_count)
 		material.set_shader_parameter("hero_top_left",screen(player)+body_motion()-Vector2(32,86))
@@ -4464,7 +4481,10 @@ func draw_player_outfit(pos: Vector2, frame: int, color: Color) -> void:
 	var facing:=visual_facing()
 	draw_sprite("hero"+str(facing)+"_"+str(frame),pos,color)
 	for item in OUTFIT_ORDER:
-		if item in save_data.wearing:draw_sprite("wear_"+item+"_"+str(facing)+"_"+str(frame),pos,color)
+		if item not in save_data.wearing:continue
+		var garment:int=royal_cloth.ITEMS.find(item)
+		if garment<0:draw_sprite("wear_%s_%d_%d"%[item,facing,frame],pos,color)
+		else:royal_cloth.draw(self,garment,facing,frame,pos,color)
 
 func eat_fruit(kind:String,id:String="") -> void:
 	stats.add(self,kind)

@@ -14,7 +14,9 @@ uniform bool ground_light = false;
 uniform sampler2D hero_atlas : filter_nearest, repeat_disable;
 uniform bool hero_occludes_light = false;
 uniform vec2 hero_top_left = vec2(0.0);
-uniform vec2 hero_tiles[6];
+uniform vec2 hero_tiles[7];
+uniform sampler2D cloth_atlas : filter_nearest, repeat_disable;
+uniform vec2 cloth_tiles[2];
 uniform int hero_tile_count = 0;
 uniform vec2 gate_lights[4];
 uniform int gate_light_count=0;
@@ -43,11 +45,22 @@ void fragment(){
  vec2 hero_uv=(pixel-hero_top_left)/vec2(64.0,96.0);
  if(hero_occludes_light && all(greaterThanEqual(hero_uv,vec2(0.0))) && all(lessThan(hero_uv,vec2(1.0)))){
   vec2 atlas_size=vec2(textureSize(hero_atlas,0));
-  for(int i=0;i<6;i++){
+  for(int i=0;i<7;i++){
    if(i>=hero_tile_count)break;
    vec2 sprite_pixel=hero_tiles[i]*vec2(32.0,48.0)+hero_uv*vec2(32.0,48.0);
    hero_alpha=max(hero_alpha,texture(hero_atlas,sprite_pixel/atlas_size).a);
   }
+ }
+ vec2 cloth_pixel=(pixel-hero_top_left)*0.5+vec2(8.0,-7.0);
+ if(hero_occludes_light && all(greaterThanEqual(cloth_pixel,vec2(0.0))) && all(lessThan(cloth_pixel,vec2(48.0,40.0)))){
+  vec2 cloth_size=vec2(textureSize(cloth_atlas,0));
+  for(int i=0;i<2;i++){
+   if(cloth_tiles[i].x<0.0)continue;
+   vec2 sprite_pixel=cloth_tiles[i]*vec2(48.0,40.0)+cloth_pixel;
+   hero_alpha=max(hero_alpha,texture(cloth_atlas,sprite_pixel/cloth_size).a);
+  }
+ }
+ if(hero_occludes_light){
   // Keep just enough indirect light to read the sprite in the dark; the beam
   // and its warm tint stay behind the body and its worn accessories.
   light=mix(light,min(light,0.12),hero_alpha);
