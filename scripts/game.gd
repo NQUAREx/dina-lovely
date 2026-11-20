@@ -35,7 +35,7 @@ var reply_deposit_active := false
 var reply_deposit_progress := -1.0
 var reply_slot := Vector2.ZERO
 var reply_hand_start := Vector2.ZERO
-const ROOM_FIELDS := ["pending_spawns","prepared_wave","arena_barrier_lift","poison_zones","grid","objects","enemies","shots","particles","skulls","damage_numbers","path_meshes","path_texture","path_ground","path_pads","hedge_trees","grass_details","path_targets","path_navigation","path_terminals","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","obstacle_specs","skull_clock","obstacle_cooldown","room_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","bloom_times","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
+const ROOM_FIELDS := ["pending_spawns","prepared_wave","arena_barrier_lift","poison_zones","grid","objects","enemies","shots","particles","skulls","damage_numbers","path_meshes","path_texture","path_ground","path_pads","hedge_trees","grass_details","path_targets","path_navigation","path_terminals","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","skull_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","bloom_times","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
 var room_cache:Dictionary={}
 var room_cache_seed := -1
 var web_building_rooms := false
@@ -108,12 +108,8 @@ var left_foot := false
 var hedge_field: RefCounted
 var berry_cells: Dictionary = {}
 var paths: Array = []
-var obstacle_specs: Array[Dictionary] = []
-var hazard_session_seed := randi()
 var foliage_contact := false
 var skull_clock := 2.0
-var obstacle_cooldown := 0.0
-var room_clock := 0.0
 var held_item := ""
 var magazine := 30
 var reload_time := 0.0
@@ -277,7 +273,7 @@ func _ready() -> void:
 		JavaScriptBridge.eval("window.gardenHideLoading && window.gardenHideLoading()")
 
 func default_save() -> Dictionary:
-	return {"garden_chores":{},"garden_growth_version":2,"dig_quest":{},"flower_notes":[],"world_kit":[],"weapon_crates_opened":[],"arena_medkit_claimed":false,"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_stones":[],"riddle_inserted":[],"riddle_stone_order":[],"riddle_stone_positions":{},"riddle_stone_exposed":false,"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"obstacles":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
+	return {"garden_chores":{},"garden_growth_version":2,"dig_quest":{},"flower_notes":[],"world_kit":[],"weapon_crates_opened":[],"arena_medkit_claimed":false,"arena_checkpoint":{},"flashlight_location":{},"stats":stats.DEFAULTS.duplicate(),"cat_tamed":false,"cat_fish":false,"cat_room":-1,"cat_position":[],"world_edits":{},"world_tool_locations":{},"bed_serial":0,"house_open":false,"skull_taken":false,"skull_inserted":false,"reply_sent":false,"gate_keys":[],"gate_key_drops":{},"loose_accessories":[],"accessory_drop_version":1,"accessories":["black_dress","dark_scarf"],"wearing":["black_dress","dark_scarf"],"open_gates":[],"riddle_stones":[],"riddle_inserted":[],"riddle_stone_order":[],"riddle_stone_positions":{},"riddle_stone_exposed":false,"riddle_order":[],"riddle_clues":[],"riddle_letters":[],"riddle_input":[],"held_item":"","tool_positions":{},"cleaned":[],"rake":false,"eaten":[],"seed":randi(),"loose_weapons":[],"buried_exposed":false,"plants":{},"fertilized":[],"has_fertilizer":false,"weapon":"","weapons_taken":[],"dig_target":[],"flashlight":false,"shovel":false,"dug":[],"version":2,"level":0,"completed_levels":[],"letters":[],"secrets":[],"finished":false,"garden_can":false,"water":0,"watered":[],"sound":true,"started":false}
 
 func load_save() -> void:
 	save_data = default_save()
@@ -313,7 +309,7 @@ func load_save() -> void:
 			save_data.water = clampi(int(parsed.get("water", 0)), 0, 6)
 			if not parsed.has("weapons_taken") and not str(save_data.weapon).is_empty(): save_data.weapons_taken.append(save_data.weapon)
 	# JSON numeric array entries must use the same integer type as runtime room IDs.
-	for key in ["open_gates","gate_keys","completed_levels","obstacles"]:
+	for key in ["open_gates","gate_keys","completed_levels"]:
 		save_data[key]=save_data[key].map(func(v):return int(v))
 	for room in save_data.completed_levels:
 		if room<6 and room not in save_data.open_gates:save_data.open_gates.append(room)
@@ -1061,10 +1057,9 @@ func build_level(index: int) -> void:
 	level = index
 	hedge_trees.clear();hedge_field=null;path_texture=null;path_ground=null;path_pads.clear();rpg_windup=-1
 	if not save_data.has("open_gates"):save_data.open_gates=[]
-	berry_cells.clear();paths.clear();grass_details.clear();path_targets.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;obstacle_specs.clear();damage_numbers.clear()
+	berry_cells.clear();paths.clear();grass_details.clear();path_targets.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;damage_numbers.clear()
 	skull_clock=2.0
 	skulls.clear()
-	room_clock = 0
 	if is_instance_valid(fog): fog.visible = level==1
 	shots.clear()
 	task_time = 0
@@ -1134,17 +1129,7 @@ func build_level(index: int) -> void:
 				for y in [5,11]: put_object("stone",Vector2i(x,y),"",true)
 			put_object("arch",Vector2i(13,2),"exit")
 		elif level==2:
-			grid.clear()
-			for y in range(29):grid.append("#".repeat(27) if y in [0,28] else "#"+".".repeat(25)+"#")
-			player=Vector2(13.5,25.5)*TILE
-			var hazard_rng := RandomNumberGenerator.new()
-			hazard_rng.seed=hazard_session_seed+int(save_data.seed)
-			for n in range(5):
-				obstacle_specs.append({"width":float(hazard_rng.randi_range(3,7)*40),"speed":hazard_rng.randf_range(.65,1.8),"phase":hazard_rng.randf_range(0,TAU),"warp":hazard_rng.randf_range(.0,.3)})
-			for y in range(1,28):
-				for x in range(1,26):
-					if x<9 or x>17: set_cell(x,y,"#" if x in [8,18] else " ")
-			put_object("arch",Vector2i(13,2),"exit")
+			build_beam_hall()
 		elif level==3:
 			dig_quest.migrate_room_height()
 			grid.clear()
@@ -1278,6 +1263,26 @@ func build_level(index: int) -> void:
 	camera = camera_target()
 	nearest = -1
 	update_hud()
+
+func build_beam_hall() -> void:
+	const WIDTH := 31
+	const HEIGHT := 29
+	const LEFT_DIVIDER := 10
+	const RIGHT_DIVIDER := 20
+	grid.clear()
+	for y in range(HEIGHT):
+		if y in [0,HEIGHT-1]:
+			grid.append("#".repeat(WIDTH))
+			continue
+		grid.append("#"+".".repeat(WIDTH-2)+"#")
+		# The two vestibules keep the gates on the existing corridor axis.
+		# The bottom one opens only left, and the top one only right.
+		if y not in [5,6,7,25,26,27]:set_cell(LEFT_DIVIDER,y,"#")
+		if y not in [1,2,3,21,22,23]:set_cell(RIGHT_DIVIDER,y,"#")
+		if y in [4,24]:
+			for x in range(LEFT_DIVIDER+1,RIGHT_DIVIDER):set_cell(x,y,"#")
+	player=Vector2(13.5,26.5)*TILE
+	put_object("arch",Vector2i(13,2),"exit")
 
 func corridor_row(row: int) -> bool:
 	return (level<6 and row<5) or (level>0 and row>=grid.size()-5)
@@ -2138,7 +2143,7 @@ func use_exit(walking: bool = false) -> void:
 		return
 	if level==0 and not has_maze_letters(): notify(tx("maze_notes_required"))
 	elif level==1 and not dark_letters_found(): notify(tx("darkness_notes_required"))
-	elif level==2 and (save_data.obstacles.size()<5 or "crossing" not in save_data.letters): notify(tx("obstacles_required"))
+	elif level==2 and "crossing" not in save_data.letters: notify(tx("gate_key_required"))
 	elif level==3 and "buried" not in save_data.letters: notify(tx("buried_note_required"))
 	elif level==4 and "courage" not in save_data.letters: notify(tx("combat_note_required"))
 	elif level==5 and not level_complete():
@@ -2737,7 +2742,6 @@ func _draw_world() -> void:
 		# Each tree has one visible crown/trunk layer, sorted with the heroine below.
 		draw_hedge_canopy(visible_crowns,-1)
 
-	if level==2:draw_new_rooms()
 	draw_leaf_debris()
 	scene_fx.draw(true)
 	renderables.sort_custom(func(a,b):
@@ -2911,7 +2915,7 @@ func _draw_world() -> void:
 		c.a = minf(1,part.life)
 		if part.heart:draw_heart(screen(part.pos),1.2,c)
 		else:draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
-	if level!=2:draw_new_rooms()
+	if level==1:draw_dark_room_skulls()
 	if not drawing_neighbor:
 		draw_extra_effects()
 		weapon_crates.draw_fist()
@@ -3368,16 +3372,7 @@ func dark_letter_count() -> int:
 func dark_letters_found() -> bool:
 	return dark_letter_count()==3
 
-func obstacle_rect(index: int) -> Rect2:
-	var spec: Dictionary = obstacle_specs[index]
-	var width: float = spec.width
-	var phase: float = room_clock*float(spec.speed)+float(spec.phase)
-	var sway := sin(phase+sin(phase*.61)*float(spec.warp))
-	var center := Vector2(13.5*TILE+sway*(215-width*.5),(10.5+index*4.4)*TILE)
-	return Rect2(center-Vector2(width*.5,14),Vector2(width,28))
-
 func update_new_rooms(delta: float) -> void:
-	room_clock += delta
 	if level==1:
 		skull_clock -= delta
 		if skull_clock<=0:
@@ -3392,29 +3387,10 @@ func update_new_rooms(delta: float) -> void:
 		for i in range(skulls.size()-1,-1,-1):
 			skulls[i].life -= delta
 			if skulls[i].life<=0: skulls.remove_at(i)
-	elif level==2:
-		obstacle_cooldown=maxf(0,obstacle_cooldown-delta)
-		for i in range(5):
-			var obstacle := obstacle_rect(i)
-			if obstacle.grow(10).has_point(player) and obstacle_cooldown<=0:
-				player=Vector2(13.5,grid.size()-7.5)*TILE
-				obstacle_cooldown=.65
-				shake=5;sfx("hurt");haptic(25);notify(tx("obstacle_retry"))
-			if player.y<obstacle.position.y-24 and i not in save_data.obstacles:
-				save_data.obstacles.append(i);persist()
 
-func draw_new_rooms() -> void:
-	if level==1:
-		for skull in skulls:
-			draw_sprite("skull",screen(skull.pos),Color(1,1,1,minf(1,skull.life)))
-	elif level==2:
-		for i in range(5):
-			var rect := obstacle_rect(i)
-			var y := screen(rect.get_center()).y
-			draw_line(screen(Vector2(9*TILE,rect.get_center().y)),screen(Vector2(18*TILE,rect.get_center().y)),Color("786878"),5)
-			for x in range(int(rect.size.x/40)): draw_sprite("moving_bar",Vector2(screen(rect.position).x+x*40+20,y+16))
-			var middle := screen(rect.get_center())
-			draw_texture_rect(glow,Rect2(middle-Vector2(55,55),Vector2(110,110)),false,Color(1,.7,.4,.5))
+func draw_dark_room_skulls() -> void:
+	for skull in skulls:
+		draw_sprite("skull",screen(skull.pos),Color(1,1,1,minf(1,skull.life)))
 
 func cycle_weapon() -> void:
 	var inventory: Array = save_data.weapons_taken
@@ -3495,11 +3471,10 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 		for y in range(5):grid[y]=" ".repeat(grid[0].length())
 		grid[5]="#".repeat(grid[0].length())
 	if level==2:
-		for y in range(grid.size()):
-			for x in range(grid[0].length()):
-				if x<8 or x>18:set_cell(x,y," ")
 		objects.assign(objects.filter(func(o):return o.kind=="doorway"))
-		put_object("note",Vector2i(13,15),"crossing")
+		# Retain the story reward in the exit vestibule, beyond the three lanes.
+		put_object("note",Vector2i(17,7),"crossing")
+		return
 	objects.assign(objects.filter(func(o):return o.kind=="doorway" or valid_ground(o.pos)))
 	if level==1:
 		for obj in objects:
@@ -3520,9 +3495,6 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 	for obj in objects:
 		if obj.id=="final_hint":
 			obj.pos=Vector2(rng.randf_range(9.5,17.5),grid.size()-8.5)*TILE
-			continue
-		if obj.id=="crossing":
-			obj.pos=Vector2(rng.randf_range(10.5,16.5),21.5)*TILE
 			continue
 		if (obj.kind!="note" and obj.id!="courage") or obj.id=="buried":continue
 		if obj.id=="courage":
@@ -4120,7 +4092,7 @@ func level_complete() -> bool:
 	match level:
 		0:return has_maze_letters()
 		1:return dark_letters_found()
-		2:return save_data.obstacles.size()>=5 and "crossing" in save_data.letters
+		2:return "crossing" in save_data.letters
 		3:return "buried" in save_data.letters
 		4:return "courage" in save_data.letters
 		5:return room_letters_complete()
@@ -4374,7 +4346,7 @@ func place_accessory(rng: RandomNumberGenerator) -> void:
 		for x in range(2,grid[0].length()-2):
 			var point:=(Vector2(x,y)+Vector2(.5,.5))*TILE
 			if not valid_ground(point) or blocked(point):continue
-			if level==2 and y<30:continue
+			if level==2 and (y!=grid.size()-9 or x not in [12,17]):continue
 			# The excavation tree is installed after accessories; reserve its
 			# centered trunk and crown so random pickups cannot spawn inside it.
 			if level==3 and point.distance_to(Vector2(grid[0].length(),grid.size())*TILE*.5)<105:continue
@@ -4743,8 +4715,8 @@ func draw_ground_region(texture:Texture2D,destination:Rect2,source:Rect2)->void:
 		var cx:float=(15.5 if level==0 and row<5 else 13.5)*48
 		clip=Rect2(screen(Vector2(cx-96,world.y)),Vector2(192,48))
 	else:
-		var left:float=8.5*48 if level==2 else 24.
-		var right:float=18.5*48 if level==2 else grid[0].length()*48-24.
+		var left:=24.0
+		var right:=grid[0].length()*48-24.0
 		clip=Rect2(screen(Vector2(left,5.5*48-26)),Vector2(right-left,(grid.size()-11)*48))
 	# Door openings join the corridor floor through the boundary wall row.
 	if (row==5 and level<6) or (row in [grid.size()-7,grid.size()-6] and level>0):

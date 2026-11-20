@@ -19,15 +19,11 @@ func run():
 	game.travel(2)
 	await create_timer(2.7).timeout
 	check(game.level==2 and not game.fog.visible,'corridor enters obstacle room and removes fog')
-	var start: Vector2=game.obstacle_rect(0).position
-	game.room_clock+=1
-	check(game.obstacle_rect(0).position.x!=start.x,'obstacle moves along X')
-	game.player=game.obstacle_rect(2).get_center()
-	game.obstacle_cooldown=0;game.update_new_rooms(.001)
-	check(game.player.y>game.obstacle_rect(2).end.y,'collision pushes player south without damage')
-	check(game.health==8,'obstacles do not take health')
-	game.player=Vector2(13.5*48,8*48);game.update_new_rooms(.01)
-	check(game.save_data.obstacles.size()==3,'three obstacle rows can be completed')
+	check(game.objects.all(func(obj):return obj.kind in ["doorway","accessory","note","riddle_stone"]),"hall contains only gates and story pickups")
+	check(not game.level_complete(),"crossing note is required to get the exit key")
+	game.collect("crossing");game.clear_modal()
+	check(game.level_complete(),"crossing note unlocks progression")
+
 	game.travel(3)
 	await create_timer(2.7).timeout
 	check(game.level==3,'corridor enters lawn')

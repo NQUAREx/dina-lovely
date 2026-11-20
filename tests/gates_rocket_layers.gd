@@ -9,7 +9,7 @@ func run():
   match room:
    0:g.save_data.letters.append_array(['dawn','flower','star'])
    1:g.save_data.letters.append_array(['shade_1','shade_2','shade_3'])
-   2:g.save_data.obstacles=range(5);g.save_data.letters.append('crossing')
+   2:g.save_data.letters.append('crossing')
    3:g.save_data.letters.append('buried')
    4:g.save_data.letters.append('courage')
    5:g.save_data.letters.append('garden')

@@ -1,7 +1,9 @@
 (()=>{
  const motifStyle=document.createElement('style');
  const motifSvg='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="96" viewBox="0 0 120 96"><g fill="none" stroke="#efb5c7" stroke-opacity=".055" stroke-width="2" shape-rendering="crispEdges"><path d="M18 25v-9h6v3h6v-3h6v9h-3v6h-3v3h-3v3h-3v-3h-3v-6h-3z"/><path d="M84 55h3v6h3v3h6v3h-6v3h-3v6h-3v-6h-3v-3h-6v-3h6v-3h3z"/></g></svg>';
- motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}';document.head.append(motifStyle);
+ const loadingMotifSvg=motifSvg.replace('stroke="#efb5c7" stroke-opacity=".055"','stroke="#443b50"');
+ motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}'
+  +'#garden-loading::before{background-image:url("data:image/svg+xml,'+encodeURIComponent(loadingMotifSvg)+'")}';document.head.append(motifStyle);
  const roseStyle=document.createElement('style');
  const shellUI='__SHELL_UI_HASH__';
  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
@@ -308,7 +310,7 @@
   window.gardenShowLoading=()=>{
    if(document.getElementById('garden-loading'))return loadingReady;
    const screen=document.createElement('section');screen.id='garden-loading';
-   screen.style.cssText='position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:1900;background:radial-gradient(ellipse at top,#55435d,#242538 75%);display:grid;place-content:center;text-align:center;padding:32px;color:#f5e3cf;font:20px/1.6 GardenLetter,sans-serif';
+   screen.style.cssText='position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:1900;background:radial-gradient(ellipse at top,#3b3249,#242538 75%);display:grid;place-content:center;text-align:center;padding:32px;color:#f5e3cf;font:20px/1.6 GardenLetter,sans-serif';
    const sprout=document.createElement('div');sprout.className='garden-loading-heroine';sprout.setAttribute('aria-hidden','true');screen.append(sprout);
    if(ios){
     screen.className='garden-loading-ios';screen.setAttribute('role','status');screen.setAttribute('aria-label',t('loading_progress_label'));

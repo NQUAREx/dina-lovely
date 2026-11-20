@@ -25,7 +25,11 @@ func install()->void:
  var id:String=g.save_data.riddle_stone_order[g.level]
  if id in g.save_data.riddle_stones:return
  var room:=str(g.level);var pos:Vector2
- if g.save_data.riddle_stone_positions.has(room):
+ if g.level==2:
+  # Keep the hall lanes clear and relocate the reward from old narrow layouts.
+  pos=Vector2(21.5,7.5)*g.TILE
+  g.save_data.riddle_stone_positions[room]=[pos.x,pos.y]
+ elif g.save_data.riddle_stone_positions.has(room):
   var p:Array=g.save_data.riddle_stone_positions[room];pos=Vector2(p[0],p[1])
  else:
   var choices:Array[Vector2]=[];var rng:=RandomNumberGenerator.new();rng.seed=int(g.save_data.seed)+g.level*13477+71993

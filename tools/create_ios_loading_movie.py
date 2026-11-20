@@ -15,6 +15,8 @@ SIZE = (480, 960)
 FPS = 25
 TIP_FRAMES = 48
 PAGE_COLOR = (36, 37, 56)
+GLOW_COLOR = (59, 50, 73)
+MOTIF_COLOR = (68, 59, 80)
 METER = (62, 532, 418, 548)
 
 
@@ -34,7 +36,7 @@ def backdrop():
         for x in range(gradient.width):
             px, py = 4 * x, 4 * y
             glow = max(0, 1 - math.hypot((px - width / 2) / 400, (py - 65) / 735))
-            gradient.putpixel((x, y), mix(PAGE_COLOR, (85, 67, 93), glow * edge_weight(px, py)))
+            gradient.putpixel((x, y), mix(PAGE_COLOR, GLOW_COLOR, glow * edge_weight(px, py)))
     image = gradient.resize(SIZE, Image.Resampling.BICUBIC)
     draw = ImageDraw.Draw(image)
     heart = [(0, 3), (0, 0), (6, 0), (6, 3), (12, 3), (12, 0),
@@ -49,8 +51,7 @@ def backdrop():
                 ox, oy = x + dx, y + dy
                 if ox >= width or oy >= height:
                     continue
-                color = mix(image.getpixel((ox, oy)), (239, 181, 199), .065 * edge_weight(ox, oy))
-                draw.line([(ox + mx, oy + my) for mx, my in motif], fill=color, width=2)
+                draw.line([(ox + mx, oy + my) for mx, my in motif], fill=MOTIF_COLOR, width=2)
     draw.rounded_rectangle(METER, radius=8, fill='#342c42', outline='#a07890', width=2)
     return image
 
