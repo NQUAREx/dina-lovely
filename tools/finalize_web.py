@@ -54,8 +54,11 @@ for frame,target in enumerate(loading_frames):shutil.copyfile(root/f'assets/load
 shutil.copyfile(root/'assets/loading_heroine.gif',p.parent/'loading-heroine.gif')
 (p.parent/'loading-heroine.mp4').unlink(missing_ok=True)
 shell_hash=hashlib.sha256(b''.join((p.parent/name).read_bytes() for name in [*shell_files.values(),'ui-flower-right.png','loading-heroine.png','loading-heroine.gif',*loading_frames])).hexdigest()[:12]
+from create_ios_loading_movie import generate as generate_ios_movie
+generate_ios_movie()
+movie_hash=hashlib.sha256(b''.join((p.parent/name).read_bytes() for name in ['ios-loading.mp4','ios-loading-play.mp4','ios-loading-poster.png'])).hexdigest()[:12]
 mobile_shell=(root/'tools/audio_lifecycle.js').read_text()+'\n'+(root/'tools/mobile_shell.js').read_text()
-(p.parent/'mobile.js').write_text(mobile_shell.replace('__SHELL_UI_HASH__',shell_hash).replace('__FONT_HASH__',hashlib.sha256((root/'assets/body.ttf').read_bytes()+(root/'assets/title.ttf').read_bytes()).hexdigest()[:12]).replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)).replace('__REQUIRED_UI__',json.dumps(sorted(required_ui(content)))))
+(p.parent/'mobile.js').write_text(mobile_shell.replace('__IOS_LOADING_HASH__',movie_hash).replace('__SHELL_UI_HASH__',shell_hash).replace('__FONT_HASH__',hashlib.sha256((root/'assets/body.ttf').read_bytes()+(root/'assets/title.ttf').read_bytes()).hexdigest()[:12]).replace('__FRAME_ART_HASH__',frame_hash).replace('__FRAME_COLORS__',json.dumps(frame_colors)).replace('__REQUIRED_UI__',json.dumps(sorted(required_ui(content)))))
 shutil.copyfile(root/'assets/body.ttf',p.parent/'letter-body.ttf')
 shutil.copyfile(root/'assets/title.ttf',p.parent/'letter-title.ttf')
 (p.parent/'font-licenses.txt').write_text((root/'assets/FONT-LICENSE.txt').read_text()+'\n'+(root/'assets/PIXELIFY-OFL.txt').read_text())

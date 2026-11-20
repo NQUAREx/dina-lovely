@@ -184,6 +184,7 @@ func ensure_navigation()->void:
  navigation.diagonal_mode=AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
  navigation.update()
  for y in range(navigation.region.size.y):
+  if g.web_building_rooms:await g.yield_room_build()
   for x in range(navigation.region.size.x):
    var point:=Vector2(x,y)*24+Vector2(12,12)
    var solid:bool=g.blocked(point)

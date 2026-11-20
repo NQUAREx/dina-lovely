@@ -5,7 +5,7 @@
  const roseStyle=document.createElement('style');
  const shellUI='__SHELL_UI_HASH__';
  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
- // One retained texture and a stepped transform keep the iOS walker on a single layer.
+ // A sprite fallback is available if the browser disables inline video.
  const iosWalk=ios?new Image():null;
  if(iosWalk){iosWalk.src='loading-heroine.png?v='+shellUI;iosWalk.alt='';iosWalk.className='garden-loading-walk-strip';}
  // Keep decoded poses stationary: only discrete opacity changes run on the compositor.
@@ -36,6 +36,9 @@
  #garden-loading .garden-loading-heroine{position:relative;display:block;width:128px;height:128px;margin:0 auto;isolation:isolate;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
  #garden-loading .garden-loading-heroine-image{position:absolute;inset:0;display:block;width:128px!important;min-width:128px!important;max-width:128px!important;height:128px!important;min-height:128px!important;max-height:128px!important;object-fit:contain!important;flex:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;opacity:0;will-change:opacity;animation-duration:.64s;animation-timing-function:step-end;animation-iteration-count:infinite}
  .garden-loading-ios .garden-loading-heroine{overflow:hidden}
+ .garden-loading-ios video{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#242538;pointer-events:none}
+ #garden-loading.garden-loading-ios:has(>video)>:not(video){display:none}
+ .garden-loading-ios video::-webkit-media-controls{display:none!important}
  .garden-loading-walk-strip{display:block;width:1024px;max-width:none;height:128px;image-rendering:pixelated;will-change:transform;animation:garden-walk-strip .64s steps(8,end) infinite}
  @keyframes garden-walk-strip{from{transform:translate3d(0,0,0)}to{transform:translate3d(-100%,0,0)}}
  .garden-loading-ios #garden-progress{position:relative;width:min(300px,75vw);height:14px;margin:22px auto 0;overflow:hidden;border:1px solid #a07890;border-radius:8px;background:#342c42}
@@ -116,6 +119,8 @@
  window.gardenHaptic=ms=>{if(!ios&&typeof navigator.vibrate==='function')navigator.vibrate(ms);};
  const suspend=()=>window.gardenSuspended=document.hidden||matchMedia("(orientation: landscape)").matches;
  addEventListener("resize",suspend);document.addEventListener("visibilitychange",()=>{if(document.hidden)window.gardenSaveNow?.();suspend();});addEventListener("pagehide",()=>window.gardenSaveNow?.());suspend();
+ const movieVersion='__IOS_LOADING_HASH__';
+ let movieURL='',residentMovieURL='';
  const liveContent=(async()=>{
   const value=new URLSearchParams(location.search).get('key');
   let selected=false;
@@ -128,6 +133,13 @@
   if(ipad&&location.pathname.endsWith('/play.html')){location.replace(new URL('./'+location.search,location.href));await new Promise(()=>{});}
   const file=selected?'letters.backup.json':'letters.json';
   if(selected&&!location.pathname.endsWith('/play.html')){location.replace(new URL('play.html'+location.search,location.href));await new Promise(()=>{});}
+  if(ios&&standalone){
+   movieURL=(selected?'ios-loading-play.mp4':'ios-loading.mp4')+'?v='+movieVersion;
+   // A complete local source keeps the loop running even if game downloads saturate the link.
+   fetch(movieURL,{signal:AbortSignal.timeout(12000)}).then(async response=>{
+    if(response.ok)residentMovieURL=URL.createObjectURL(await response.blob());
+   }).catch(()=>{});
+  }
   const response=await fetch('https://raw.githubusercontent.com/NQUAREx/dina-lovely/main/content/'+file+'?fresh='+Date.now(),{cache:'no-store',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(8000)});
   if(!response.ok)throw Error(response.status);
   const data=await response.json();
@@ -242,9 +254,59 @@
   let loadingTimer=null;
   let loadProgress=0;window.gardenLoadProgress=(current,total)=>{if(Object.keys(boot.transfers).length)return;boot.loaded=current;boot.total=total;if(ios)return;const bar=document.getElementById('garden-progress');if(!bar)return;if(total>0)loadProgress=Math.max(loadProgress,Math.min(.99,current/total));bar.value=loadProgress;};
   window.gardenRoomProgress=value=>{window.gardenBootStage('rooms');if(ios)return;const bar=document.getElementById('garden-progress');if(bar)bar.value=value;};
-  window.gardenHideLoading=()=>{clearInterval(loadingTimer);document.getElementById('garden-loading')?.remove();paintChrome(chromeColor);};
+  let movie=null,loadingReady=null,cancelMovieStart=null;
+  const startMovie=screen=>{
+   if(!movie){
+    movie=document.createElement('video');
+    movie.muted=true;movie.defaultMuted=true;movie.loop=true;movie.playsInline=true;
+    movie.setAttribute('muted','');movie.setAttribute('playsinline','');movie.setAttribute('webkit-playsinline','');
+    movie.disablePictureInPicture=true;movie.disableRemotePlayback=true;movie.preload='auto';
+    movie.poster='ios-loading-poster.png?v='+movieVersion;
+    movie.setAttribute('aria-hidden','true');
+    movie.addEventListener('error',()=>{movie.remove();cancelMovieStart?.();});
+   }
+   movie.src=residentMovieURL||movieURL;
+   screen.append(movie);
+   window.gardenLoadingCanBuild=false;
+   return new Promise(resolve=>{
+    let frameCallback=null;
+    const finish=(usable=true)=>{
+     clearTimeout(timeout);
+     if(frameCallback!==null)movie.cancelVideoFrameCallback(frameCallback);
+     movie.removeEventListener('timeupdate',timeAdvanced);
+     movie.removeEventListener('error',failed);
+     cancelMovieStart=null;
+     if(!usable){movie.pause();movie.remove();}
+     window.gardenLoadingCanBuild=true;
+     resolve();
+    };
+    const failed=()=>{if(cancelMovieStart===failed)finish(false);};
+    const timeAdvanced=()=>{if(movie.currentTime>0&&!movie.paused)finish();};
+    const sawFrame=(_now,frame)=>{
+     if(frame.mediaTime>0)finish();
+     else frameCallback=movie.requestVideoFrameCallback(sawFrame);
+    };
+    // Unsupported media, autoplay refusal or a broken transfer must still allow entry.
+    const timeout=setTimeout(failed,5000);
+    cancelMovieStart=failed;
+    movie.addEventListener('error',failed,{once:true});
+    if(movie.requestVideoFrameCallback)frameCallback=movie.requestVideoFrameCallback(sawFrame);
+    else movie.addEventListener('timeupdate',timeAdvanced);
+    movie.play().catch(failed);
+   });
+  };
+  const resumeMovie=()=>{
+   if(!document.hidden&&movie?.isConnected&&movie.paused)movie.play().catch(()=>{movie.remove();cancelMovieStart?.();});
+  };
+  document.addEventListener('visibilitychange',resumeMovie);
+  addEventListener('pageshow',resumeMovie);
+  window.gardenHideLoading=()=>{
+   cancelMovieStart?.();loadingReady=null;
+   movie?.pause();movie?.remove();
+   clearInterval(loadingTimer);document.getElementById('garden-loading')?.remove();paintChrome(chromeColor);
+  };
   window.gardenShowLoading=()=>{
-   if(document.getElementById('garden-loading'))return;
+   if(document.getElementById('garden-loading'))return loadingReady;
    const screen=document.createElement('section');screen.id='garden-loading';
    screen.style.cssText='position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:1900;background:radial-gradient(ellipse at top,#55435d,#242538 75%);display:grid;place-content:center;text-align:center;padding:32px;color:#f5e3cf;font:20px/1.6 GardenLetter,sans-serif';
    const sprout=document.createElement('div');sprout.className='garden-loading-heroine';sprout.setAttribute('aria-hidden','true');screen.append(sprout);
@@ -265,7 +327,9 @@
      for(let i=0;i<keys.length;i++){const phrase=document.createElement('p');phrase.textContent=t(keys[(first+i)%keys.length]);track.append(phrase);}
      tips.append(track);screen.append(tips);
     }
-    document.body.append(screen);paintChrome(chromeColor);return;
+    document.body.append(screen);paintChrome(chromeColor);
+    loadingReady=startMovie(screen);
+    return loadingReady;
    }
    for(const pose of loadingHeroes)sprout.append(pose);
    const progress=document.createElement('progress');progress.id='garden-progress';progress.max=1;progress.value=loadProgress;progress.style.cssText='width:min(300px,75vw);height:14px;accent-color:#e5a6bd;border:1px solid #a07890;border-radius:8px;margin:22px auto 0;background:#342c42';progress.setAttribute('aria-label',t('loading_progress_label'));screen.append(progress);const phrase=document.createElement('p');screen.append(phrase);const keys=loaded.loading_phrases||[];let index=Math.floor(Math.random()*keys.length);
@@ -283,14 +347,15 @@
    const heading=document.createElement('h1');heading.textContent=loaded.game_title;gate.append(heading);
    for(const key of ['launch_intro','launch_goal','launch_sound_title','launch_sound_detail','launch_ios_sound'])add('p',key);
    const button=add('button','launch_button');button.onclick=async()=>{
+    if(ios){
+     gate.remove();
+     // Start inline media inside the actual touch gesture, before booting the engine.
+     await window.gardenShowLoading();
+     launch();return;
+    }
     try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();}catch(e){}
     try{if(screen.orientation?.lock)await screen.orientation.lock('portrait');}catch(e){}
     gate.remove();window.gardenShowLoading();
-    if(ios){
-     // Paint the compositor layers before Godot starts allocating and decoding assets.
-     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-     launch();return;
-    }
     // Decode every resident pose, then commit opacity animations before WASM.
     const decoded=await loadingHeroReady;
     if(decoded.some(ok=>!ok)){

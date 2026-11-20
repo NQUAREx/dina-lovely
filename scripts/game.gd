@@ -37,6 +37,9 @@ var reply_hand_start := Vector2.ZERO
 const ROOM_FIELDS := ["pending_spawns","prepared_wave","arena_barrier_lift","poison_zones","grid","objects","enemies","shots","particles","skulls","damage_numbers","path_meshes","path_texture","path_ground","path_pads","hedge_trees","grass_details","path_targets","path_navigation","path_terminals","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","obstacle_specs","skull_clock","obstacle_cooldown","room_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","bloom_times","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
 var room_cache:Dictionary={}
 var room_cache_seed := -1
+var web_building_rooms := false
+var build_deadline_usec := 0
+const WEB_BUILD_SLICE_USEC := 8000
 var room_build_count := 0
 var interaction_clock:=0.0
 var arena_save:=preload("res://scripts/arena_checkpoint.gd").new(self)
@@ -843,16 +846,41 @@ func prepare_room_cache(target: int) -> void:
 		room_cache_seed=int(save_data.seed)
 	activate_cached_room(target)
 
+# Web exports run the engine and DOM on one thread. Return to the browser
+# between batches even while a single room is still being generated.
+func yield_room_build() -> void:
+	if not web_building_rooms or Time.get_ticks_usec() < build_deadline_usec:
+		return
+	await get_tree().process_frame
+	build_deadline_usec = Time.get_ticks_usec() + WEB_BUILD_SLICE_USEC
+
 func prepare_rooms_web(target: int, hide_after: bool = true) -> void:
 	# Prepare static room data once; never generate rooms while walking through a hall.
+	var old_process_mode := process_mode
+	var rendered_before := RenderingServer.render_loop_enabled
+	var was_visible := visible
+	process_mode = Node.PROCESS_MODE_DISABLED
+	hide()
+	web_building_rooms = true
+	# The browser covers the entire canvas until the room cache is ready.
+	RenderingServer.render_loop_enabled = false
 	JavaScriptBridge.eval("window.gardenShowLoading?.();window.gardenRoomProgress?.(0)")
 	await get_tree().process_frame
+	while JavaScriptBridge.eval("window.gardenLoadingCanBuild === false"):
+		await get_tree().process_frame
 	room_cache.clear()
 	for room in range(7):
-		build_level(room);cache_current_room()
+		build_deadline_usec = Time.get_ticks_usec() + WEB_BUILD_SLICE_USEC
+		await build_level(room)
+		cache_current_room()
 		JavaScriptBridge.eval("window.gardenRoomProgress?.("+str(float(room+1)/7)+")")
 		await get_tree().process_frame
-	room_cache_seed=int(save_data.seed);activate_cached_room(target)
+	room_cache_seed=int(save_data.seed)
+	activate_cached_room(target)
+	web_building_rooms = false
+	visible = was_visible
+	RenderingServer.render_loop_enabled = rendered_before
+	process_mode = old_process_mode
 	if hide_after:JavaScriptBridge.eval("window.gardenHideLoading?.()")
 
 func show_intro() -> void:
@@ -1184,7 +1212,7 @@ func build_level(index: int) -> void:
 		for x in [1,grid[0].length()-2]:
 			if grid[y][x]==".": put_object("lamp",Vector2i(x,y))
 	add_corridors()
-	finish_room_layout(rng)
+	await finish_room_layout(rng)
 	companion.place(rng)
 	for obj in objects:
 		var key := str(level)+":"+str(obj.id)
@@ -1195,10 +1223,12 @@ func build_level(index: int) -> void:
 		var beds := objects.filter(func(o):return o.kind=="sprout")
 		var choices: Array[Vector2] = []
 		for y in range(8,grid.size()-8):
+			await yield_room_build()
 			for x in range(3,grid[0].length()-3):
 				var point:=Vector2(x+.5,y+.5)*TILE
 				if garden_layout_clear(point):choices.append(point)
 		for bed in beds:
+			await yield_room_build()
 			var spaced:=choices.filter(func(point):
 				return beds.all(func(other):return not other.has("layout_placed") or point.distance_to(other.pos)>=104))
 			var pool:=spaced if not spaced.is_empty() else choices
@@ -1214,7 +1244,7 @@ func build_level(index: int) -> void:
 		if not plants.has(id): plants[id] = {"stage":FLOWER_STAGE_FULL,"remaining":0.0}
 	normalize_dig_site()
 	place_accessory(rng)
-	prepare_foliage_and_paths(rng)
+	await prepare_foliage_and_paths(rng)
 	if level==5:
 		garden_quest.mark_trees()
 		garden_quest.place(true)
@@ -1227,10 +1257,12 @@ func build_level(index: int) -> void:
 			else:
 				for column in range(foliage_grid[row].length()):
 					if gate_junctions.pillar_cell(Vector2i(column,row)):foliage_grid[row][column]=" "
-		hedge_field=HedgeField.new();hedge_field.build(foliage_grid,int(save_data.seed)+level*16427,hedge_trees,berry_cells,hedge_material.get_image())
+		hedge_field=HedgeField.new()
+		var checkpoint := yield_room_build if web_building_rooms else Callable()
+		await hedge_field.build(foliage_grid,int(save_data.seed)+level*16427,hedge_trees,berry_cells,hedge_material.get_image(),checkpoint)
 	if level==6:
 		objects.assign(objects.filter(func(obj):return obj.kind not in ["crate","column","column_wreath","lamp","candle","candle_heart","heart_stand"] or not Rect2(Vector2(20.8*48,8.8*48),Vector2(3.4*48,9.7*48)).has_point(obj.pos)))
-	prepare_grass_details()
+	await prepare_grass_details()
 	restore_accessory_drops()
 	restore_gate_key()
 	world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install();dig_quest.install()
@@ -1239,7 +1271,8 @@ func build_level(index: int) -> void:
 		arena_save.restore_room();restore_gate_key();rune_stones.install();dig_quest.install()
 		weapon_crates.install()
 		ensure_arena_chest_clearance()
-		battle.navigation_checked=-INF;battle.ensure_navigation()
+		battle.navigation_checked=-INF
+		await battle.ensure_navigation()
 	camera = camera_target()
 	nearest = -1
 	update_hud()
@@ -3453,6 +3486,7 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 	# Do not place trees on hedge cells or shuffle previously opened doors.
 	var candidates: Array[Vector2] = []
 	for y in range(8,grid.size()-8):
+		await yield_room_build()
 		for x in range(2,grid[0].length()-2):
 			var pos := Vector2(x+.5,y+.5)*TILE
 			if valid_ground(pos) and not blocked(pos) and not objects.any(func(o): return o.kind in ["house","pond"] and Rect2(o.pos-Vector2(75,160),Vector2(150,185)).has_point(pos)):candidates.append(pos)
@@ -3465,7 +3499,10 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 			continue
 		if (obj.kind!="note" and obj.id!="courage") or obj.id=="buried":continue
 		if obj.id=="courage":
-			var clear_candidates:=candidates.filter(func(p):return arena_chest_clear(p,obj))
+			var clear_candidates:Array[Vector2]=[]
+			for point in candidates:
+				await yield_room_build()
+				if arena_chest_clear(point,obj):clear_candidates.append(point)
 			if not clear_candidates.is_empty():obj.pos=clear_candidates[rng.randi_range(0,clear_candidates.size()-1)]
 			else:push_error("Arena has no unobstructed reward chest position")
 			continue
@@ -3549,7 +3586,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 	for n in range(spine_points.size()):
 		var tangent:Vector2=(spine_points[mini(n+1,spine_points.size()-1)]-spine_points[maxi(0,n-1)])/7
 		spine.add_point(spine_points[n],-tangent,tangent)
-	var main_path:=roughen_path(continuous_path(spine.get_baked_points(),start,end,rng),int(save_data.seed)+level)
+	var main_path:=roughen_path(await continuous_path(spine.get_baked_points(),start,end,rng),int(save_data.seed)+level)
 	if main_path.size()>1:paths.append(main_path);path_terminals.append(false)
 	if main_path.size()>12:
 		# A second independent walk reconnects with the main route at both ends.
@@ -3575,6 +3612,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 	while not targets.is_empty():
 		var best:=INF;var selected:=0;var anchor:=start
 		for n in range(targets.size()):
+			await yield_room_build()
 			for path in anchor_paths(targets[n]):
 				for point in path:
 					var distance:float=point.distance_to(targets[n].pos)
@@ -3590,6 +3628,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 		var bend_fraction:=rng.randf_range(.34,.52)*(1 if rng.randf()<.5 else -1)
 		for path in anchor_paths(target):
 			for sample in range(0,path.size(),6):
+				await yield_room_build()
 				var candidate:Vector2=path[sample]
 				var distance:float=candidate.distance_to(target.pos)
 				if distance>=approach_cost:continue
@@ -3625,9 +3664,9 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 		if trimmed.size()>1:
 			paths.append(trimmed);path_terminals.append(true)
 			path_targets.append({"id":target.id,"object":target,"path":paths.size()-1,"end":trimmed[-1]})
-	if level==5:add_garden_quest_paths()
+	if level==5:await add_garden_quest_paths()
 	generating_paths=false
-	build_path_meshes()
+	await build_path_meshes()
 
 func add_garden_quest_paths() -> void:
 	# Short offshoots join the existing network in front of each station. Use
@@ -3638,6 +3677,7 @@ func add_garden_quest_paths() -> void:
 		var closest:=INF
 		var origin:=point
 		for path in paths:
+			await yield_room_build()
 			for sample in path:
 				var gap:float=point.distance_squared_to(sample)
 				if gap<closest and not blocked(sample):closest=gap;origin=sample
@@ -3656,7 +3696,7 @@ func add_garden_quest_paths() -> void:
 			var rng:=RandomNumberGenerator.new()
 			rng.seed=int(save_data.seed)+587
 			generating_paths=false
-			var detour:=continuous_path(branch,origin,point,rng)
+			var detour:=await continuous_path(branch,origin,point,rng)
 			generating_paths=true
 			if detour.size()>1:
 				detour.insert(0,origin)
@@ -3812,6 +3852,7 @@ func build_path_meshes() -> void:
 		for n in range(path.size()-2,-1,-1):remaining+=path[n].distance_to(path[n+1]);distances[n]=remaining
 		var terminal:=false
 		for n in range(path.size()-1):
+			if n % 8 == 0:await yield_room_build()
 			var steps:=maxi(1,ceili(path[n].distance_to(path[n+1])/2))
 			for step in range(steps):
 				var t:=float(step)/steps
@@ -3833,6 +3874,7 @@ func build_path_meshes() -> void:
 				coverage[y*size.x+x]=maxf(coverage[y*size.x+x],value)
 	var image:=Image.create(size.x,size.y,false,Image.FORMAT_RGBA8)
 	for y in range(size.y):
+		if y % 8 == 0:await yield_room_build()
 		for x in range(size.x):
 			var value:=coverage[y*size.x+x]
 			if value<=0:continue
@@ -3903,6 +3945,7 @@ func continuous_path(points: PackedVector2Array, start: Vector2, end: Vector2, r
 		path_navigation.cell_size=Vector2(16,16);path_navigation.offset=Vector2(8,8)
 		path_navigation.diagonal_mode=AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES;path_navigation.update()
 		for y in range(path_navigation.region.size.y):
+			await yield_room_build()
 			for x in range(path_navigation.region.size.x):
 				var id := Vector2i(x,y);var pos := Vector2(id)*16+Vector2(8,8)
 				path_navigation.set_point_solid(id,not path_point_safe(pos));path_navigation.set_point_weight_scale(id,rng.randf_range(.9,1.2))
@@ -3964,6 +4007,7 @@ func prepare_grass_details() -> void:
 			var motif:=clumps.get_region(Rect2i(variant*16,palette*16,16,16))
 			motif.resize(size,size,Image.INTERPOLATE_NEAREST);motifs.append(motif)
 	for y in range(2,image.get_height()-2,8):
+		await yield_room_build()
 		for x in range(2,image.get_width()-2,8):
 			if rng.randf()<.42:continue
 			var bare:=sin(x*.037+float(save_data.seed%77))*.55+cos(y*.043-x*.012)*.45
@@ -3991,7 +4035,7 @@ func prepare_grass_details() -> void:
 		return
 	if level==0:
 		if DEBUG_MODE:hedge_shadow_base=image.duplicate()
-		bake_hedge_shadow(image)
+		await bake_hedge_shadow(image)
 	grass_texture=ImageTexture.create_from_image(image)
 
 func setup_shadow_debug()->void:
@@ -4021,6 +4065,7 @@ func bake_hedge_shadow(image:Image)->void:
 	var coverage:=PackedFloat32Array();coverage.resize(width*image.get_height())
 	for y in range(5,grid.size()-5):
 		for x in range(grid[0].length()):
+			await yield_room_build()
 			if grid[y][x]!="#":continue
 			var centre:=Vector2(x*24+hedge_shadow_settings.offset_x,y*24+hedge_shadow_settings.offset_y)
 			for py in range(maxi(0,y*24-12),mini(image.get_height(),y*24+46)):
@@ -4031,6 +4076,7 @@ func bake_hedge_shadow(image:Image)->void:
 					var alpha:float=hedge_shadow_settings.opacity*(1.0-smoothstep(hedge_shadow_settings.fade_start,hedge_shadow_settings.fade_end,distance+ripple))
 					coverage[py*width+px]=maxf(coverage[py*width+px],alpha)
 	for y in range(5*24,(grid.size()-5)*24):
+		if y % 4 == 0:await yield_room_build()
 		for x in range(width):
 			var alpha:=coverage[y*width+x]
 			if alpha<=0:continue

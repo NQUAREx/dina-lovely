@@ -79,7 +79,7 @@ func route_pose(index: int, pose: Vector3, front: bool, player: Vector2, delta: 
 	return Vector3(roundf(state.position.x),roundf(state.position.y),pose.z)
 
 
-func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dictionary, material: Image = null) -> void:
+func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dictionary, material: Image = null, checkpoint: Callable = Callable()) -> void:
 	stone_marker_index=-1;push_anchor=Vector2.INF;push_charge=0;push_normal=Vector2.ZERO;layer_routes.clear();collision_candidates.clear();route_tick=0;removed_cells.clear();crowns.clear();chains.clear();segments.clear();segment_cells.clear();bins.clear();active.clear();draw_order.clear();trunks.clear();body_tiles.clear();body_texture=null;last_player=Vector2.INF;contact_strength=0.0;motion_strength=0.0
 	grid=map.duplicate();rng.seed=seed_value+38911;wind_rng.randomize();wind_clock=wind_rng.randf_range(4,8)
 	visible_first=Vector2i(-9999,-9999);visible_candidates.clear()
@@ -106,6 +106,7 @@ func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dict
 		for next in graph[cell]:trace_chain(cell,next,graph,visited)
 	# Independent, longitudinally jittered streams follow entire wall chains.
 	for chain in chains:
+		if checkpoint.is_valid():await checkpoint.call()
 		var length:=0.0
 		for n in range(1,chain.size()):length+=chain[n].distance_to(chain[n-1])
 		for lane in [-9.2,9.2]:
@@ -119,12 +120,14 @@ func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dict
 	# Fill irregular gaps globally. A cell is only a sampling bin, never a unit of artwork.
 	for pass_index in range(3):
 		for cell in graph:
+			if checkpoint.is_valid():await checkpoint.call()
 			for attempt in range(24):
 				var point:Vector2=Vector2(cell)*TILE+Vector2(rng.randf_range(3,45),rng.randf_range(3,45))
 				try_crown(point,rng.randf_range(6.2,9.2) if pass_index==0 else rng.randf_range(4.5,7.2))
 	# Grow into spare space until neighbouring silhouettes nearly touch.
 	for pass_index in range(9):
 		for node in crowns:
+			if checkpoint.is_valid():await checkpoint.call()
 			var radius:float=minf(12.8,float(node.radius)+.35)
 			for other_index in near_ids(node.base,32):
 				var other:Dictionary=crowns[other_index]
@@ -146,7 +149,7 @@ func build(map: Array[String], seed_value: int, trees: Dictionary, berries: Dict
 	for node in crowns:
 		node.neighbours=near_ids(node.base,38)
 		node.rest_pose=Vector3(roundf(node.base.x),roundf(node.base.y)-16,roundf(node.radius*1.48))
-	build_body(material)
+	await build_body(material,checkpoint)
 
 func wall(cell: Vector2i) -> bool:
 	return cell.x>=0 and cell.y>=0 and cell.y<grid.size() and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#"
@@ -387,11 +390,12 @@ func visible_ids(bounds: Rect2) -> PackedInt32Array:
 		if not crowns[index].get("hidden",false) and bounds.has_point(crowns[index].base):result.append(index)
 	return result
 
-func build_body(material: Image) -> void:
+func build_body(material: Image, checkpoint: Callable) -> void:
 	var size:=Vector2i(grid[0].length()*24,grid.size()*24)
 	var mask:=PackedByteArray();mask.resize(size.x*size.y)
 	var points:=PackedVector2Array()
 	for node in crowns:
+		if checkpoint.is_valid():await checkpoint.call()
 		var point:Vector2=node.base/2;points.append(point)
 		var radius:float=node.radius*.63
 		for y in range(maxi(0,int(point.y-radius-1)),mini(size.y,int(point.y+radius+2))):
@@ -400,6 +404,7 @@ func build_body(material: Image) -> void:
 	# Short neighbouring triangles close the interior; corridor-spanning triangles are rejected.
 	var triangles:=Geometry2D.triangulate_delaunay(points)
 	for n in range(0,triangles.size(),3):
+		if checkpoint.is_valid():await checkpoint.call()
 		var ia:int=triangles[n];var ib:int=triangles[n+1];var ic:int=triangles[n+2]
 		var a:=points[ia];var b:=points[ib];var c:=points[ic]
 		if a.distance_to(b)>(float(crowns[ia].radius)+float(crowns[ib].radius))*.75+4:continue
@@ -416,6 +421,7 @@ func build_body(material: Image) -> void:
 	var image:=Image.create(size.x,size.y+depth,false,Image.FORMAT_RGBA8)
 	var palette:Array[Color]=[Color("416b48"),Color("345e40"),Color("284f3a"),Color("1f4435"),Color("173c35")]
 	for y in range(size.y+depth):
+		if checkpoint.is_valid():await checkpoint.call()
 		for x in range(size.x):
 			var drop:=0
 			if y>=size.y or mask[y*size.x+x]==0:
