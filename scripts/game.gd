@@ -22,12 +22,12 @@ const LARGE_ROOM_ROWS := 25
 const GARDEN_BEDS := 12
 const FLOWER_STAGE_FULL := 3
 const SPROUT_DRY_TIME := 9.0
-const FLOWER_GROWTH_SECONDS := [2.4, 3.0, 3.6]
+const FLOWER_GROWTH_SECONDS := [4.8, 6.0, 7.2]
 const GROUND_DEPTH := .58
-const ACCESSORIES := ["black_dress","dark_scarf","wreath","veil","crown","rose_scarf","peach_dress","heart_tiara","pink_watch","white_scarf","white_dress","daisy_wreath","silver_crown","rose_wreath","lavender_dress","white_veil"]
-const ACCESSORY_SLOTS := {"black_dress":"dress","dark_scarf":"scarf","wreath":"head","crown":"head","heart_tiara":"head","daisy_wreath":"head","silver_crown":"head","rose_wreath":"head","veil":"face","white_veil":"face","rose_scarf":"scarf","white_scarf":"scarf","peach_dress":"dress","white_dress":"dress","lavender_dress":"dress","pink_watch":"wrist"}
-const ROOM_ACCESSORIES := [["wreath","pink_watch"],["veil","white_scarf"],["crown","white_dress"],["rose_scarf","daisy_wreath"],["peach_dress","silver_crown"],["rose_wreath","lavender_dress"],["heart_tiara","white_veil"]]
-const OUTFIT_ORDER := ["black_dress","dark_scarf","peach_dress","white_dress","lavender_dress","rose_scarf","white_scarf","veil","white_veil","wreath","crown","heart_tiara","daisy_wreath","silver_crown","rose_wreath","pink_watch"]
+const ACCESSORIES := ["black_dress","dark_scarf","wreath","veil","crown","rose_scarf","peach_dress","heart_tiara","pink_watch","white_scarf","white_dress","daisy_wreath","silver_crown","rose_wreath","lavender_dress","white_veil","gold_brocade","gold_mantle","gold_veil","emerald_diadem","gold_beads"]
+const ACCESSORY_SLOTS := {"black_dress":"dress","dark_scarf":"scarf","wreath":"head","crown":"head","heart_tiara":"head","daisy_wreath":"head","silver_crown":"head","rose_wreath":"head","veil":"face","white_veil":"face","rose_scarf":"scarf","white_scarf":"scarf","peach_dress":"dress","white_dress":"dress","lavender_dress":"dress","pink_watch":"wrist","gold_brocade":"dress","gold_mantle":"scarf","gold_veil":"face","emerald_diadem":"head","gold_beads":"neck"}
+const ROOM_ACCESSORIES := [["wreath","pink_watch"],["veil","white_scarf"],["crown","white_dress"],["rose_scarf","daisy_wreath"],["peach_dress","silver_crown"],["rose_wreath","lavender_dress"],["heart_tiara","white_veil","gold_brocade","gold_mantle","gold_veil","emerald_diadem","gold_beads"]]
+const OUTFIT_ORDER := ["black_dress","peach_dress","white_dress","lavender_dress","gold_brocade","dark_scarf","rose_scarf","white_scarf","gold_mantle","veil","white_veil","gold_veil","gold_beads","wreath","crown","heart_tiara","daisy_wreath","silver_crown","rose_wreath","emerald_diadem","pink_watch"]
 const HALL_SEAM := 0.0
 var drawing_neighbor := false
 var reply_deposit_active := false
@@ -374,7 +374,7 @@ func sfx(name: String = "chime") -> void:
 	var sample_name := name
 	if name in ["step_grass","step_stone","attack"]: sample_name += ["","_2","_3"][randi()%3]
 	voice.stream = preload("res://scripts/audio_bank.gd").STREAMS.get(sample_name)
-	voice.volume_db = {"shovel_break":-10,"chop_wood":-10,"axe":-10,"pick_stone":-12,"craft_bench":-12,"dig":-18,"punch_swing":-20,"punch_hit":-17,"sword_swing":-19,"birds":-29,"crickets":-28,"gate_open":-11,"gate_unlock":-13,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rpg_launch":-10,"rpg_explosion":-8,"rpg_load":-22,"rifle":-13,"pistol":-10}.get(name,-15)
+	voice.volume_db = {"shears":-8,"shovel_break":-10,"chop_wood":-10,"axe":-10,"pick_stone":-12,"craft_bench":-12,"dig":-18,"punch_swing":-20,"punch_hit":-17,"sword_swing":-19,"birds":-29,"crickets":-28,"gate_open":-11,"gate_unlock":-13,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rpg_launch":-10,"rpg_explosion":-8,"rpg_load":-22,"rifle":-13,"pistol":-10}.get(name,-15)
 	voice.pitch_scale = randf_range(.98,1.02) if name in ["rifle","water","fill"] else randf_range(.94,1.06)
 	voice.play()
 
@@ -1297,19 +1297,24 @@ func arena_exit_sealed()->bool:
 	return level==4 and wave>0 and not combat_done
 
 func arena_barrier_limit() -> float:
-	return (grid.size()-7)*TILE
+	return arena_barrier_floor().position.y-7
 
 func arena_barrier_position() -> Vector2:
 	return Vector2(13.5,grid.size()-5.5)*TILE
+
+func arena_barrier_floor() -> Rect2:
+	var size := Vector2(3,1)*TILE
+	return Rect2(arena_barrier_position()-size/2,size)
 
 func projectile_blocked(pos:Vector2)->bool:
 	return blocked(pos+Vector2(0,26),true)
 
 func blocked(pos: Vector2,projectile:bool=false) -> bool:
 	if dig_quest.blocks(pos):return true
-	if arena_exit_sealed() and absf(pos.x-13.5*TILE)<82:
-		if not projectile and pos.y>arena_barrier_limit():return true
-		if projectile and absf(pos.y-arena_barrier_position().y)<TILE*.5:return true
+	if arena_exit_sealed():
+		var barrier := arena_barrier_floor()
+		if projectile and barrier.has_point(pos):return true
+		if not projectile and pos.y>arena_barrier_limit() and absf(pos.x-barrier.get_center().x)<barrier.size.x/2+10:return true
 	if level==6 and save_data.finished and Rect2(Vector2(21.75*48,12.9*48),Vector2(1.5*48,4.0*48)).grow(8).has_point(pos):return true
 	if pos.y<0 or pos.y>=grid.size()*TILE:
 		for offset in ([Vector2.ZERO] if projectile else [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]):
@@ -2670,7 +2675,8 @@ func _draw_world() -> void:
 	if level==4:
 		var entrance:=arena_barrier_position()
 		if get_viewport_rect().grow(96).has_point(screen(entrance)):
-			draw_rect(Rect2(screen(entrance)-Vector2(70,24),Vector2(140,48)),Color("322d3d"))
+			var slot := arena_barrier_floor()
+			draw_rect(Rect2(screen(slot.position)+Vector2(2,0),slot.size-Vector2(4,0)),Color("322d3d"))
 	# Fixed contact shade ties raised masonry to the ground grid. Only exposed
 	# floor edges receive it; no dynamic light or per-frame shadow projection.
 	for wall in renderables:
@@ -3005,6 +3011,7 @@ func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	walk_facing=toward.normalized()
 	if absf(toward.x)>absf(toward.y):direction=1 if toward.x<0 else 3
 	else:direction=0 if toward.y<0 else 2
+	if garden_quest.is_trimming(kind):return
 	var garden_sound:String=garden_quest.TASK_SOUNDS.get(kind.get_slice(":",0),"")
 	if not garden_sound.is_empty():
 		sfx(garden_sound);return
@@ -3012,6 +3019,9 @@ func begin_task(kind: String, target: Vector2, duration: float) -> void:
 
 func update_tasks(delta: float) -> void:
 	if task_time<=0: return
+	if level==5 and garden_quest.is_trimming(task_kind):
+		var elapsed:=task_duration-task_time
+		garden_quest.update_snips(elapsed,elapsed+delta)
 	task_time -= delta
 	if task_time>0: return
 	if level==5 and garden_quest.complete(task_kind,task_target):pass
@@ -4358,7 +4368,7 @@ func place_accessory(rng: RandomNumberGenerator) -> void:
 			if objects.any(func(o):return o.pos.distance_to(point)<80):continue
 			choices.append(point)
 	if choices.is_empty():choices.append(player+Vector2(35,0))
-	for slot in range(2):
+	for slot in range(ROOM_ACCESSORIES[level].size()):
 		var pos:=accessory_drop_position(player+Vector2(40*slot,40)) if choices.is_empty() else choices[rng.randi_range(0,choices.size()-1)]
 		var item:String=ROOM_ACCESSORIES[level][slot]
 		objects.append({"kind":"accessory","id":"accessory_"+str(level)+"_"+str(slot),"accessory":item,"pos":pos,"solid":false})

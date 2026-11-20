@@ -5,16 +5,21 @@ func run():
  g.new_game();g.clear_modal();g.set_process(false);g.set_physics_process(false);g.sound_on=false
  g.activate_cached_room(3);g.equip_tool("shovel");g.walk_facing=Vector2.UP
  var center:=13.5*48;var gate=g.objects.filter(func(o):return o.kind=="doorway" and o.id=="exit")[0]
- g.player=Vector2(center+40,6.9*48);g.save_data.open_gates.erase(3);gate.gate_amount=0;g.release_at_gate();assert(g.held_item=="shovel")
+ g.player=Vector2(center+40,5.2*48);g.save_data.open_gates.erase(3);gate.gate_amount=0;g.release_at_gate();assert(g.held_item=="shovel")
  g.save_data.open_gates.append(3);gate.gate_amount=1
  for x in [90.0,center-40,1200.0]:
-  g.player=Vector2(x,6.9*48);g.release_at_gate();assert(g.held_item=="shovel")
- g.player=Vector2(center+40,6.9*48);g.release_at_gate();assert(g.held_item.is_empty())
- g.equip_tool("shovel");g.walk_facing=Vector2.DOWN;g.player=Vector2(90,(g.grid.size()-6.9)*48);g.release_at_gate();assert(g.held_item=="shovel")
+  g.player=Vector2(x,5.2*48);g.release_at_gate();assert(g.held_item=="shovel")
+ g.player=Vector2(center+40,5.2*48);g.release_at_gate();assert(g.held_item.is_empty())
+ g.equip_tool("shovel");g.walk_facing=Vector2.DOWN;g.player=Vector2(90,(g.grid.size()-5.2)*48);g.release_at_gate();assert(g.held_item=="shovel")
  g.player.x=center;g.release_at_gate();assert(g.held_item=="shovel")
  g.save_data.open_gates.append(2);g.release_at_gate();assert(g.held_item.is_empty())
  g.activate_cached_room(4);g.wave=3;g.combat_done=false;g.held_item="rifle";g.sync_hands();g.walk_facing=Vector2.DOWN
- var boundary:float=(g.grid.size()-7)*48
+ var slot:Rect2=g.arena_barrier_floor()
+ var boundary:float=slot.position.y-7
+ assert(is_equal_approx(g.arena_barrier_limit(),boundary))
+ assert(not g.blocked(Vector2(center,boundary-1)))
+ assert(not g.blocked(Vector2(center,slot.position.y-1),true))
+ assert(g.blocked(Vector2(center,slot.position.y+1),true))
  g.player=Vector2(center+40,boundary+6);g.release_at_gate();assert(g.held_item=="rifle" and g.blocked(g.player))
  assert(g.blocked(Vector2(center-40,boundary+6)))
  g.combat_done=true;assert(not g.arena_exit_sealed() and not g.blocked(g.player))

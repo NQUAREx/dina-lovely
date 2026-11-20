@@ -780,3 +780,6 @@ runpy.run_path(str(R/"tools/create_reference_stump.py"))
 
 # Anatomical left wrist, including far-arm occlusion.
 runpy.run_path(str(R/"tools/create_watch_wrist.py"))["generate"]()
+
+# Final-room brocade, mantle, veil and jewelry follow the finished walk cycles.
+runpy.run_path(str(R/"tools/create_royal_outfit.py"))["generate"]()

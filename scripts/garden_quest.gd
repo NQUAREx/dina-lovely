@@ -1,15 +1,16 @@
 extends RefCounted
 ## Seeded garden jobs, independent of the flower beds.
 const GRASS_COUNT := 20
-const BUSH_COUNT := 4
+const BUSH_COUNT := 3
 const BASKET_IDS := ["garden_basket","garden_basket_1","garden_basket_2"]
 const BASKETS_REQUIRED := 3
-const BUSH_SPACING := 54.0
+const HARVEST_SECONDS := 1.65
+const SNIP_AT := [.12, .34, .54]
 const BERRY_GROWTH_TIME := 4.0
 const TABLE_REACH := 79.0
 const TOOLS := ["garden_shears","garden_basket"]
 const KINDS := ["garden_grass","garden_bush","garden_shears","garden_basket","garden_table"]
-const TASK_SOUNDS := {"garden_rake":"rake","garden_trim":"shears","garden_trim_tree":"shears","garden_water":"water","garden_harvest":"ui","garden_deposit":"chime"}
+const TASK_SOUNDS := {"garden_rake":"rake","garden_water":"water","garden_harvest":"ui","garden_deposit":"chime"}
 const ANCHOR := Vector2(32,54)
 const TILE_SIZE := Vector2(64,64)
 enum Bush { OVERGROWN, TRIMMED, WATERED, RIPE, PICKED }
@@ -75,11 +76,18 @@ func place(grass_only:bool)->void:
 			if obj.kind in KINDS:
 				saved.layout.append({"kind":obj.kind,"id":obj.id,"pos":[obj.pos.x,obj.pos.y],"variant":obj.variant})
 		return
-	for entry in saved.get("layout",[]):
-		if entry.kind!="garden_grass":restore_placement(entry)
+	var layout:Array=saved.get("layout",[])
+	var previous_bushes:=layout.filter(func(entry):return entry.kind=="garden_bush")
+	for entry in layout:
+		if entry.kind in ["garden_grass","garden_bush"]:continue
+		restore_placement(entry)
 	var candidates:=placement_candidates(rng)
-	if not g.objects.any(func(obj):return obj.kind=="garden_bush"):place_bush_row(candidates)
-	clear_ornamentals_under_row()
+	if previous_bushes.size()==BUSH_COUNT:
+		for entry in previous_bushes:restore_placement(entry)
+	else:
+		place_bushes(candidates)
+		restore_available_bushes()
+	clear_ornamentals_under_bushes()
 	place_landmark("garden_table","garden_table",candidates,true)
 	for id in BASKET_IDS:place_landmark("garden_basket",id,candidates)
 	place_landmark("garden_shears","garden_shears",candidates)
@@ -107,16 +115,39 @@ func placement_candidates(rng:RandomNumberGenerator,for_grass:bool=false)->Array
 		candidates[other]=point
 	return candidates
 
-func place_bush_row(candidates:Array[Vector2])->void:
-	for center in candidates:
-		var row:Array[Vector2]=[]
-		for index in range(BUSH_COUNT):
-			row.append(center+Vector2((index-(BUSH_COUNT-1)*.5)*BUSH_SPACING,0))
-		if not row.all(func(point):return place_clear("garden_bush",point,5.0)):continue
-		for index in range(BUSH_COUNT):
-			add("garden_bush","garden_bush_"+str(index),row[index],index,true)
-		return
-	assert(false,"Garden requires a reachable row of four bushes")
+func place_bushes(candidates:Array[Vector2])->void:
+	# One seeded position per third, with room between adjacent bushes.
+	var low:float=8.0*g.TILE
+	var band_height:float=((g.grid.size()-7)*g.TILE-low)/BUSH_COUNT
+	var planted:Array[Vector2]=[]
+	for index in range(BUSH_COUNT):
+		var id:="garden_bush_"+str(index)
+		var band_start:=low+index*band_height
+		var band_end:=band_start+band_height
+		for point in candidates:
+			if point.y<band_start or point.y>=band_end:continue
+			if planted.any(func(other):return point.distance_squared_to(other)<160.0*160.0):continue
+			if not place_clear("garden_bush",point,5.0):continue
+			add("garden_bush",id,point,index,true)
+			planted.append(point)
+			break
+		if planted.size()<=index:
+			place_landmark("garden_bush",id,candidates,true)
+			if not g.objects.is_empty() and g.objects.back().id==id:
+				planted.append(g.objects.back().pos)
+				g.objects.back().variant=index
+
+func restore_available_bushes()->void:
+	# Older gardens could lose a harvest to eating; retain enough bushes to finish.
+	var saved:=state()
+	var remaining:int=BASKETS_REQUIRED-saved.delivered_baskets.size()-saved.filled_baskets.size()
+	var picked:Array[String]=[]
+	for index in range(BUSH_COUNT):
+		var id:="garden_bush_"+str(index)
+		if bush_phase(id)==Bush.PICKED:picked.append(id)
+	var available_count:=BUSH_COUNT-picked.size()
+	for index in range(mini(picked.size(),remaining-available_count)):
+		saved.bushes[picked[index]]={"phase":Bush.WATERED,"remaining":BERRY_GROWTH_TIME}
 
 func place_landmark(kind:String,id:String,candidates:Array[Vector2],solid:bool=false)->void:
 	if g.objects.any(func(obj):return obj.id==id):return
@@ -160,10 +191,10 @@ func grass_clear(point:Vector2)->bool:
 			if pixels.get_pixel(x,y).a>0:return false
 	return true
 
-func clear_ornamentals_under_row()->void:
-	var row:Array=g.objects.filter(func(obj):return obj.kind=="garden_bush")
+func clear_ornamentals_under_bushes()->void:
+	var bushes:Array=g.objects.filter(func(obj):return obj.kind=="garden_bush")
 	g.objects.assign(g.objects.filter(func(obj):
-		return obj.kind not in ["flowers","blueflowers"] or not row.any(func(bush):
+		return obj.kind not in ["flowers","blueflowers"] or not bushes.any(func(bush):
 			return layout_bounds("garden_bush",bush.pos).intersects(Rect2(obj.pos-Vector2(26,38),Vector2(52,41))))))
 
 func add(kind:String,id:String,point:Vector2,variant:int,solid:bool=false)->void:
@@ -239,6 +270,7 @@ func can_eat_basket()->bool:
 func eat_basket()->void:
 	if g.paused or g.transition or g.task_time>0 or not can_eat_basket():return
 	state().filled_baskets.erase(state().held_basket)
+	restore_available_bushes()
 	g.eat_fruit("berries")
 	g.find_nearest()
 	g.update_hud()
@@ -309,7 +341,17 @@ func interact(obj:Dictionary)->void:
 					g.notify(g.tx("water_empty"))
 					return
 				job="garden_water"
-	g.begin_task(job+":"+str(obj.id),obj.pos,.9 if job=="garden_water" else .55)
+	var duration:float={"garden_water":.9,"garden_trim":.66,"garden_harvest":HARVEST_SECONDS}.get(job,.55)
+	g.begin_task(job+":"+str(obj.id),obj.pos,duration)
+
+func is_trimming(task:String)->bool:
+	return task.begins_with("garden_trim:") or task.begins_with("garden_trim_tree:")
+
+func update_snips(previous:float,current:float)->void:
+	for closing in SNIP_AT:
+		if previous<closing and current>=closing:
+			g.sfx("shears")
+			break
 
 func complete(task:String,point:Vector2)->bool:
 	if not task.begins_with("garden_"):return false
@@ -453,7 +495,7 @@ func held_pose()->Dictionary:
 	var toward:Vector2=g.walk_facing
 	if g.task_time>0:toward=(g.task_target-g.player).normalized()
 	var flip:=Vector2(-1,1) if shears and toward.x<-.1 else Vector2.ONE
-	var trimming:bool=g.task_time>0 and (g.task_kind.begins_with("garden_trim:") or g.task_kind.begins_with("garden_trim_tree:"))
+	var trimming:bool=g.task_time>0 and is_trimming(g.task_kind)
 	var rotation:=0.0
 	if shears:
 		rotation=toward.angle()-(Vector2(13,-2)*flip).angle()
@@ -463,7 +505,8 @@ func held_pose()->Dictionary:
 		rotation=sin(g.time*12)*.10 if g.moving else 0.0
 	var index:=44 if not shears and basket_filled(state().held_basket) else 42
 	if shears:
-		index=52 if trimming and int(g.time*10)%2==0 else 41
+		var elapsed:float=g.task_duration-g.task_time
+		index=52 if trimming and SNIP_AT.any(func(closing):return elapsed>=closing and elapsed<closing+.09) else 41
 	return {"origin":origin,"rotation":rotation,"flip":flip,
 		"box":Rect2(-anchor*scale_factor,TILE_SIZE*scale_factor),
 		"source":region(index)}

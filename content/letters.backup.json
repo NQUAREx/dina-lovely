@@ -1404,6 +1404,26 @@
     "garden_chores_progress": {
       "_comment": "Подпись задания сада. Ключ и поля в фигурных скобках сохраняйте.",
       "text": "Трава {grass}/20 · Цветы {flowers}/12 · Корзинки {baskets}/3"
+    },
+    "accessory_gold_brocade": {
+      "_comment": "Название аксессуара gold_brocade над предметом и в уведомлении.",
+      "text": "Парчовое платье"
+    },
+    "accessory_gold_mantle": {
+      "_comment": "Название аксессуара gold_mantle над предметом и в уведомлении.",
+      "text": "Мантия с золотой вышивкой"
+    },
+    "accessory_gold_veil": {
+      "_comment": "Название аксессуара gold_veil над предметом и в уведомлении.",
+      "text": "Паранжа с золотым узором"
+    },
+    "accessory_emerald_diadem": {
+      "_comment": "Название аксессуара emerald_diadem над предметом и в уведомлении.",
+      "text": "Изумрудная диадема"
+    },
+    "accessory_gold_beads": {
+      "_comment": "Название аксессуара gold_beads над предметом и в уведомлении.",
+      "text": "Золотые бусы"
     }
   },
   "schema_version": 2,

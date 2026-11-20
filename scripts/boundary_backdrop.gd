@@ -34,14 +34,7 @@ func draw_shared_corridors()->void:
   for y in range(height-5,height+5):
    for x in [11,15]:
     stamp(owner,g.screen(Vector2(x+.5,y+.5)*48))
-  # Lower room front row covers the final corridor block face at the corner.
-  if owner>1 and g.room_cache.has(owner-1):
-   var lower:Array=g.room_cache[owner-1].grid
-   g.level=owner-1;g.grid=lower
-   g.camera=old_camera+offset-Vector2(-96 if owner==1 else 0,height*48)
-   var cx:=15 if owner==1 else 13
-   for x in [cx-4,cx-3,cx-2,cx+2,cx+3,cx+4]:
-    if lower[5][x]=="#":g.draw_sprite("stone",g.screen(Vector2(x+.5,5.5)*48))
+  # The room's first wall row and gate posts are drawn in the world depth pass.
  g.level=old_level;g.grid=old_grid;g.camera=old_camera
 
 func prepare_tree_shadows()->void:
