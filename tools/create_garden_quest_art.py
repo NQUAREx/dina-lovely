@@ -1,8 +1,9 @@
 """Draw the garden quest sprites at the game's two-screen-pixel scale."""
 
 from pathlib import Path
+from random import Random
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageColor, ImageDraw
 
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
@@ -200,38 +201,98 @@ def bush(variant, stage):
     return sprite
 
 
+def overgrown_tree(variant):
+    sprite, d = canvas()
+    rng = Random(3137 + variant)
+    forks, clusters = [
+        ([(32,52),(32,43),(28,34),(21,28),(17,20)],
+         [(17,21,9,11),(24,26,10,9),(34,29,10,12),(27,35,10,8),(15,34,7,6),(37,19,5,6)]),
+        ([(32,52),(32,41),(36,34),(42,30),(43,20)],
+         [(24,27,8,10),(37,22,11,11),(45,28,8,8),(34,35,11,8),(45,40,7,6),(30,15,5,6)]),
+        ([(32,52),(31,44),(35,34),(30,27),(31,18)],
+         [(33,17,10,11),(23,23,8,9),(37,27,10,9),(31,36,10,9),(44,31,7,6),(18,34,6,8)]),
+        ([(32,52),(32,44),(25,38),(24,30),(14,28)],
+         [(16,25,9,7),(27,22,9,10),(42,28,10,9),(30,34,13,8),(16,35,7,5),(46,37,6,6)]),
+    ][variant]
+    dark, shade, middle, face, light = [
+        ("#284b42", "#385e4e", "#4c7559", "#608665", "#88a174"),
+        ("#294d44", "#3a6353", "#507b62", "#62886b", "#8ba676"),
+        ("#29483e", "#3d6149", "#537954", "#668968", "#93a879"),
+        ("#284b43", "#41634d", "#53775d", "#63886b", "#849e73"),
+    ][variant]
+    face_pixel = ImageColor.getcolor(face, "RGBA")
+    # A crooked stem and two exposed forks remain visible below the canopy.
+    branch_tips = [((39,18),(14,39)),((28,16),(46,40)),((18,37),(46,26)),((44,23),(15,40))]
+    for tip in branch_tips[variant]:
+        branch = [forks[1], ((tip[0]+forks[2][0])//2, forks[2][1]), tip]
+        d.line(branch, fill=WOOD_EDGE, width=4)
+        d.line(branch, fill=WOOD_MID, width=2)
+    d.line(forks, fill=WOOD_EDGE, width=8, joint="curve")
+    d.line([(x - 1, y) for x, y in forks], fill=WOOD_SHADE, width=6, joint="curve")
+    d.line([(x - 2, y) for x, y in forks], fill="#96735d", width=3, joint="curve")
+    shape(d, [(-7,0),(-4,-2),(-3,-6),(3,-6),(5,-2),(7,0),(4,1),(-5,1)], WOOD_EDGE, 32, 53)
+    shape(d, [(-5,0),(-3,-2),(-2,-6),(2,-6),(3,-1),(4,0)], WOOD_MID, 32, 53)
+    d.line((30,48,30,51,28,53), fill="#a78667")
+
+    for n, (cx, cy, rx, ry) in enumerate(clusters):
+        # Rounded lobes with small stepped nicks, lit from the top left.
+        rim = [(-rx,0),(-rx+1,-ry//2),(-rx//2,-ry+1),(-2,-ry+1),(0,-ry),
+               (rx//2,-ry+1),(rx-2,-ry//2-1),(rx-1,-3),(rx,-2),(rx,2),
+               (rx-2,ry//2),(rx//2,ry-1),(2,ry),(-1,ry-1),(-rx//2,ry-1),(-rx+2,ry//2)]
+        shape(d, rim, dark, cx, cy)
+        shape(d, [(x+(1 if x<0 else -1), y+(1 if y<0 else -1)) for x,y in rim], shade, cx, cy-1)
+        shape(d, [(round(x*.86)-1,round(y*.80)-2) for x,y in rim], middle, cx, cy)
+        shape(d, [(round(x*.68)-2,round(y*.57)-3) for x,y in rim], face, cx, cy)
+        d.line((cx-rx//2,cy-ry//2,cx-rx//3,cy-ry//2-1,cx+1,cy-ry//2-1), fill=light)
+        for _ in range(7):
+            x, y = cx+rng.randrange(-(rx//2), rx//2+1), cy+rng.randrange(-(ry//2), ry//2+1)
+            if sprite.getpixel((x, y)) == face_pixel:
+                d.line((x,y,x+rng.randrange(2),y), fill=light if rng.randrange(3)==0 else middle)
+        if n in (0, 3, 5):
+            side = -1 if cx < 32 else 1
+            x, y = cx+(rx-2)*side, cy-ry//2
+            d.line((x,y,x+side*2,y-2,x+side*2,y-5), fill=dark)
+            shape(d, [(0,0),(side,-2),(side*4,-3),(side*3,0),(side,1)], middle, x+side*2, y-4)
+            d.point((x+side*4,y-6), fill=light)
+    return sprite
+
+
 def shears(on_ground, opened=False):
     sprite, d = canvas()
-    metal_edge, metal_dark = "#515967", "#74818c"
-    metal_back, metal_face = "#b9c9c5", "#e0e4db"
-    grip_edge, grip_shade, grip_light, hole = "#786a65","#ab8c68","#d9bb80","#302d48"
+    steel_edge, steel_shadow, steel, glint = "#3c4655", "#79878f", "#b7c6c3", "#e6e5d6"
+    brass_edge, brass, brass_lit = "#5a4a42", "#b78b5c", "#e3bf7e"
     if opened:
-        shape(d, [(29,47),(33,43),(40,40),(44,40),(42,43),
-                  (37,45),(34,48),(31,50)], metal_edge)
-        d.line((33,46,38,43,42,41), fill=metal_face, width=2)
-        shape(d, [(31,46),(34,47),(37,50),(44,54),(41,55),
-                  (35,52),(31,51)], metal_edge)
-        d.line((33,49,38,52,42,53), fill=metal_back, width=2)
+        blades = [
+            ([(29,47),(32,44),(37,42),(41,39),(46,39),(45,42),(39,46),(34,49),(30,50)],
+             [(33,46),(37,44),(41,41),(45,40)]),
+            ([(29,47),(33,46),(38,48),(44,51),(46,54),(43,55),(37,53),(32,51),(29,50)],
+             [(34,49),(39,51),(44,53)]),
+        ]
     else:
-        shape(d, [(29,46),(33,44),(40,44),(44,46),(43,48),
-                  (37,49),(34,51),(29,51)], metal_edge)
-        d.line((33,46,42,46), fill=metal_face, width=2)
-        d.line((33,48,40,48), fill=metal_back, width=2)
-        d.line((34,50,38,49), fill=metal_dark)
-    # Two solid, square brass handles echo the game's rake and optional shears.
-    for top in [42,49]:
-        shape(d, [(22,top+1),(24,top),(28,top),(31,top+2),
-                  (31,top+5),(28,top+6),(23,top+6),(22,top+4)], grip_edge)
-        d.rectangle((23,top+1,28,top+5), fill=grip_light)
-        d.line((24,top+5,29,top+5), fill=grip_shade)
-        d.rectangle((25,top+2,27,top+4), fill=hole)
-    d.rectangle((29,46,33,50), fill="#9eaaab")
-    d.line((30,50,33,50),fill=metal_dark)
-    d.rectangle((30,47,31,48), fill="#f5e7c8")
+        blades = [
+            ([(29,46),(34,44),(43,44),(46,45),(45,47),(38,49),(32,50),(29,50)],
+             [(33,46),(42,45),(45,45)]),
+            ([(29,47),(35,46),(45,46),(46,48),(43,49),(36,50),(32,51),(29,50)],
+             [(33,49),(42,48),(44,47)]),
+        ]
+    for blade, edge in blades:
+        shape(d, blade, steel_edge)
+        d.line(edge, fill=steel, width=2)
+        d.line(edge, fill=glint)
+    # Hard-edged loops match the existing brass garden tools. Holes are alpha.
+    for y in (41, 49):
+        shape(d, [(0,1),(2,0),(6,0),(9,2),(9,5),(7,7),(2,7),(0,5)], brass_edge, 19, y)
+        shape(d, [(1,2),(2,1),(6,1),(8,2),(8,5),(6,6),(2,6),(1,5)], brass, 19, y)
+        d.line((21,y+1,25,y+1,26,y+2), fill=brass_lit)
+        d.rectangle((22,y+3,24,y+4), fill=(0,0,0,0))
+    shape(d, [(0,0),(3,-2),(7,-1),(8,2),(6,4),(2,4),(0,3)], steel_edge, 26, 47)
+    shape(d, [(0,1),(3,-1),(6,0),(6,2),(3,3),(0,2)], steel_shadow, 27, 47)
+    d.rectangle((29,47,30,48), fill=glint)
     if on_ground:
-        piece=sprite.crop(sprite.getbbox()).rotate(38,resample=Image.Resampling.NEAREST,expand=True)
-        sprite=Image.new("RGBA",(CELL,CELL))
-        sprite.paste(piece,(32-piece.width//2,55-piece.height))
+        piece = sprite.crop(sprite.getbbox()).rotate(47, resample=Image.Resampling.NEAREST, expand=True)
+        piece = piece.crop(piece.getbbox())
+        sprite = Image.new("RGBA", (CELL, CELL))
+        sprite.paste(piece, (32-piece.width//2, 55-piece.height))
     return sprite
 
 
@@ -332,6 +393,8 @@ def main():
     for delivered in range(4):
         sprites[48 + delivered] = display_table(delivered)
     sprites[52] = shears(on_ground=False, opened=True)
+    for variant in range(4):
+        sprites[56+variant] = overgrown_tree(variant)
     rows = max(sprites) // COLUMNS + 1
     atlas = Image.new("RGBA", (CELL * COLUMNS, CELL * rows))
     for index, sprite in sprites.items():

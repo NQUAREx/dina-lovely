@@ -1,6 +1,6 @@
 // Versioned, resumable static downloads; no service worker or server headers required.
 (()=>{
- const compressedWasm='engine.8032306d52d5.wasm.gz',sizes={"engine.8032306d52d5.wasm.gz": 10054758, "index.wasm": 39514754, "game.fe5783629e8b.pck": 3373660},chunkSize=512*1024,parallel=4;
+ const compressedWasm='engine.8032306d52d5.wasm.gz',sizes={"engine.8032306d52d5.wasm.gz": 10054758, "index.wasm": 39514754, "game.a3fba72a4e6b.pck": 3378924},chunkSize=512*1024,parallel=4;
  const cacheName='garden-assets-v1',writes=new Set();
  window.gardenFlushAssetCache=()=>Promise.all([...writes]);
  const cachePromise=typeof caches==='undefined'?Promise.resolve(null):caches.open(cacheName).catch(()=>null);

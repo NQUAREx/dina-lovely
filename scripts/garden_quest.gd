@@ -6,9 +6,10 @@ const BASKET_IDS := ["garden_basket","garden_basket_1","garden_basket_2"]
 const BASKETS_REQUIRED := 3
 const BUSH_SPACING := 54.0
 const BERRY_GROWTH_TIME := 4.0
+const TABLE_REACH := 79.0
 const TOOLS := ["garden_shears","garden_basket"]
 const KINDS := ["garden_grass","garden_bush","garden_shears","garden_basket","garden_table"]
-const TASK_SOUNDS := {"garden_rake":"rake","garden_trim":"shears","garden_water":"water","garden_harvest":"ui","garden_deposit":"chime"}
+const TASK_SOUNDS := {"garden_rake":"rake","garden_trim":"shears","garden_trim_tree":"shears","garden_water":"water","garden_harvest":"ui","garden_deposit":"chime"}
 const ANCHOR := Vector2(32,54)
 const TILE_SIZE := Vector2(64,64)
 enum Bush { OVERGROWN, TRIMMED, WATERED, RIPE, PICKED }
@@ -38,11 +39,30 @@ func state()->Dictionary:
 		saved.erase("load")
 		saved.erase("baskets")
 		saved.erase("introduced")
+	if not saved.has("trimmed_trees"):saved.trimmed_trees=[]
 	return saved
 
-func ready()->bool:
+func chores_ready()->bool:
 	var saved:=state()
 	return saved.grass.size()>=GRASS_COUNT and saved.delivered_baskets.size()>=BASKETS_REQUIRED
+
+func ready()->bool:
+	return chores_ready() and not g.objects.any(tree_needs_trim)
+
+func mark_trees()->void:
+	for obj in g.objects:
+		if not obj.solid or obj.kind not in ["tree","tree_apples"]:continue
+		var cell:=Vector2i(obj.pos/g.TILE)
+		if not g.shadow_floor_cell(cell) or g.corridor_row(cell.y):continue
+		obj.garden_trim_id="%d_%d"%[cell.x,cell.y]
+		obj.garden_tree_sprite=56+posmod(cell.x*7+cell.y*11+int(g.save_data.seed),4)
+
+func tree_needs_trim(obj:Dictionary)->bool:
+	return obj.has("garden_trim_id") and obj.kind in ["tree","tree_apples"] and 5 not in g.save_data.open_gates and obj.garden_trim_id not in state().trimmed_trees
+
+func trim_tree(obj:Dictionary)->void:
+	if g.held_item=="garden_shears" and tree_needs_trim(obj):
+		g.begin_task("garden_trim_tree:"+obj.garden_trim_id,obj.pos,.8)
 
 func place(grass_only:bool)->void:
 	var saved:=state()
@@ -210,6 +230,19 @@ func visible(obj:Dictionary)->bool:
 func basket_filled(id:String)->bool:
 	return id in state().filled_baskets
 
+func nearby_table()->int:
+	return g.objects.find_custom(func(obj):return obj.kind=="garden_table" and obj.pos.distance_squared_to(g.player)<TABLE_REACH*TABLE_REACH)
+
+func can_eat_basket()->bool:
+	return g.level==5 and g.held_item=="garden_basket" and basket_filled(state().held_basket) and nearby_table()<0
+
+func eat_basket()->void:
+	if g.paused or g.transition or g.task_time>0 or not can_eat_basket():return
+	state().filled_baskets.erase(state().held_basket)
+	g.eat_fruit("berries")
+	g.find_nearest()
+	g.update_hud()
+
 func icon_needed(obj:Dictionary)->String:
 	match obj.kind:
 		"garden_grass":return "rake"
@@ -291,6 +324,9 @@ func complete(task:String,point:Vector2)->bool:
 		"garden_trim":
 			saved.bushes[parts[1]]={"phase":Bush.TRIMMED}
 			g.world_tools.cut_particles(point)
+		"garden_trim_tree":
+			if parts[1] not in saved.trimmed_trees:saved.trimmed_trees.append(parts[1])
+			g.world_tools.cut_particles(point+Vector2(0,-34))
 		"garden_water":
 			g.water-=1
 			g.save_data.water=g.water
@@ -348,7 +384,8 @@ func used_rect(index:int)->Rect2:
 	return opaque_bounds[index]
 
 func bounds(obj:Dictionary)->Rect2:
-	var used:=used_rect(sprite_index(obj))
+	var index:int=obj.garden_tree_sprite if tree_needs_trim(obj) else sprite_index(obj)
+	var used:=used_rect(index)
 	return Rect2(Vector2(obj.pos)+(used.position-ANCHOR)*2.0,used.size*2.0)
 
 func icon(kind:String)->Texture2D:
@@ -377,7 +414,7 @@ func hint_source(kind:String)->Image:
 	return frame
 
 func draw_object(obj:Dictionary,pos:Vector2,highlighted:bool)->void:
-	var index:=sprite_index(obj)
+	var index:int=obj.garden_tree_sprite if tree_needs_trim(obj) else sprite_index(obj)
 	var box:=Rect2(pos-ANCHOR*2.0,TILE_SIZE*2.0)
 	var source:=region(index)
 	if highlighted:
@@ -396,15 +433,16 @@ func draw_object(obj:Dictionary,pos:Vector2,highlighted:bool)->void:
 
 func draw_hints()->void:
 	for obj in g.objects:
-		if obj.kind not in ["garden_grass","garden_bush","garden_table"] or not visible(obj):continue
+		var tree:=tree_needs_trim(obj)
+		if not tree and (obj.kind not in ["garden_grass","garden_bush","garden_table"] or not visible(obj)):continue
 		if obj.kind!="garden_bush":
 			var range_px:=116.0 if obj.kind=="garden_grass" else 156.0
 			if obj.pos.distance_squared_to(g.player)>range_px*range_px:continue
 		if g.task_time>0 and g.task_target==obj.pos:continue
-		var needed:=icon_needed(obj)
+		var needed:="shears" if tree else icon_needed(obj)
 		if needed.is_empty():continue
 		var world_box:=bounds(obj)
-		var top:=world_box.position.y-42+sin(g.time*2.2+float(obj.variant))*3
+		var top:=world_box.position.y-42+sin(g.time*2.2+float(obj.get("variant",0)))*3
 		g.draw_garden_need(needed,g.screen(Vector2(obj.pos.x,top)).round())
 
 func held_pose()->Dictionary:
@@ -415,16 +453,17 @@ func held_pose()->Dictionary:
 	var toward:Vector2=g.walk_facing
 	if g.task_time>0:toward=(g.task_target-g.player).normalized()
 	var flip:=Vector2(-1,1) if shears and toward.x<-.1 else Vector2.ONE
+	var trimming:bool=g.task_time>0 and (g.task_kind.begins_with("garden_trim:") or g.task_kind.begins_with("garden_trim_tree:"))
 	var rotation:=0.0
 	if shears:
 		rotation=toward.angle()-(Vector2(13,-2)*flip).angle()
-		if g.task_time>0 and g.task_kind.begins_with("garden_trim:"):rotation+=sin(g.time*23)*.18
+		if trimming:rotation+=sin(g.time*23)*.18
 	else:
 		# The basket stays vertical as the right wrist moves.
 		rotation=sin(g.time*12)*.10 if g.moving else 0.0
 	var index:=44 if not shears and basket_filled(state().held_basket) else 42
 	if shears:
-		index=52 if g.task_time>0 and g.task_kind.begins_with("garden_trim:") and int(g.time*10)%2==0 else 41
+		index=52 if trimming and int(g.time*10)%2==0 else 41
 	return {"origin":origin,"rotation":rotation,"flip":flip,
 		"box":Rect2(-anchor*scale_factor,TILE_SIZE*scale_factor),
 		"source":region(index)}

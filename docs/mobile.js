@@ -36,9 +36,13 @@
  motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}';document.head.append(motifStyle);
  const roseStyle=document.createElement('style');
  const shellUI='10a4c55de987';
+ const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ // One retained texture and a stepped transform keep the iOS walker on a single layer.
+ const iosWalk=ios?new Image():null;
+ if(iosWalk){iosWalk.src='loading-heroine.png?v='+shellUI;iosWalk.alt='';iosWalk.className='garden-loading-walk-strip';}
  // Keep decoded poses stationary: only discrete opacity changes run on the compositor.
  // Never crossfade transparent sprites: source-over blending dims every step.
- const loadingHeroes=Array.from({length:8},(_,frame)=>{
+ const loadingHeroes=Array.from({length:ios?0:8},(_,frame)=>{
   const image=new Image();image.src='loading-heroine-'+frame+'.png?v='+shellUI;
   image.alt='';image.decoding='sync';image.className='garden-loading-heroine-image';
   image.style.animationName='garden-loading-pose-'+frame;
@@ -62,7 +66,20 @@
  #mobile-gate button::after,#garden-recovery button::after{content:'';pointer-events:none;position:absolute;left:50%;top:-17px;transform:translateX(-50%);width:44px;height:24px;background:url('ui-crest-button.png?v=${shellUI}') center/44px 24px no-repeat}
  #mobile-gate h1{color:#f4d3b4!important;text-shadow:2px 2px #49354f}#garden-loading progress{accent-color:#d49aab}
  #garden-loading .garden-loading-heroine{position:relative;display:block;width:128px;height:128px;margin:0 auto;isolation:isolate;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
- #garden-loading .garden-loading-heroine-image{position:absolute;inset:0;display:block;width:128px!important;min-width:128px!important;max-width:128px!important;height:128px!important;min-height:128px!important;max-height:128px!important;object-fit:contain!important;flex:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;opacity:0;will-change:opacity;animation-duration:.64s;animation-timing-function:step-end;animation-iteration-count:infinite} ${loadingWalkFrames}`;
+ #garden-loading .garden-loading-heroine-image{position:absolute;inset:0;display:block;width:128px!important;min-width:128px!important;max-width:128px!important;height:128px!important;min-height:128px!important;max-height:128px!important;object-fit:contain!important;flex:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;opacity:0;will-change:opacity;animation-duration:.64s;animation-timing-function:step-end;animation-iteration-count:infinite}
+ .garden-loading-ios .garden-loading-heroine{overflow:hidden}
+ .garden-loading-walk-strip{display:block;width:1024px;max-width:none;height:128px;image-rendering:pixelated;will-change:transform;animation:garden-walk-strip .64s steps(8,end) infinite}
+ @keyframes garden-walk-strip{from{transform:translate3d(0,0,0)}to{transform:translate3d(-100%,0,0)}}
+ .garden-loading-ios #garden-progress{position:relative;width:min(300px,75vw);height:14px;margin:22px auto 0;overflow:hidden;border:1px solid #a07890;border-radius:8px;background:#342c42}
+ .garden-loading-meter-fill{position:absolute;inset:0;overflow:hidden;border-radius:inherit;background:linear-gradient(90deg,#a7789b,#efbdd0);transform-origin:left center;will-change:transform;animation:garden-load-decorative 16s ease-out both}
+ @keyframes garden-load-decorative{0%{transform:scaleX(.04)}14%,18%{transform:scaleX(.26)}34%,39%{transform:scaleX(.50)}55%,61%{transform:scaleX(.72)}80%,85%{transform:scaleX(.88)}100%{transform:scaleX(.95)}}
+ .garden-loading-meter-fill::after{content:'';position:absolute;inset:0 auto 0 0;width:38%;background:linear-gradient(90deg,transparent,#fff0dc60,transparent);will-change:transform;animation:garden-load-glint 3.2s linear infinite}
+ @keyframes garden-load-glint{from{transform:translate3d(-100%,0,0)}to{transform:translate3d(270%,0,0)}}
+ .garden-loading-tips{height:2.5em;margin-top:.45em;overflow:hidden}
+ .garden-loading-tips-track{will-change:transform;animation:garden-loading-tips var(--duration) steps(var(--phrases),end) infinite}
+ .garden-loading-tips-track p{height:2.5em;margin:0;display:grid;place-items:center;line-height:1.2}
+ @keyframes garden-loading-tips{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,-100%,0)}}
+ ${loadingWalkFrames}`;
  document.head.append(roseStyle);
  const frameArtVersion='c57621a051f2';
  // The same room palette also colors browser-owned areas where textures cannot render.
@@ -85,7 +102,7 @@
  syncChrome(0,false);addEventListener('DOMContentLoaded',()=>paintChrome(chromeColor));
  const boot={stage:'download',since:performance.now(),events:[],loaded:0,total:0,resize:0};
  window.gardenBoot=boot;boot.assets={};boot.transfers={};
- window.gardenAssetBytes=(name,loaded,total)=>{boot.transfers[name]={loaded,total};boot.loaded=Object.values(boot.transfers).reduce((sum,t)=>sum+t.loaded,0);boot.total=Object.values(boot.transfers).reduce((sum,t)=>sum+t.total,0);const bar=document.getElementById('garden-progress');if(bar)bar.value=boot.total>0?boot.loaded/boot.total:0;};
+ window.gardenAssetBytes=(name,loaded,total)=>{boot.transfers[name]={loaded,total};boot.loaded=Object.values(boot.transfers).reduce((sum,t)=>sum+t.loaded,0);boot.total=Object.values(boot.transfers).reduce((sum,t)=>sum+t.total,0);if(ios)return;const bar=document.getElementById('garden-progress');if(bar)bar.value=boot.total>0?boot.loaded/boot.total:0;};
  window.gardenAssetState=(name,done)=>{boot.assets[name]=done;window.gardenBootStage(Object.values(boot.assets).every(Boolean)?'compile':'download');};
  window.gardenBootStage=stage=>{if(boot.stage!==stage){boot.stage=stage;boot.since=performance.now();boot.events.push({stage,at:Math.round(performance.now())});}};
  addEventListener('resize',()=>boot.resize++);
@@ -100,7 +117,7 @@
   return {field,borders};
  });
  const layoutFrames=()=>{const canvas=document.getElementById('canvas');if(!canvas)return;canvas.style.zIndex='1';const viewport=window.visualViewport;
-  const installedIOS=(/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))&&(navigator.standalone||matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches);
+  const installedIOS=ios&&(navigator.standalone||matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches);
   // iOS standalone can report a visual viewport shorter than the actual screen.
   // Use one screen-sized coordinate system for the page, decorative fields and canvas center.
   const pageHeight=installedIOS?screen.height:innerHeight;
@@ -125,7 +142,6 @@
    animation.onfinish=()=>heart.remove();
   }
  },true);
- const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
  if(!ios){const manifestLink=document.createElement('link');manifestLink.rel='manifest';manifestLink.href='manifest.webmanifest';document.head.append(manifestLink);}
  const standalone=matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches||navigator.standalone;
  const mobile=ios||/Android/.test(navigator.userAgent);
@@ -256,13 +272,34 @@
   };
 
   let loadingTimer=null;
-  let loadProgress=0;window.gardenLoadProgress=(current,total)=>{if(Object.keys(boot.transfers).length)return;boot.loaded=current;boot.total=total;const bar=document.getElementById('garden-progress');if(!bar)return;if(total>0)loadProgress=Math.max(loadProgress,Math.min(.99,current/total));bar.value=loadProgress;};
-  window.gardenRoomProgress=value=>{window.gardenBootStage('rooms');const bar=document.getElementById('garden-progress');if(bar)bar.value=value;};
+  let loadProgress=0;window.gardenLoadProgress=(current,total)=>{if(Object.keys(boot.transfers).length)return;boot.loaded=current;boot.total=total;if(ios)return;const bar=document.getElementById('garden-progress');if(!bar)return;if(total>0)loadProgress=Math.max(loadProgress,Math.min(.99,current/total));bar.value=loadProgress;};
+  window.gardenRoomProgress=value=>{window.gardenBootStage('rooms');if(ios)return;const bar=document.getElementById('garden-progress');if(bar)bar.value=value;};
   window.gardenHideLoading=()=>{clearInterval(loadingTimer);document.getElementById('garden-loading')?.remove();paintChrome(chromeColor);};
   window.gardenShowLoading=()=>{
-   window.gardenHideLoading();const screen=document.createElement('section');screen.id='garden-loading';
+   if(document.getElementById('garden-loading'))return;
+   const screen=document.createElement('section');screen.id='garden-loading';
    screen.style.cssText='position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:1900;background:radial-gradient(ellipse at top,#55435d,#242538 75%);display:grid;place-content:center;text-align:center;padding:32px;color:#f5e3cf;font:20px/1.6 GardenLetter,sans-serif';
-   const sprout=document.createElement('div');sprout.className='garden-loading-heroine';sprout.setAttribute('aria-hidden','true');for(const pose of loadingHeroes)sprout.append(pose);screen.append(sprout);
+   const sprout=document.createElement('div');sprout.className='garden-loading-heroine';sprout.setAttribute('aria-hidden','true');screen.append(sprout);
+   if(ios){
+    screen.className='garden-loading-ios';screen.setAttribute('role','status');screen.setAttribute('aria-label',t('loading_progress_label'));
+    if(iosWalk.complete&&iosWalk.naturalWidth)sprout.append(iosWalk);
+    else{
+     const fallback=new Image();fallback.src=loadingHeroFallback;fallback.alt='';fallback.width=128;fallback.height=128;fallback.style.imageRendering='pixelated';sprout.append(fallback);
+     if(!iosWalk.complete)iosWalk.addEventListener('load',()=>{if(sprout.isConnected)fallback.replaceWith(iosWalk);},{once:true});
+    }
+    const meter=document.createElement('div');meter.id='garden-progress';meter.setAttribute('aria-hidden','true');
+    const fill=document.createElement('div');fill.className='garden-loading-meter-fill';meter.append(fill);screen.append(meter);
+    const keys=loaded.loading_phrases||[];
+    if(keys.length){
+     const tips=document.createElement('div');tips.className='garden-loading-tips';tips.setAttribute('aria-hidden','true');
+     const track=document.createElement('div');track.className='garden-loading-tips-track';track.style.setProperty('--phrases',keys.length);track.style.setProperty('--duration',keys.length*1.8+'s');
+     const first=Math.floor(Math.random()*keys.length);
+     for(let i=0;i<keys.length;i++){const phrase=document.createElement('p');phrase.textContent=t(keys[(first+i)%keys.length]);track.append(phrase);}
+     tips.append(track);screen.append(tips);
+    }
+    document.body.append(screen);paintChrome(chromeColor);return;
+   }
+   for(const pose of loadingHeroes)sprout.append(pose);
    const progress=document.createElement('progress');progress.id='garden-progress';progress.max=1;progress.value=loadProgress;progress.style.cssText='width:min(300px,75vw);height:14px;accent-color:#e5a6bd;border:1px solid #a07890;border-radius:8px;margin:22px auto 0;background:#342c42';progress.setAttribute('aria-label',t('loading_progress_label'));screen.append(progress);const phrase=document.createElement('p');screen.append(phrase);const keys=loaded.loading_phrases||[];let index=Math.floor(Math.random()*keys.length);
    const update=()=>{phrase.textContent=t(keys[index++%keys.length]);};update();loadingTimer=setInterval(update,1300);document.body.append(screen);paintChrome(chromeColor);
   };
@@ -281,6 +318,11 @@
     try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();}catch(e){}
     try{if(screen.orientation?.lock)await screen.orientation.lock('portrait');}catch(e){}
     gate.remove();window.gardenShowLoading();
+    if(ios){
+     // Paint the compositor layers before Godot starts allocating and decoding assets.
+     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+     launch();return;
+    }
     // Decode every resident pose, then commit opacity animations before WASM.
     const decoded=await loadingHeroReady;
     if(decoded.some(ok=>!ok)){

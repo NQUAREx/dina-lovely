@@ -190,6 +190,7 @@ var enemy_count_label: Label
 var garden_need_art: Dictionary = {}
 var hint: Label
 var drop_button:Button
+var eat_basket_button:Button
 var action_button: Button
 var attack_button: Button
 var switch_button: Button
@@ -465,6 +466,10 @@ func update_action_icon()->void:
 	var pickup:=""
 	if nearest>=0 and nearest<objects.size():
 		var obj:Dictionary=objects[nearest]
+		if level==5 and garden_quest.tree_needs_trim(obj):
+			action_button.icon=garden_quest.icon("shears")
+			action_icon_text=""
+			return
 		if level==5 and obj.kind in garden_quest.KINDS and action_button.text!=tx("new_bed_action"):
 			action_button.icon=garden_quest.icon(garden_quest.icon_needed(obj))
 			action_icon_text=""
@@ -602,13 +607,23 @@ func setup_ui() -> void:
 	drop_button.expand_icon=true
 	drop_button.add_theme_constant_override("icon_max_width",36)
 	drop_button.custom_minimum_size=Vector2(80,80)
+	eat_basket_button=button("",garden_quest.eat_basket,80)
+	eat_basket_button.tooltip_text=tx("eat_berries")
+	eat_basket_button.icon=preload("res://assets/ui/action_berries.png")
+	eat_basket_button.icon_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	eat_basket_button.expand_icon=true
+	eat_basket_button.add_theme_constant_override("icon_max_width",36)
+	eat_basket_button.custom_minimum_size=Vector2(80,80)
+	eat_basket_button.hide()
 	for state in ["normal","hover","pressed","disabled"]:
 		var frame:=panel_style(Color("51445f"),PINK if state=="hover" else CREAM if state=="pressed" else Color("a07890"))
 		if state=="disabled":frame.texture=preload("res://assets/ui/frame_disabled.png")
 		drop_button.add_theme_stylebox_override(state,frame)
 		switch_button.add_theme_stylebox_override(state,frame)
+		eat_basket_button.add_theme_stylebox_override(state,frame)
 	hud.add_child(drop_button)
 	hud.add_child(switch_button)
+	hud.add_child(eat_basket_button)
 	var stick := Control.new()
 	stick.set_script(preload("res://scripts/touch_stick.gd"))
 	stick.game = self
@@ -691,6 +706,7 @@ func layout_ui() -> void:
 	hud.get_node("MenuButton").position = Vector2(440, 52)
 	switch_button.position=Vector2(339,624)
 	drop_button.position=Vector2(435,624)
+	eat_basket_button.position=Vector2(435,720)
 	action_button.position = Vector2(269, 812)
 	action_button.custom_minimum_size = Vector2(248,88)
 	attack_button.position = Vector2(365, 720)
@@ -1199,7 +1215,9 @@ func build_level(index: int) -> void:
 	normalize_dig_site()
 	place_accessory(rng)
 	prepare_foliage_and_paths(rng)
-	if level==5:garden_quest.place(true)
+	if level==5:
+		garden_quest.mark_trees()
+		garden_quest.place(true)
 	prepare_room_details(rng)
 	prepare_gate_jambs()
 	if level==0:
@@ -1539,6 +1557,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func available(obj: Dictionary) -> bool:
 	if level==5 and obj.kind in garden_quest.KINDS:return garden_quest.available(obj)
+	if level==5 and garden_quest.tree_needs_trim(obj):return held_item=="garden_shears"
 	if obj.has("flight_start") and time<float(obj.flight_start)+float(obj.flight_duration):return false
 	if dig_quest.owns(obj):return dig_quest.available(obj)
 	if obj.kind=="fallen_tree":return false
@@ -1622,6 +1641,11 @@ func find_nearest() -> void:
 	world_tools.refresh_targets()
 	companion.refresh_target()
 	nearest = -1
+	if level==5 and held_item=="garden_basket":
+		var table:=garden_quest.nearby_table()
+		if table>=0 and available(objects[table]) and interaction_reachable(objects[table]):
+			nearest=table
+			return
 	var distance_squared:=95.0*95.0
 	for i in range(objects.size()):
 		if objects[i].kind=="pet_cat":continue
@@ -1637,6 +1661,7 @@ func find_nearest() -> void:
 
 func item_name(obj: Dictionary) -> String:
 	if level==5 and obj.kind in garden_quest.KINDS:return garden_quest.item_name(obj)
+	if level==5 and garden_quest.tree_needs_trim(obj):return ""
 	if dig_quest.owns(obj):return dig_quest.name_for(obj)
 	if obj.kind=="letter_box":return tx("journal_title")
 	if obj.kind=="riddle_stone":return rune_stones.name_for(obj)
@@ -1680,7 +1705,7 @@ func item_display_position(obj: Dictionary) -> Vector2:
 	return pos
 
 func item_visual_bounds(obj: Dictionary) -> Rect2:
-	if level==5 and obj.kind in garden_quest.KINDS:return garden_quest.bounds(obj)
+	if level==5 and (obj.kind in garden_quest.KINDS or garden_quest.tree_needs_trim(obj)):return garden_quest.bounds(obj)
 	var position:Vector2=item_display_position(obj)
 	if obj.kind=="berries" and hedge_field!=null:
 		var bounds:=Rect2()
@@ -1736,6 +1761,7 @@ func draw_item_names() -> void:
 
 func action_text(obj: Dictionary) -> String:
 	if level==5 and obj.kind in garden_quest.KINDS:return garden_quest.action_text(obj)
+	if level==5 and garden_quest.tree_needs_trim(obj):return tx("snip_plant")
 	if dig_quest.owns(obj):return dig_quest.action_for(obj)
 	if obj.kind=="letter_box":return tx("read_letter")
 	if obj.kind=="riddle_stone":return tx("pickup_rune")
@@ -1781,12 +1807,17 @@ func interact() -> void:
 	if task_time>0:return
 	if nearest>=0 and dig_quest.use(objects[nearest]):return
 	if new_bed_action_ready():world_tools.make_bed();return
+	if level==5 and nearest>=0 and garden_quest.tree_needs_trim(objects[nearest]):
+		if interaction_reachable(objects[nearest]):garden_quest.trim_tree(objects[nearest])
+		return
 	if nearest>=0 and world_tools.use_object(objects[nearest]):return
 	if held_item=="drill" and nearest<0:return
 	if level==3 and held_item=="shovel" and task_time<=0 and nearest<0:
 		dig_here()
 		return
-	if nearest<0: return
+	if nearest<0:
+		if garden_quest.can_eat_basket():garden_quest.eat_basket()
+		return
 	var obj := objects[nearest]
 	if not interaction_reachable(obj):find_nearest();return
 	var id: String = obj.id
@@ -1823,10 +1854,7 @@ func interact() -> void:
 	elif id in ["rake","can","fertilizer","shovel","flashlight","quest_axe","pickaxe"]:
 		equip_tool(id);persist();sfx("ui")
 	elif obj.kind in ["berries","tree_apples"]:
-		stats.add(self,"berries" if obj.kind=="berries" else "apples")
-		save_data.eaten.append(id);health=minf(8,health+2);sfx("eat");persist()
-		food_hearts_left=10;food_heart_clock=.13
-		food_heart_burst()
+		eat_fruit("berries" if obj.kind=="berries" else "apples",id)
 	elif id=="exit":
 		if not door_is_open("exit"):use_exit()
 	elif id=="back":return
@@ -2072,7 +2100,7 @@ func use_exit(walking: bool = false) -> void:
 	elif level==3 and "buried" not in save_data.letters: notify(tx("buried_note_required"))
 	elif level==4 and "courage" not in save_data.letters: notify(tx("combat_note_required"))
 	elif level==5 and not level_complete():
-		notify(tx("garden_chores_required"))
+		if not garden_quest.chores_ready() or not required_flowers_ready():notify(tx("garden_chores_required"))
 	elif level<6: next_level()
 	if player.y<3*TILE: player.y=3.2*TILE
 
@@ -2110,9 +2138,11 @@ func update_hud() -> void:
 		enemy_count_label.text = str(enemies.size()+pending_spawns.size())
 	action_button.disabled = task_time>0
 	var can_make_bed:=new_bed_action_ready()
-	action_button.visible = (nearest>=0 or can_make_bed or (level==3 and save_data.shovel) or (held_item=="drill" and world_tools.soil(world_tools.ground_point()))) and playing
+	var can_eat:=garden_quest.can_eat_basket()
+	action_button.visible = (nearest>=0 or can_make_bed or can_eat or (level==3 and save_data.shovel) or (held_item=="drill" and world_tools.soil(world_tools.ground_point()))) and playing
 	if can_make_bed:action_button.text=tx("new_bed_action")
 	elif nearest>=0:action_button.text=action_text(objects[nearest])
+	elif can_eat:action_button.text=tx("eat_berries")
 	if level==3 and held_item=="shovel" and nearest<0: action_button.text=tx("dig_action") if task_time<=0 else tx("digging_progress")
 	if held_item=="drill" and nearest<0:action_button.text=tx("drill_action")
 	update_action_icon()
@@ -2120,6 +2150,8 @@ func update_hud() -> void:
 	switch_button.visible = playing and not save_data.get("world_kit",[]).is_empty()
 	drop_button.visible=playing and not held_item.is_empty()
 	drop_button.disabled=task_time>0
+	eat_basket_button.visible=playing and can_eat and nearest>=0
+	eat_basket_button.disabled=task_time>0
 	switch_button.disabled=task_time>0
 	attack_button.visible = playing and ((level==4 and wave>0 and not combat_done) or (save_data.finished and not weapon.is_empty()))
 	hint.text = ""
@@ -2697,6 +2729,10 @@ func _draw_world() -> void:
 		elif level==5 and kind in garden_quest.KINDS:
 			draw_shadow(p,16.0 if kind in garden_quest.TOOLS else 24.0)
 			var highlighted:bool=not drawing_neighbor and task_time<=0 and nearest>=0 and objects[nearest].id==item.id
+			garden_quest.draw_object(item,p,highlighted)
+		elif level==5 and garden_quest.tree_needs_trim(item):
+			draw_object_shadows(item,kind,p)
+			var highlighted:=not drawing_neighbor and task_time<=0 and nearest>=0 and objects[nearest]==item
 			garden_quest.draw_object(item,p,highlighted)
 		elif kind=="pet_cat":companion.draw_cat()
 		elif item.get("integrated_tree",false):
@@ -4374,6 +4410,15 @@ func draw_player_outfit(pos: Vector2, frame: int, color: Color) -> void:
 	for item in OUTFIT_ORDER:
 		if item in save_data.wearing:draw_sprite("wear_"+item+"_"+str(facing)+"_"+str(frame),pos,color)
 
+func eat_fruit(kind:String,id:String="") -> void:
+	stats.add(self,kind)
+	if not id.is_empty():save_data.eaten.append(id)
+	health=minf(8,health+2)
+	sfx("eat")
+	persist()
+	food_hearts_left=10;food_heart_clock=.13
+	food_heart_burst()
+
 func food_heart_burst() -> void:
 	for n in range(18):
 		particles.append({"pos":player+Vector2(0,-32),"vel":Vector2(randf_range(-75,75),randf_range(-110,15)),"life":randf_range(.65,1.15),"color":Color("ef436b"),"heart":true})
@@ -4572,6 +4617,7 @@ func garden_obstacle_mask(obj:Dictionary) -> Dictionary:
 	var kind:String=obj.kind
 	if kind in garden_quest.KINDS:
 		return {"bounds":garden_quest.bounds(obj)} if garden_quest.visible(obj) else {}
+	if garden_quest.tree_needs_trim(obj):return {"bounds":garden_quest.bounds(obj)}
 	if kind in ["doorway","pet_cat","dug"] or (kind=="accessory" and not available(obj)):return {}
 	if (obj.id=="can" and garden_can) or (obj.id=="rake" and save_data.rake) or (obj.id=="fertilizer" and has_fertilizer):return {}
 	if obj.id=="garden" and not required_flowers_ready():return {}
