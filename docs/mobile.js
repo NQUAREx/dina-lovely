@@ -33,9 +33,9 @@
 (()=>{
  const motifStyle=document.createElement('style');
  const motifSvg='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="96" viewBox="0 0 120 96"><g fill="none" stroke="#efb5c7" stroke-opacity=".055" stroke-width="2" shape-rendering="crispEdges"><path d="M18 25v-9h6v3h6v-3h6v9h-3v6h-3v3h-3v3h-3v-3h-3v-6h-3z"/><path d="M84 55h3v6h3v3h6v3h-6v3h-3v6h-3v-6h-3v-3h-6v-3h6v-3h3z"/></g></svg>';
- const loadingMotifSvg=motifSvg.replace('stroke="#efb5c7" stroke-opacity=".055"','stroke="#443b50"');
+ const movieVersion='6d3d65cd2f45';
  motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}'
-  +'#garden-loading::before{background-image:url("data:image/svg+xml,'+encodeURIComponent(loadingMotifSvg)+'")}';document.head.append(motifStyle);
+  +'#garden-loading::before{background:url("loading-pattern.png?v='+movieVersion+'") 0 0 / 100% 100% no-repeat}';document.head.append(motifStyle);
  const roseStyle=document.createElement('style');
  const shellUI='10a4c55de987';
  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
@@ -70,7 +70,7 @@
  #garden-loading .garden-loading-heroine{position:relative;display:block;width:128px;height:128px;margin:0 auto;isolation:isolate;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
  #garden-loading .garden-loading-heroine-image{position:absolute;inset:0;display:block;width:128px!important;min-width:128px!important;max-width:128px!important;height:128px!important;min-height:128px!important;max-height:128px!important;object-fit:contain!important;flex:none;image-rendering:pixelated;pointer-events:none;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;opacity:0;will-change:opacity;animation-duration:.64s;animation-timing-function:step-end;animation-iteration-count:infinite}
  .garden-loading-ios .garden-loading-heroine{overflow:hidden}
- .garden-loading-ios video{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#242538;pointer-events:none}
+ .garden-loading-ios video{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:fill;background:#242538;pointer-events:none}
  #garden-loading.garden-loading-ios:has(>video)>:not(video){display:none}
  .garden-loading-ios video::-webkit-media-controls{display:none!important}
  .garden-loading-walk-strip{display:block;width:1024px;max-width:none;height:128px;image-rendering:pixelated;will-change:transform;animation:garden-walk-strip .64s steps(8,end) infinite}
@@ -153,7 +153,6 @@
  window.gardenHaptic=ms=>{if(!ios&&typeof navigator.vibrate==='function')navigator.vibrate(ms);};
  const suspend=()=>window.gardenSuspended=document.hidden||matchMedia("(orientation: landscape)").matches;
  addEventListener("resize",suspend);document.addEventListener("visibilitychange",()=>{if(document.hidden)window.gardenSaveNow?.();suspend();});addEventListener("pagehide",()=>window.gardenSaveNow?.());suspend();
- const movieVersion='501b7ac99baf';
  let movieURL='',residentMovieURL='';
  const liveContent=(async()=>{
   const value=new URLSearchParams(location.search).get('key');
@@ -342,7 +341,7 @@
   window.gardenShowLoading=()=>{
    if(document.getElementById('garden-loading'))return loadingReady;
    const screen=document.createElement('section');screen.id='garden-loading';
-   screen.style.cssText='position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:1900;background:radial-gradient(ellipse at top,#3b3249,#242538 75%);display:grid;place-content:center;text-align:center;padding:32px;color:#f5e3cf;font:20px/1.6 GardenLetter,sans-serif';
+   screen.style.cssText='position:fixed;inset:0;box-sizing:border-box;z-index:1900;background:radial-gradient(ellipse at top,#3b3249,#242538 75%);display:grid;place-content:center;text-align:center;padding:32px;color:#f5e3cf;font:20px/1.6 GardenLetter,sans-serif';
    const sprout=document.createElement('div');sprout.className='garden-loading-heroine';sprout.setAttribute('aria-hidden','true');screen.append(sprout);
    if(ios){
     screen.className='garden-loading-ios';screen.setAttribute('role','status');screen.setAttribute('aria-label',t('loading_progress_label'));

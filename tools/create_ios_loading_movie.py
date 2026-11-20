@@ -45,14 +45,15 @@ def backdrop():
     star = [(0, 6), (5, 6), (5, 3), (8, 3), (8, 0), (11, 0), (11, 6),
             (16, 6), (16, 9), (11, 9), (11, 15), (8, 15), (8, 11),
             (5, 11), (5, 9), (0, 9), (0, 6)]
-    for y in range(5, height, 104):
-        for x in range(12, width, 132):
-            for dx, dy, motif in ((0, 0, heart), (72, 42, star)):
-                ox, oy = x + dx, y + dy
-                if ox >= width or oy >= height:
-                    continue
-                draw.line([(ox + mx, oy + my) for mx, my in motif], fill=MOTIF_COLOR, width=2)
-    draw.rounded_rectangle(METER, radius=8, fill='#342c42', outline='#a07890', width=2)
+    # Even rows land on the left and right edges; their alternating
+    # phases give both edges clipped hearts and stars. Odd rows offset
+    # by half a tile to keep the diagonal lattice through the interior.
+    for row, y in enumerate(range(0, height + 1, 60)):
+        for column, x in enumerate(range(48 * (row % 2), width + 1, 96)):
+            is_heart = (row // 2 + column) % 2 == 0
+            shape, center = (heart, (9, 10)) if is_heart else (star, (8, 7))
+            draw.line([(x + mx - center[0], y + my - center[1]) for mx, my in shape],
+                      fill=MOTIF_COLOR, width=2)
     return image
 
 
@@ -154,6 +155,7 @@ def generate():
     font_path = ASSETS / 'body.ttf'
     digest = sha256(Path(__file__).read_bytes() + sheet.read_bytes() + font_path.read_bytes())
     poster = DOCS / 'ios-loading-poster.png'
+    pattern = DOCS / 'loading-pattern.png'
     stills = []
     for source, output in [('letters.json', 'ios-loading.mp4'), ('letters.backup.json', 'ios-loading-play.mp4')]:
         content = json.loads((ROOT / 'content' / source).read_text())
@@ -162,10 +164,12 @@ def generate():
         signature.update(json.dumps(phrases, ensure_ascii=False).encode())
         tag = 'garden-loading-' + signature.hexdigest()
         path = DOCS / output
-        if poster.exists() and path.exists() and tag.encode() in path.read_bytes():
+        if pattern.exists() and poster.exists() and path.exists() and tag.encode() in path.read_bytes():
             continue
         if not stills:
             background = backdrop()
+            background.save(pattern, optimize=True)
+            ImageDraw.Draw(background).rounded_rectangle(METER, radius=8, fill='#342c42', outline='#a07890', width=2)
             with Image.open(sheet) as sprite_sheet:
                 for index in range(8):
                     pose = sprite_sheet.crop((64 * index, 0, 64 * (index + 1), 64))
