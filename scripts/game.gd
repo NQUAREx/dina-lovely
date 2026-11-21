@@ -3536,7 +3536,7 @@ func decorate_beam_hall(rng:RandomNumberGenerator)->void:
 		[Vector2i(4,9),Vector2i(5,9)],
 		[Vector2i(2,29),Vector2i(3,30)],
 		[Vector2i(2,32),Vector2i(3,32)],
-		[Vector2i(24,8),Vector2i(25,9)],
+		[Vector2i(24,7),Vector2i(25,7)],
 		[Vector2i(23,29),Vector2i(24,30)],
 		[Vector2i(25,32),Vector2i(26,32)],
 	]
