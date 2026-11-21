@@ -1976,6 +1976,7 @@ func interact() -> void:
 		elif water==0: notify(tx("water_empty"))
 		else:
 			var plant:Dictionary=plants.get(id,{"stage":0})
+			if plant.get("withered",false):plant.absorbed_fertilizer=true
 			plant.remaining=-1.0
 			plant.erase("withered")
 			plants[id]=plant
@@ -2400,7 +2401,7 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	if name=="quest_tree" or name.begins_with("quest_tree_damage"):scale_factor*=2.0
 	if name=="shovel" and level==3 and dig_quest.state().get("broken",false):name="shovel_broken"
 	name=dig_quest.damage_texture(name)
-	var world:=pos+camera-get_viewport_rect().size/2
+	var world:=pos-screen(Vector2.ZERO)
 	var variant:=posmod(floori(world.x/48)*17+floori(world.y/48)*7,6) if color.a>.9 else 0
 	if color.a>.9 and name in ["tree","tree_apples"]:name+="_variant"+str(variant)
 	if name=="stone":
@@ -2437,7 +2438,7 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 	if name=="quest_tree":name=dig_quest.damage_texture(name)+"_outline";scale_factor*=2.0
 	if name=="quest_axe":name="axe"
 	if name=="shovel" and level==3 and dig_quest.state().broken:name="shovel_broken"
-	var world:=pos+camera-get_viewport_rect().size/2
+	var world:=pos-screen(Vector2.ZERO)
 	var variant:=posmod(floori(world.x/48)*17+floori(world.y/48)*7,6)
 	if name in ["tree","tree_apples"]:name+="_variant"+str(variant)
 	if name in ["hedge_tree","hedge_tree_apples"]:
@@ -2891,7 +2892,11 @@ func _draw_world() -> void:
 				var remaining := float(plants.get(item.id,{}).get("remaining",0))
 				var bed_scale:=.9+float(world_tools.variant(item.id))*.035
 				# Soil and stones are foreground layers above the shared path pad.
-				draw_sprite("bed_fertilized" if item.id in fertilized else "bed_empty",p,Color.WHITE,bed_scale)
+				var plant:Dictionary=plants.get(item.id,{})
+				var fertilizer_visible:bool=item.id in fertilized and not plant.get("absorbed_fertilizer",false)
+				# Earlier saves identify watered beds by their growth state.
+				fertilizer_visible=fertilizer_visible and int(plant.get("stage",0))==0 and remaining<=0 and not plant.get("withered",false)
+				draw_sprite("bed_fertilized" if fertilizer_visible else "bed_empty",p,Color.WHITE,bed_scale)
 				if remaining>0:
 					var moisture:=smoothstep(0.0,3.0,remaining)
 					draw_sprite("bed_wet",p,Color(1,1,1,moisture),bed_scale)
@@ -3114,6 +3119,7 @@ func update_tasks(delta: float) -> void:
 		stats.add(self,"waterings")
 		water -= 1
 		save_data.water = water
+		plants[id].absorbed_fertilizer=true
 		plants[id].remaining = FLOWER_GROWTH_SECONDS[clampi(int(plants[id].stage),0,FLOWER_STAGE_FULL-1)]
 		burst(task_target,12,Color("9fdce1"))
 	elif task_kind.begins_with("dig:"):
@@ -3327,9 +3333,10 @@ func draw_extra_effects() -> void:
 			var progress:=fposmod((task_duration-task_time)*2.1+i*.047,1.0)
 			var drop:=origin.lerp(target,progress)+Vector2(sin(i*3.1)*2,progress*progress*8)
 			draw_rect(Rect2(drop,Vector2(2,3) if watering else Vector2(2,2)),Color("b8e8ed") if watering else Color("8b9c61") if raking else Color("e4c99d"))
-		var bar:=screen(player)+Vector2(-25,-93)
-		draw_rect(Rect2(bar,Vector2(50,5)),INK)
-		draw_rect(Rect2(bar,Vector2(50*clampf(1-task_time/maxf(.01,task_duration),0,1),5)),PINK)
+		if not watering:
+			var bar:=screen(player)+Vector2(-25,-93)
+			draw_rect(Rect2(bar,Vector2(50,5)),INK)
+			draw_rect(Rect2(bar,Vector2(50*clampf(1-task_time/maxf(.01,task_duration),0,1),5)),PINK)
 
 func setup_fog() -> void:
 	var layer := CanvasLayer.new()
