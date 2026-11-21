@@ -51,12 +51,12 @@ void fragment(){
    hero_alpha=max(hero_alpha,texture(hero_atlas,sprite_pixel/atlas_size).a);
   }
  }
- vec2 cloth_pixel=(pixel-hero_top_left)*0.5+vec2(8.0,-7.0);
- if(hero_occludes_light && all(greaterThanEqual(cloth_pixel,vec2(0.0))) && all(lessThan(cloth_pixel,vec2(48.0,40.0)))){
+ vec2 cloth_pixel=(pixel-hero_top_left)*0.5+vec2(18.0,-7.0);
+ if(hero_occludes_light && all(greaterThanEqual(cloth_pixel,vec2(0.0))) && all(lessThan(cloth_pixel,vec2(68.0,48.0)))){
   vec2 cloth_size=vec2(textureSize(cloth_atlas,0));
   for(int i=0;i<2;i++){
    if(cloth_tiles[i].x<0.0)continue;
-   vec2 sprite_pixel=cloth_tiles[i]*vec2(48.0,40.0)+cloth_pixel;
+   vec2 sprite_pixel=cloth_tiles[i]*vec2(68.0,48.0)+cloth_pixel;
    hero_alpha=max(hero_alpha,texture(cloth_atlas,sprite_pixel/cloth_size).a);
   }
  }

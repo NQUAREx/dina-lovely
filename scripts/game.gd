@@ -28,6 +28,9 @@ const ACCESSORIES := ["black_dress","dark_scarf","wreath","veil","crown","rose_s
 const ACCESSORY_SLOTS := {"black_dress":"dress","dark_scarf":"scarf","wreath":"head","crown":"head","heart_tiara":"head","daisy_wreath":"head","silver_crown":"head","rose_wreath":"head","veil":"face","white_veil":"face","rose_scarf":"scarf","white_scarf":"scarf","peach_dress":"dress","white_dress":"dress","lavender_dress":"dress","pink_watch":"wrist","gold_brocade":"dress","gold_mantle":"scarf","gold_veil":"face","emerald_diadem":"head","gold_beads":"neck"}
 const ROOM_ACCESSORIES := [["wreath","pink_watch"],["veil","white_scarf"],["crown","white_dress"],["rose_scarf","daisy_wreath"],["peach_dress","silver_crown"],["rose_wreath","lavender_dress"],["heart_tiara","white_veil","gold_brocade","gold_mantle","gold_veil","emerald_diadem","gold_beads"]]
 const OUTFIT_ORDER := ["black_dress","peach_dress","white_dress","lavender_dress","gold_brocade","dark_scarf","rose_scarf","white_scarf","gold_mantle","veil","white_veil","gold_veil","gold_beads","wreath","crown","heart_tiara","daisy_wreath","silver_crown","rose_wreath","emerald_diadem","pink_watch"]
+var beam_traps:=preload("res://scripts/beam_traps.gd").new(self)
+var beam_pond:=preload("res://scripts/beam_pond.gd").new(self)
+var beam_crusher:=preload("res://scripts/beam_crusher.gd").new(self)
 var royal_cloth:=preload("res://scripts/royal_cloth.gd").new()
 const HALL_SEAM := 0.0
 var drawing_neighbor := false
@@ -1281,8 +1284,30 @@ func build_beam_hall() -> void:
 		if y not in [1,2,3,21,22,23]:set_cell(RIGHT_DIVIDER,y,"#")
 		if y in [4,24]:
 			for x in range(LEFT_DIVIDER+1,RIGHT_DIVIDER):set_cell(x,y,"#")
+	beam_crusher.build_walls()
+	var hazard_rng:=RandomNumberGenerator.new()
+	hazard_rng.randomize()
+	beam_traps.reset(hazard_rng)
+	beam_pond.reset(hazard_rng)
+	beam_crusher.prepare()
 	player=Vector2(13.5,26.5)*TILE
 	put_object("arch",Vector2i(13,2),"exit")
+
+func retry_beam_hall() -> void:
+	beam_pond.riding=-1
+	beam_pond.hop=0.0
+	player=Vector2(13.5,grid.size()-7.5)*TILE
+	moving=false
+	walk_facing=Vector2.UP
+	direction=0
+	stride_distance=0
+	royal_cloth.reset()
+	camera=camera_target()
+	companion.restore()
+	shake=5
+	sfx("hurt")
+	haptic(25)
+	notify(tx("obstacle_retry"))
 
 func corridor_row(row: int) -> bool:
 	return (level<6 and row<5) or (level>0 and row>=grid.size()-5)
@@ -1434,6 +1459,13 @@ func _physics_process(delta: float) -> void:
 		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
 		release_at_gate(previous_foot)
 		hedge_contact=pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
+	if level==2 and playing and not paused and not transition and not rotate_overlay.visible:
+		var beam_hit:=beam_traps.step(delta)
+		var drowned:=beam_pond.step(delta)
+		var crushed:=beam_crusher.tick(delta,previous_position)
+		if beam_hit or drowned or crushed:
+			retry_beam_hall()
+			return
 	if playing and not paused and not transition and ("gold_brocade" in save_data.wearing or "gold_mantle" in save_data.wearing):
 		royal_cloth.update(player-previous_position,walk_facing,delta)
 
@@ -2683,6 +2715,12 @@ func _draw_world() -> void:
 	renderables.append({"kind":"player","pos":player,"id":""})
 	if not drawing_neighbor and playing and save_data.cat_tamed:renderables.append({"kind":"pet_cat","pos":companion.position,"id":"pet_cat"})
 	draw_paths()
+	if level==2:
+		beam_pond.draw_ground()
+		beam_crusher.draw_track()
+		beam_traps.append_renderables(renderables)
+		var crusher:=beam_crusher.drawable()
+		if not crusher.is_empty():renderables.append(crusher)
 	var barrier_rise:=arena_barrier_pixels() if level==4 else 0.0
 	if level==4:
 		var entrance:=arena_barrier_position()
@@ -2771,6 +2809,7 @@ func _draw_world() -> void:
 			if not resting.is_empty():p+=Vector2(0,-18+sin(time*2.4)*12 if resting=="swing" else -18)
 			var color := Color(1,.65,.73) if invincible>0 and int(time*12)%2==0 else Color.WHITE
 			var hero_pos:=p+body_motion()
+			if level==2:hero_pos.y-=beam_pond.lift()
 			if hand_is_behind():draw_hand_items()
 			draw_player_outfit(hero_pos,frame,color)
 			if attack_flash>0 and weapon=="sword":
@@ -2779,6 +2818,10 @@ func _draw_world() -> void:
 				draw_arc(p+Vector2(0,-20),101,angle-.8,angle+.8,18,Color(1,.65,.79,attack_flash/.19),3)
 			if hedge_field!=null:
 				draw_hedge_canopy(visible_crowns,1)
+		elif kind in ["hall_beam","hall_spike"]:
+			beam_traps.draw(item)
+		elif kind=="beam_crusher":
+			beam_crusher.draw_block()
 		elif level==5 and kind in garden_quest.KINDS:
 			draw_shadow(p,16.0 if kind in garden_quest.TOOLS else 24.0)
 			var highlighted:bool=not drawing_neighbor and task_time<=0 and nearest>=0 and objects[nearest].id==item.id

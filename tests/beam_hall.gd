@@ -46,7 +46,30 @@ func run() -> void:
 		game.grid[19]=row
 	assert(game.objects.all(func(obj):return obj.kind in ["doorway","accessory","note","riddle_stone"]))
 	assert(not game.level_complete())
+	game.playing=true
+	game.clear_modal()
+	game.rotate_overlay.hide()
+	var entrance:=Vector2(13.5,31.5)*48
+	game.player=game.beam_traps.beam_box(game.beam_traps.beams.front()).get_center()
+	game._physics_process(0.001)
+	assert(game.player==entrance)
+	game.beam_traps.clock=0
+	var spike:Dictionary=game.beam_traps.spikes.front()
+	spike.phase=PI/2
+	spike.warp=0.0
+	game.player=spike.rect.get_center()
+	game._physics_process(0.001)
+	assert(game.player==entrance)
+	game.beam_crusher.elapsed=game.beam_crusher.stroke*.5
+	game.player=game.beam_crusher.footprint().get_center()
+	game._physics_process(0.001)
+	assert(game.player==entrance)
+	game.player=Vector2(538,950)
+	assert(game.beam_pond.support(game.player)<0)
+	game._physics_process(0.001)
+	assert(game.player==entrance)
+	assert(game.beam_traps.beams.size()==4 and not game.beam_traps.spikes.is_empty())
 	game.collect("crossing")
 	assert(game.level_complete())
-	print("PASS rectangular beam hall, aligned gates, all three lanes mandatory and story reward preserved")
+	print("PASS rectangular beam hall, aligned gates, all three lanes mandatory and story reward preserved; each hazard resets to entry")
 	quit()

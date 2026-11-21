@@ -1,8 +1,8 @@
 extends RefCounted
 
-const TILE_SIZE := Vector2(48,40)
-const OFFSET := Vector2(-48,-72)
-const COLUMNS := 64
+const TILE_SIZE := Vector2(68,48)
+const OFFSET := Vector2(-68,-72)
+const COLUMNS := 60
 const SWAY_STEPS := 9
 const SPREAD_STEPS := 7
 const POSE_COUNT := 40
@@ -32,14 +32,15 @@ func update(displacement:Vector2,heading:Vector2,delta:float)->void:
 	step_distance=fposmod(step_distance+displacement.length(),72.0)
 	var stride:=sin(step_distance*TAU/72.0)
 	for garment in range(ITEMS.size()):
-		# Motion drives the hem opposite travel. The mantle is lighter and
-		# sweeps further when the shoulders turn.
-		var sway:=clampf(-motion.x*.88+stride*.22*pace,-1.0,1.0)
-		var spread:=pace*(.36+.22*(stride+1.0)) + maxf(0.0,motion.y)*.13
+		# The long train lags behind each step and keeps unfurling through turns.
+		var train:=garment==0
+		var sway:=clampf(-motion.x*(.94 if train else .88)+stride*(.58 if train else .22)*pace,-1.0,1.0)
+		var spread:=pace*((.52+.30*(stride+1.0)) if train else (.36+.22*(stride+1.0)))
+		spread+=maxf(0.0,motion.y)*.13
 		var target:=Vector2(sway,clampf(spread,0.0,1.0))
-		var stiffness:=115.0 if garment==0 else 83.0
-		var damping:=13.0 if garment==0 else 10.5
-		speed[garment]+=Vector2(-turn*(3.2+garment*1.2),absf(turn)*3.5)
+		var stiffness:=104.0 if train else 83.0
+		var damping:=7.7 if train else 10.5
+		speed[garment]+=Vector2(-turn*(6.4 if train else 4.4),absf(turn)*(5.8 if train else 3.5))
 		var remaining:=minf(delta,.1)
 		while remaining>0.00001:
 			var dt:=minf(remaining,1.0/120.0)
