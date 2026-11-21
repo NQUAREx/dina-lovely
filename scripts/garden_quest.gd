@@ -489,8 +489,8 @@ func draw_hints()->void:
 
 func held_pose()->Dictionary:
 	var shears:bool=g.held_item=="garden_shears"
-	var anchor:=Vector2(29,49) if shears else Vector2(32,39)
-	var scale_factor:=1.35 if shears else 1.25
+	var anchor:=Vector2(29,48) if shears else Vector2(32,39)
+	var scale_factor:=1.12 if shears else 1.25
 	var origin:Vector2=g.screen(g.right_hand_position())
 	var toward:Vector2=g.walk_facing
 	if g.task_time>0:toward=(g.task_target-g.player).normalized()
@@ -506,7 +506,7 @@ func held_pose()->Dictionary:
 	var index:=44 if not shears and basket_filled(state().held_basket) else 42
 	if shears:
 		var elapsed:float=g.task_duration-g.task_time
-		index=52 if trimming and SNIP_AT.any(func(closing):return elapsed>=closing and elapsed<closing+.09) else 41
+		index=41 if not trimming or SNIP_AT.any(func(closing):return elapsed>=closing and elapsed<closing+.09) else 52
 	return {"origin":origin,"rotation":rotation,"flip":flip,
 		"box":Rect2(-anchor*scale_factor,TILE_SIZE*scale_factor),
 		"source":region(index)}

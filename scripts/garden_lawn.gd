@@ -46,8 +46,8 @@ func prepare(ground:Image,stamps:Array[Dictionary],piles:Array,cleared:Array)->I
 					if not chunks.has(cell):chunks[cell]=[]
 					chunks[cell].append(stamp)
 					stamp.chunks.append(cell)
-		# A few pale, thin blades remain on the otherwise unkempt floor.
-		if stamp.blades and posmod(stamp.root.x*17+stamp.root.y*31,29)<2:
+		# Every usual grass patch starts out as dry straw.
+		if stamp.blades:
 			if not dry_art.has(source):dry_art[source]=dry_blades(source)
 			stamp.dry=dry_art[source]
 	for id in plots:
@@ -68,8 +68,8 @@ func dry_blades(source:Image)->Image:
 			var pixel:=art.get_pixel(x,y)
 			if pixel.a<=0:continue
 			var warmth:=clampf((pixel.g-.28)*5,0,1)
-			var color:=Color("65634a").lerp(Color("9a9161"),warmth)
-			color.a=pixel.a*.78
+			var color:=Color("746046").lerp(Color("c2a56a"),warmth)
+			color.a=pixel.a
 			art.set_pixel(x,y,color)
 	return art
 

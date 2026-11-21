@@ -22,7 +22,7 @@ const LARGE_ROOM_ROWS := 25
 const GARDEN_BEDS := 12
 const FLOWER_STAGE_FULL := 3
 const SPROUT_DRY_TIME := 9.0
-const FLOWER_GROWTH_SECONDS := [4.8, 6.0, 7.2]
+const FLOWER_GROWTH_SECONDS := [9.6, 12.0, 14.4]
 const GROUND_DEPTH := .58
 const ACCESSORIES := ["black_dress","dark_scarf","wreath","veil","crown","rose_scarf","peach_dress","heart_tiara","pink_watch","white_scarf","white_dress","daisy_wreath","silver_crown","rose_wreath","lavender_dress","white_veil","gold_brocade","gold_mantle","gold_veil","emerald_diadem","gold_beads"]
 const ACCESSORY_SLOTS := {"black_dress":"dress","dark_scarf":"scarf","wreath":"head","crown":"head","heart_tiara":"head","daisy_wreath":"head","silver_crown":"head","rose_wreath":"head","veil":"face","white_veil":"face","rose_scarf":"scarf","white_scarf":"scarf","peach_dress":"dress","white_dress":"dress","lavender_dress":"dress","pink_watch":"wrist","gold_brocade":"dress","gold_mantle":"scarf","gold_veil":"face","emerald_diadem":"head","gold_beads":"neck"}
@@ -378,7 +378,7 @@ func sfx(name: String = "chime") -> void:
 	var sample_name := name
 	if name in ["step_grass","step_stone","attack"]: sample_name += ["","_2","_3"][randi()%3]
 	voice.stream = preload("res://scripts/audio_bank.gd").STREAMS.get(sample_name)
-	voice.volume_db = {"shears":-8,"shovel_break":-10,"chop_wood":-10,"axe":-10,"pick_stone":-12,"craft_bench":-12,"dig":-18,"punch_swing":-20,"punch_hit":-17,"sword_swing":-19,"birds":-29,"crickets":-28,"gate_open":-11,"gate_unlock":-13,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rpg_launch":-10,"rpg_explosion":-8,"rpg_load":-22,"rifle":-13,"pistol":-10}.get(name,-15)
+	voice.volume_db = {"shears":-3,"shovel_break":-10,"chop_wood":-10,"axe":-10,"pick_stone":-12,"craft_bench":-12,"dig":-18,"punch_swing":-20,"punch_hit":-17,"sword_swing":-19,"birds":-29,"crickets":-28,"gate_open":-11,"gate_unlock":-13,"rustle":-12,"step_grass":-21,"step_stone":-21,"ambient":-32,"water":-14,"fill":-14,"ui":-23,"explosion":-11,"rpg_launch":-10,"rpg_explosion":-8,"rpg_load":-22,"rifle":-13,"pistol":-10}.get(name,-15)
 	voice.pitch_scale = randf_range(.98,1.02) if name in ["rifle","water","fill"] else randf_range(.94,1.06)
 	voice.play()
 
@@ -2760,6 +2760,10 @@ func _draw_world() -> void:
 	for flower in objects:
 		if flower.kind in ["flowers","blueflowers"] and get_viewport_rect().grow(40).has_point(screen(flower.pos)):
 			draw_shadow(screen(flower.pos),14)
+		elif flower.kind=="sprout" and int(plants.get(flower.id,{}).get("stage",0))>=FLOWER_STAGE_FULL:
+			var point:=screen(flower.pos)
+			if get_viewport_rect().grow(60).has_point(point):
+				draw_cast_shadow(world_tools.bed_plant(flower.id),point,.9+float(world_tools.variant(flower.id))*.035)
 	if level==6 and save_data.finished:draw_tool_table()
 	for tree in objects:
 		if tree.kind=="quest_tree":
@@ -2884,11 +2888,13 @@ func _draw_world() -> void:
 				if not save_data.cat_tamed:draw_sprite("cat_sit"+str(1 if fposmod(time,4.7)>4.55 else 0),p,Color.WHITE,.8)
 			elif kind=="cat_fish":draw_sprite(kind,screen(item_display_position(item)))
 			elif kind=="sprout":
-				var stage := int(plants.get(item.id,{}).get("stage",0))
 				var remaining := float(plants.get(item.id,{}).get("remaining",0))
 				var bed_scale:=.9+float(world_tools.variant(item.id))*.035
 				# Soil and stones are foreground layers above the shared path pad.
-				draw_sprite("bed_wet" if stage>0 or remaining>0 else "bed_fertilized" if item.id in fertilized else "bed_empty",p,Color.WHITE,bed_scale)
+				draw_sprite("bed_fertilized" if item.id in fertilized else "bed_empty",p,Color.WHITE,bed_scale)
+				if remaining>0:
+					var moisture:=smoothstep(0.0,3.0,remaining)
+					draw_sprite("bed_wet",p,Color(1,1,1,moisture),bed_scale)
 				draw_sprite("bed_border"+str(world_tools.variant(item.id)),p,Color.WHITE,bed_scale)
 				world_tools.draw_bed_plant(item.id,p,bed_scale)
 

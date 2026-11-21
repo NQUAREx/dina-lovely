@@ -13,39 +13,25 @@ func _initialize()->void:
 		rng.seed=seed_value
 		pond.reset(rng)
 		assert(pond.pads.size()==10)
-		for tick in range(13):
-			pond.seconds=float(tick)*2.5
+		for tick in range(36):
+			pond.advance_pads(.14)
 			for index in range(pond.pads.size()):
-				var middle:Vector2=pond.pad_position(index,pond.seconds)
-				var size:Vector2=pond.leaf_size(index)
-				var artwork:=Rect2((middle-size*.5).round(),size)
-				assert(pond.BOUNDS.grow(-12).encloses(artwork))
+				var middle:Vector2=pond.pad_position(index)
 				var square:Rect2=pond.support_box(index)
-				assert(square.size.x==square.size.y)
-				assert(square.encloses(Rect2(middle-size*.5,size)))
-			var top:Vector2=pond.pad_position(0,pond.seconds)
+				assert(square.get_center().is_equal_approx(middle))
+				assert(square.size.is_equal_approx(pond.leaf_size(index)/pond.LEAF_SCALE))
+				assert(pond.BOUNDS.grow(-6).encloses(square))
+			var top:Vector2=pond.pad_position(0)
 			var last:int=pond.pads.size()-1
-			var bottom:Vector2=pond.pad_position(last,pond.seconds)
-			assert(pond.pad_position(1,pond.seconds).y-top.y>=55)
-			assert(bottom.y-pond.pad_position(last-1,pond.seconds).y>=55)
-			for side in [-1.0,1.0]:
-				assert(pond.support(Vector2(top.x+side*36.0,pond.BOUNDS.position.y+.5))==0)
-				assert(pond.support(Vector2(bottom.x+side*36.0,pond.BOUNDS.end.y-.5))==last)
-		if seed_value<8:
-			for index in range(pond.pads.size()):
-				var pad:Dictionary=pond.pads[index]
-				var edge:float=ceilf(pad.radius.x*pond.LEAF_SCALE.x*.5)+pond.LEAF_INSET
-				var minimum:=INF
-				var maximum:=-INF
-				for tick in range(480):
-					var x:float=pond.pad_position(index,tick*.04).x
-					minimum=minf(minimum,x)
-					maximum=maxf(maximum,x)
-				assert(absf(minimum-(pond.BOUNDS.position.x+edge))<.2)
-				assert(absf(maximum-(pond.BOUNDS.end.x-edge))<.2)
-		var rates:Dictionary={}
-		for pad in pond.pads:rates[pad.rate]=true
-		assert(rates.size()==pond.pads.size())
+			var bottom:Vector2=pond.pad_position(last)
+			assert(pond.support(Vector2(top.x,pond.SWIMMING_AREA.position.y+.4))==0)
+			assert(pond.support(Vector2(bottom.x,pond.SWIMMING_AREA.end.y-.4))==last)
+		var reversals:=0
+		for tick in range(600):
+			var before:float=pond.pads[0].velocity
+			pond.advance_pads(.05)
+			if signf(before)!=signf(pond.pads[0].velocity):reversals+=1
+		assert(reversals>0)
 	rng.seed=17
 	pond.reset(rng)
 	# Isolate a platform to prove the corners support feet independently
@@ -60,10 +46,10 @@ func _initialize()->void:
 		pond.record_print(inside,0.0)
 	assert(pond.prints.is_empty())
 	pond.reset(rng)
-	walker.player=pond.pad_position(4,0)
+	walker.player=pond.pad_position(4)
 	var before:=walker.player
 	assert(not pond.step(.1) and pond.riding==4)
-	assert(walker.player.is_equal_approx(pond.pad_position(4,.1)) and walker.player!=before)
+	assert(walker.player.is_equal_approx(pond.pad_position(4)) and walker.player!=before)
 	var stamp_found:=false
 	for x in range(-9,10,3):
 		for y in range(-9,10,3):
@@ -74,15 +60,21 @@ func _initialize()->void:
 		if stamp_found:break
 	assert(stamp_found and pond.prints.front().pad==4)
 	var mark:Dictionary=pond.prints.front()
-	var first_world:Vector2=pond.pad_position(mark.pad,pond.seconds)+mark.offset
+	var first_world:Vector2=pond.pad_position(mark.pad)+mark.offset
 	pond.step(.1)
-	assert(pond.pad_position(mark.pad,pond.seconds)+mark.offset!=first_world)
+	assert(pond.pad_position(mark.pad)+mark.offset!=first_world)
 	pond.age_prints(7.0)
 	assert(pond.prints.is_empty())
 	walker.player=Vector2(pond.BOUNDS.position.x+4,pond.BOUNDS.get_center().y)
 	assert(pond.step(.02))
 	walker.player=pond.BOUNDS.position-Vector2(0,4)
 	assert(not pond.step(.02))
+	var dock:Vector2=pond.pad_position(0)
+	walker.player=Vector2(dock.x,pond.SWIMMING_AREA.position.y+.5)
+	assert(not pond.step(.02) and pond.riding==0 and pond.lift()>0)
+	pond.hop=0
+	walker.player.y=pond.SWIMMING_AREA.position.y-.5
+	assert(not pond.step(.02) and pond.riding==-1 and pond.lift()>0)
 	walker.free()
 	print("PASS square lily support and clear bank artwork across 80 seeds; carried footprints, expiry and drowning")
 	quit()

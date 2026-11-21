@@ -259,35 +259,17 @@ def overgrown_tree(variant):
 
 def shears(on_ground, opened=False):
     sprite, d = canvas()
-    steel_edge, steel_shadow, steel, glint = "#3c4655", "#79878f", "#b7c6c3", "#e6e5d6"
-    brass_edge, brass, brass_lit = "#5a4a42", "#b78b5c", "#e3bf7e"
-    if opened:
-        blades = [
-            ([(29,47),(32,44),(37,42),(41,39),(46,39),(45,42),(39,46),(34,49),(30,50)],
-             [(33,46),(37,44),(41,41),(45,40)]),
-            ([(29,47),(33,46),(38,48),(44,51),(46,54),(43,55),(37,53),(32,51),(29,50)],
-             [(34,49),(39,51),(44,53)]),
-        ]
-    else:
-        blades = [
-            ([(29,46),(34,44),(43,44),(46,45),(45,47),(38,49),(32,50),(29,50)],
-             [(33,46),(42,45),(45,45)]),
-            ([(29,47),(35,46),(45,46),(46,48),(43,49),(36,50),(32,51),(29,50)],
-             [(33,49),(42,48),(44,47)]),
-        ]
-    for blade, edge in blades:
-        shape(d, blade, steel_edge)
-        d.line(edge, fill=steel, width=2)
-        d.line(edge, fill=glint)
-    # Hard-edged loops match the existing brass garden tools. Holes are alpha.
-    for y in (41, 49):
-        shape(d, [(0,1),(2,0),(6,0),(9,2),(9,5),(7,7),(2,7),(0,5)], brass_edge, 19, y)
-        shape(d, [(1,2),(2,1),(6,1),(8,2),(8,5),(6,6),(2,6),(1,5)], brass, 19, y)
-        d.line((21,y+1,25,y+1,26,y+2), fill=brass_lit)
-        d.rectangle((22,y+3,24,y+4), fill=(0,0,0,0))
-    shape(d, [(0,0),(3,-2),(7,-1),(8,2),(6,4),(2,4),(0,3)], steel_edge, 26, 47)
-    shape(d, [(0,1),(3,-1),(6,0),(6,2),(3,3),(0,2)], steel_shadow, 27, 47)
-    d.rectangle((29,47,30,48), fill=glint)
+    # Curved bypass blade and short solid grips, centered on the hand pivot.
+    shape(d, [(29,47),(26,46),(20,42 if opened else 44),(19,44),(24,48),(28,50)], "#4a3941")
+    shape(d, [(29,48),(26,49),(21,53 if opened else 50),(22,55 if opened else 52),(29,51),(31,49)], "#4a3941")
+    d.line([(21,44 if opened else 45),(26,47),(29,48)], fill="#af7365")
+    d.line([(23,53 if opened else 51),(27,50),(29,49)], fill="#956050")
+    shape(d, [(28,47),(33,43),(39,39 if opened else 43),(41,39 if opened else 43),
+              (40,42 if opened else 46),(34,48),(30,50)], "#414c55")
+    d.line([(31,47),(35,44),(39,40 if opened else 44)], fill="#d5dcd1")
+    shape(d, [(29,47),(34,47),(40,50 if opened else 46),(40,52 if opened else 48),
+              (36,52 if opened else 49),(29,50)], "#748885")
+    d.rectangle((29,47,30,48), fill="#e1c397")
     if on_ground:
         piece = sprite.crop(sprite.getbbox()).rotate(47, resample=Image.Resampling.NEAREST, expand=True)
         piece = piece.crop(piece.getbbox())

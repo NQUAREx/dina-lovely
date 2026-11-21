@@ -3,7 +3,8 @@ extends RefCounted
 ## from either side of the room.
 const BOUNDS := Rect2(528,624,432,624)
 const PLATFORM_COUNT := 10
-const LEAF_SCALE := Vector2(2.12,2.05)
+const LEAF_SCALE := Vector2(72.0/52.0,60.0/52.0)
+const SWIMMING_AREA := Rect2(528,637,432,598)
 # The retaining stones occupy eight pixels at each bank. Keep a strip of
 # water visible beyond them, with an extra pixel for sprite rounding.
 const LEAF_INSET := 13.0
@@ -17,6 +18,7 @@ var lily_pixels:Image
 var prints:Array[Dictionary]=[]
 var pads:Array[Dictionary]=[]
 var seconds:=0.0
+var motion_rng:=RandomNumberGenerator.new()
 var riding:=-1
 var hop:=0.0
 
@@ -25,55 +27,49 @@ func _init(owner:Node2D)->void:
 
 func reset(rng:RandomNumberGenerator)->void:
 	seconds=0.0
+	motion_rng.seed=rng.randi()
 	riding=-1
 	hop=0.0
 	pads.clear()
 	prints.clear()
 	for index in range(PLATFORM_COUNT):
-		var terminal:=index==0 or index==PLATFORM_COUNT-1
-		# The greater width lets the square reach land while all artwork
-		# stays off the retaining stones.
-		var radius:=Vector2(rng.randf_range(44 if terminal else 38,46),rng.randf_range(25.5,27.0))
-		# Interior tracks keep their original positions. The extra water
-		# at either end gives the dock leaves a separate strip of room.
-		var y:=lerpf(BOUNDS.position.y+41.0,BOUNDS.end.y-41.0,float(index)/(PLATFORM_COUNT-1))
-		var bank_offset:=ceilf(radius.y*LEAF_SCALE.y*.5)+LEAF_INSET
-		if index==0:y=BOUNDS.position.y+bank_offset
-		elif index==PLATFORM_COUNT-1:y=BOUNDS.end.y-bank_offset
-		else:y+=rng.randf_range(-1.0,1.0)
-		# Alternating speed ranges keep adjacent leaves from travelling in
-		# lockstep. Each has its own phase, sweep, acceleration and drift.
-		var rate:=rng.randf_range(.61,.95) if index%2==0 else rng.randf_range(1.08,1.46)
+		var diameter:=rng.randf_range(65.0,69.0)
+		var bank_offset:=floorf(diameter*.5)+LEAF_INSET-3.0
+		var y:=lerpf(BOUNDS.position.y+bank_offset,BOUNDS.end.y-bank_offset,float(index)/(PLATFORM_COUNT-1))
+		var artwork:=Vector2.ONE*diameter*LEAF_SCALE
+		var sweep:=BOUNDS.size.x*.5-ceilf(artwork.x*.5)-LEAF_INSET
+		var velocity:=motion_rng.randf_range(.64,1.48)
 		pads.append({
 			"center": Vector2(BOUNDS.get_center().x,y),
-			"radius": radius,
-			"bob": rng.randf_range(.5,1.5) if index>0 and index<PLATFORM_COUNT-1 else 0.0,
+			"diameter": diameter,
+			"sweep": sweep,
 			"phase": rng.randf_range(0.0,TAU),
-			"rate": rate,
-			"drift": rng.randf_range(.20,.51),
-			"rhythm": rng.randf_range(.44,1.28),
-			"accent": rng.randf_range(0,TAU),
+			"velocity": velocity,
+			"target_velocity": velocity,
+			"change_in": rng.randf_range(.4,2.4),
 			"variant": rng.randi_range(0,5),
 		})
 
-func pad_position(index:int,clock:float)->Vector2:
+func pad_position(index:int)->Vector2:
 	var pad:=pads[index]
-	var irregular:float=clock*pad.rhythm+pad.accent
-	var angle:float=clock*pad.rate+pad.phase+sin(irregular)*pad.drift
-	var half_width:float=ceilf(pad.radius.x*LEAF_SCALE.x*.5)+LEAF_INSET
-	var sweep:=BOUNDS.size.x*.5-half_width
-	return Vector2(pad.center.x+sin(angle)*sweep,
-		pad.center.y+sin(irregular*.8)*pad.bob)
+	return pad.center+Vector2(sin(pad.phase)*pad.sweep,0)
 
 func leaf_size(index:int)->Vector2:
-	var radius:Vector2=pads[index].radius
-	return (radius*LEAF_SCALE).round()
+	return Vector2.ONE*float(pads[index].diameter)*LEAF_SCALE
 
 func support_box(index:int)->Rect2:
-	var size:=leaf_size(index)
-	var side:=maxf(size.x,size.y)
-	var square:=Vector2.ONE*side
-	return Rect2(pad_position(index,seconds)-square*.5,square)
+	var square:=Vector2.ONE*float(pads[index].diameter)
+	return Rect2(pad_position(index)-square*.5,square)
+
+func advance_pads(delta:float)->void:
+	for pad in pads:
+		pad.change_in-=delta
+		if pad.change_in<=0:
+			pad.change_in=motion_rng.randf_range(.40,1.85)
+			var sign_change:float=-1.0 if motion_rng.randf()<.19 else 1.0
+			pad.target_velocity=signf(pad.target_velocity)*sign_change*motion_rng.randf_range(.35,1.72)
+		pad.velocity=move_toward(pad.velocity,pad.target_velocity,delta*4.0)
+		pad.phase=fposmod(pad.phase+pad.velocity*delta,TAU)
 
 func support(foot:Vector2)->int:
 	var best:=-1
@@ -92,12 +88,12 @@ func support(foot:Vector2)->int:
 
 func step(delta:float)->bool:
 	var foot:Vector2=game.player
-	var afloat:=BOUNDS.has_point(foot)
+	var afloat:=SWIMMING_AREA.has_point(foot)
 	var next_platform:=support(foot) if afloat else -1
-	var carry:=Vector2.ZERO
-	if next_platform>=0:
-		carry=pad_position(next_platform,seconds+delta)-pad_position(next_platform,seconds)
-		if riding>=0 and next_platform!=riding:hop=.24
+	var previous_center:=pad_position(next_platform) if next_platform>=0 else Vector2.ZERO
+	if next_platform!=riding and (next_platform>=0 or not afloat):hop=.24
+	advance_pads(delta)
+	var carry:=pad_position(next_platform)-previous_center if next_platform>=0 else Vector2.ZERO
 	riding=next_platform
 	seconds+=delta
 	hop=maxf(0.0,hop-delta)
@@ -115,7 +111,7 @@ func record_print(position:Vector2,rotation:float)->void:
 	var index:=support(game.player)
 	if index<0:return
 	var pad:=pads[index]
-	var offset:=position-pad_position(index,seconds)
+	var offset:=position-pad_position(index)
 	if lily_pixels==null:
 		var art:Texture2D=load("res://assets/beam_lilies.png")
 		lily_pixels=art.get_image()
@@ -164,7 +160,7 @@ func draw_ground()->void:
 		game.draw_rect(Rect2(crest,Vector2(8+index%4*2,2)),glint)
 	for index in range(pads.size()):
 		var pad:=pads[index]
-		var center:Vector2=game.screen(pad_position(index,seconds))
+		var center:Vector2=game.screen(pad_position(index))
 		var size:=leaf_size(index)
 		var leaf:=Rect2((center-size*.5).round(),size)
 		if not leaf.intersects(game.get_viewport_rect()):continue

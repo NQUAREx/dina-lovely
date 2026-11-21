@@ -41,7 +41,7 @@ def paint_water():
 
 def paint_lily(variant):
     width, height = 72, 60
-    cx, cy = 36, 29
+    cx, cy = 36, 30
     image = Image.new("RGBA", (width, height))
     draw = ImageDraw.Draw(image)
     notch = -.9 - variant * .72
@@ -49,7 +49,7 @@ def paint_lily(variant):
     for index in range(32):
         theta = notch + .17 + index * ((math.tau - .34) / 31)
         rough = 1 + .034 * math.cos(theta * 5 + variant) + rng.uniform(-.017, .017)
-        outline.append((round(cx + math.cos(theta) * 34 * rough),
+        outline.append((round(cx + math.cos(theta) * 26 * rough),
                         round(cy + math.sin(theta) * 26 * rough)))
     outline.append((round(cx + math.cos(notch) * 9), round(cy + math.sin(notch) * 8)))
     draw.polygon([(x, y + 4) for x, y in outline], fill="#1c3f3e")
@@ -70,7 +70,7 @@ def paint_lily(variant):
     for angle in (-2.8, -2.15, -.8, -.15, .68, 1.55, 2.37):
         if abs(math.remainder(angle - notch, math.tau)) < .27:
             continue
-        tx = round(cx + 31 * math.cos(angle))
+        tx = round(cx + 23 * math.cos(angle))
         ty = round(cy + 23 * math.sin(angle))
         mx = (cx + tx) // 2
         my = (cy + ty) // 2
@@ -79,7 +79,7 @@ def paint_lily(variant):
     vd.line(inner[17:28], fill="#92a974")
     image.paste(vein, mask=Image.composite(vein.getchannel("A"), Image.new("L", image.size), mask))
     if variant in (1, 3, 5):
-        x = 17 + (variant % 2) * 34
+        x = 29 + (variant % 2) * 13
         y = 38 if variant == 1 else 20
         draw.polygon(((x - 7,y), (x - 3,y - 5), (x,y - 3), (x + 3,y - 7),
                       (x + 7,y - 2), (x + 6,y + 2), (x,y + 5), (x - 5,y + 3)), fill="#786077")
