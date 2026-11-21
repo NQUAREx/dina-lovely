@@ -3,7 +3,7 @@ extends RefCounted
 const TILE_SIZE := Vector2(48,40)
 const OFFSET := Vector2(-48,-72)
 const COLUMNS := 16
-const DRESS_FOLDS := 5
+const DRESS_FOLDS := 7
 const POSE_COUNT := 40
 const FACE_STARTS := [0,4,12,16,24,28,32,36]
 const ITEMS := ["gold_brocade","gold_mantle"]
@@ -14,8 +14,8 @@ var dress_speed:=0.0
 var previous_heading := Vector2.ZERO
 var step_distance := 0.0
 const FABRIC_COLUMNS := 4
-const FABRIC_ROWS := 5
-const FABRIC_ANCHOR := 21.0
+const FABRIC_REST_Y := [3.0,8.0,14.0,21.0,30.0,40.0]
+const FABRIC_ANCHOR := 3.0
 const FABRIC_BOTTOM := 40.0
 var pins:=PackedVector2Array()
 var fabric:=PackedVector2Array()
@@ -24,18 +24,18 @@ var previous_motion:=Vector2.ZERO
 var bonds:Array[Vector4]=[]
 
 func _init()->void:
-	for row in range(FABRIC_ROWS):
+	for row in range(FABRIC_REST_Y.size()):
 		for column in range(FABRIC_COLUMNS):
-			pins.append(Vector2(8.0+column*(32.0/3.0),lerpf(FABRIC_ANCHOR,FABRIC_BOTTOM,row/4.0)))
-	for row in range(FABRIC_ROWS):
+			pins.append(Vector2(8.0+column*(32.0/3.0),FABRIC_REST_Y[row]))
+	for row in range(FABRIC_REST_Y.size()):
 		for column in range(FABRIC_COLUMNS):
 			var i:=row*FABRIC_COLUMNS+column
 			if column+1<FABRIC_COLUMNS:add_bond(i,i+1,.79)
-			if row+1<FABRIC_ROWS:
+			if row+1<FABRIC_REST_Y.size():
 				add_bond(i,i+FABRIC_COLUMNS,.86)
 				if column+1<FABRIC_COLUMNS:add_bond(i,i+FABRIC_COLUMNS+1,.45)
 				if column>0:add_bond(i,i+FABRIC_COLUMNS-1,.45)
-			if row+2<FABRIC_ROWS:add_bond(i,i+2*FABRIC_COLUMNS,.30)
+			if row+2<FABRIC_REST_Y.size():add_bond(i,i+2*FABRIC_COLUMNS,.30)
 	reset()
 
 func add_bond(from:int,to:int,stiffness:float)->void:
@@ -67,13 +67,13 @@ func simulate_mantle(motion:Vector2,turn:float,stride:float,pace:float,delta:flo
 			var rest:=pins[i]
 			var point:=fabric[i]
 			var velocity:=(point-fabric_previous[i])*.967
-			var depth:=(rest.y-FABRIC_ANCHOR)/(FABRIC_BOTTOM-FABRIC_ANCHOR)
+			var depth:=sqrt((rest.y-FABRIC_ANCHOR)/(FABRIC_BOTTOM-FABRIC_ANCHOR))
 			var side:=(rest.x-24.0)/16.0
-			var billow:=Vector2(-390.0*motion.x+side*pace*(170.0+stride*100.0),-pace*(110.0+stride*55.0+side*motion.y*55.0))
+			var billow:=Vector2(-430.0*motion.x+side*pace*(185.0+stride*100.0),-pace*(115.0+stride*55.0+side*motion.y*55.0))
 			var driving:=billow+Vector2(-acceleration.x*17.0,-absf(acceleration.y)*6.0)
 			fabric_previous[i]=point
 			fabric[i]=point+velocity+((rest-point)*42.0+driving*depth)*dt*dt
-			if step==0:fabric[i]+=Vector2(-turn*1.12, -absf(turn)*.56*(1.0+side*signf(turn)*.48))*depth
+			if step==0:fabric[i]+=Vector2(-turn*1.42, -absf(turn)*.67*(1.0+side*signf(turn)*.48))*depth
 		for iteration in range(5):
 			for bond in bonds:
 				var from:=int(bond.x)
@@ -92,7 +92,12 @@ func simulate_mantle(motion:Vector2,turn:float,stride:float,pace:float,delta:flo
 			for i in range(FABRIC_COLUMNS,pins.size()):
 				var above:=fabric[i-FABRIC_COLUMNS]
 				var left:=fabric[i-1].x+3.0 if i%FABRIC_COLUMNS!=0 else 1.0
-				fabric[i]=Vector2(clampf(fabric[i].x,maxf(left,pins[i].x-9.0),minf(47.0,pins[i].x+9.0)),clampf(fabric[i].y,above.y+2.0,pins[i].y))
+				var rest:=pins[i]
+				var lateral_limit:=lerpf(1.4,9.0,smoothstep(FABRIC_ANCHOR,FABRIC_BOTTOM-4.0,rest.y))
+				var upper_lift:=lerpf(.8,8.0,smoothstep(FABRIC_ANCHOR,FABRIC_BOTTOM,rest.y))
+				fabric[i]=Vector2(
+					clampf(fabric[i].x,maxf(left,rest.x-lateral_limit),minf(47.0,rest.x+lateral_limit)),
+					clampf(fabric[i].y,maxf(above.y+2.0,rest.y-upper_lift),rest.y))
 
 func mantle_vertices()->PackedVector2Array:
 	var result:=PackedVector2Array()
@@ -110,13 +115,13 @@ func update(displacement:Vector2,heading:Vector2,delta:float)->void:
 	step_distance=fposmod(step_distance+displacement.length(),72.0)
 	var stride:=sin(step_distance*TAU/72.0)
 	simulate_mantle(motion,turn,stride,pace,delta)
-	# The brocade stays fitted. Only the folds inside its silhouette sway.
-	var target:=clampf(-motion.x*.54+stride*.34*pace,-1.0,1.0)
-	dress_speed-=turn*2.5
+	# The heavier skirt bends more slowly with a fitted base silhouette.
+	var target:=clampf(-motion.x*.86+stride*.47*pace,-1.0,1.0)
+	dress_speed-=turn*3.8
 	var remaining:=minf(delta,.1)
 	while remaining>0.00001:
 		var dt:=minf(remaining,1.0/120.0)
-		dress_speed+=((target-dress_fold)*95.0-dress_speed*14.0)*dt
+		dress_speed+=((target-dress_fold)*82.0-dress_speed*11.0)*dt
 		dress_fold+=dress_speed*dt
 		remaining-=dt
 
@@ -124,7 +129,7 @@ func tile(garment:int,face:int,frame:int)->Vector2:
 	var pose:int=FACE_STARTS[face]+frame
 	var index:=POSE_COUNT*DRESS_FOLDS+pose
 	if garment==0:
-		var fold:=roundi((clampf(dress_fold,-1.0,1.0)+1.0)*2.0)
+		var fold:=roundi((clampf(dress_fold,-1.0,1.0)+1.0)*3.0)
 		index=pose*DRESS_FOLDS+fold
 	return Vector2(index%COLUMNS,index/COLUMNS)
 
@@ -144,7 +149,7 @@ func draw(game:Node2D,garment:int,face:int,frame:int,position:Vector2,color:Colo
 	var vertices:=mantle_vertices()
 	var atlas_size:=texture_atlas.get_size()
 	var tint:=PackedColorArray([color])
-	for row in range(FABRIC_ROWS-1):
+	for row in range(FABRIC_REST_Y.size()-1):
 		for column in range(FABRIC_COLUMNS-1):
 			var index:=row*FABRIC_COLUMNS+column
 			for triangle in [[index,index+1,index+FABRIC_COLUMNS+1],[index,index+FABRIC_COLUMNS+1,index+FABRIC_COLUMNS]]:

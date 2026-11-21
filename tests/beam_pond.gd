@@ -30,6 +30,18 @@ func _initialize()->void:
 			for side in [-1.0,1.0]:
 				assert(pond.support(Vector2(top.x+side*42.0,pond.BOUNDS.position.y+.5))==0)
 				assert(pond.support(Vector2(bottom.x+side*42.0,pond.BOUNDS.end.y-.5))==last)
+		if seed_value<8:
+			for index in range(pond.pads.size()):
+				var pad:Dictionary=pond.pads[index]
+				var edge:float=ceilf(pad.radius.x*pond.LEAF_SCALE.x*.5)+pond.LEAF_INSET
+				var minimum:=INF
+				var maximum:=-INF
+				for tick in range(480):
+					var x:float=pond.pad_position(index,tick*.04).x
+					minimum=minf(minimum,x)
+					maximum=maxf(maximum,x)
+				assert(absf(minimum-(pond.BOUNDS.position.x+edge))<.2)
+				assert(absf(maximum-(pond.BOUNDS.end.x-edge))<.2)
 		var rates:Dictionary={}
 		for pad in pond.pads:rates[pad.rate]=true
 		assert(rates.size()==pond.pads.size())

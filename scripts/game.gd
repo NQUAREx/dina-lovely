@@ -3521,8 +3521,8 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 		grid[5]="#".repeat(grid[0].length())
 	if level==2:
 		objects.assign(objects.filter(func(o):return o.kind=="doorway"))
-		# Retain the story reward in the exit vestibule, beyond the three lanes.
-		put_object("note",Vector2i(17,7),"crossing")
+		# The letter waits on the dry bank after the lily crossing.
+		put_object("note",Vector2i(18,26),"crossing")
 		return
 	objects.assign(objects.filter(func(o):return o.kind=="doorway" or valid_ground(o.pos)))
 	if level==1:

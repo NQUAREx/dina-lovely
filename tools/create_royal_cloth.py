@@ -7,7 +7,7 @@ from create_royal_outfit import ASSETS, DARK, GOLD, GOLD_LIGHT, GOLD_SHADE, diam
 
 WIDTH, HEIGHT, COLUMNS = 48, 40, 16
 TOP = 7
-DRESS_FOLDS = 5
+DRESS_FOLDS = 7
 GARMENTS = ('gold_brocade', 'gold_mantle')
 FRAME_COUNTS = (4, 8, 4, 8, 4, 4, 4, 4)
 
@@ -36,18 +36,31 @@ def flowing_mantle(layer, face):
 
 
 def dress_fold(layer, bend):
-    """Reposition folds within the fabric while preserving every alpha pixel."""
+    """Move the folds and let the hem flare, retaining its original coverage."""
     result = layer.copy()
     bottom = layer.getbbox()[3] - 1
     for y in range(31, bottom + 1):
-        sway = round(bend * ((y - 30) / (bottom - 30)) ** 1.4)
+        progress = ((y - 30) / (bottom - 30)) ** 1.4
+        sway = round(bend * progress)
         if not sway:
             continue
-        for x in range(layer.width):
+        bounds = layer.crop((0, y, layer.width, y+1)).getbbox()
+        if bounds is None:
+            continue
+        left, _, right, _ = bounds
+        # The top starts at the existing seams. Only the heavier free hem
+        # gains a little volume laterally, with all original pixels covered.
+        flare = round(abs(sway) * .67)
+        start = max(1, left - (flare if sway < 0 else 0))
+        end = min(layer.width - 1, right + (flare if sway > 0 else 0))
+        for x in range(start, end):
             original = layer.getpixel((x, y))
-            sample = layer.getpixel((max(0, min(layer.width - 1, x - sway)), y))
-            if original[3] and sample[3]:
-                result.putpixel((x, y), sample[:3] + (original[3],))
+            sample_x = max(left, min(right-1, x-sway))
+            sample = layer.getpixel((sample_x, y))
+            if sample[3]:
+                result.putpixel((x, y), sample)
+            elif original[3]:
+                result.putpixel((x, y), original)
     return result
 
 

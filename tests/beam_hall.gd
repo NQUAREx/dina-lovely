@@ -46,6 +46,13 @@ func run() -> void:
 		game.grid[19]=row
 	assert(game.objects.all(func(obj):return obj.kind in ["doorway","accessory","note","riddle_stone"]))
 	assert(not game.level_complete())
+	var pond:Rect2=game.beam_pond.BOUNDS
+	var edge_column:=floori(pond.end.x/game.TILE)
+	var final_water_row:=ceili(pond.end.y/game.TILE)-1
+	assert(game.grid[final_water_row][edge_column]=="#")
+	var crossing:Array=game.objects.filter(func(obj):return obj.id=="crossing")
+	assert(crossing.size()==1)
+	assert(not game.blocked(crossing[0].pos) and crossing[0].pos.y>pond.end.y)
 	game.playing=true
 	game.clear_modal()
 	game.rotate_overlay.hide()

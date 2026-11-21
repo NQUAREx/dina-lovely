@@ -17,12 +17,13 @@ uniform vec2 hero_top_left = vec2(0.0);
 uniform vec2 hero_tiles[7];
 uniform sampler2D cloth_atlas : filter_nearest, repeat_disable;
 uniform vec2 cloth_tiles[2];
-uniform vec2 mantle_nodes[20];
+uniform vec2 mantle_nodes[24];
 uniform int hero_tile_count = 0;
 uniform vec2 gate_lights[4];
 uniform int gate_light_count=0;
 vec2 mantle_rest(int vertex){
- return vec2(8.0+float(vertex%4)*(32.0/3.0),21.0+float(vertex/4)*4.75);
+ float rows[6]={3.0,8.0,14.0,21.0,30.0,40.0};
+ return vec2(8.0+float(vertex%4)*(32.0/3.0),rows[vertex/4]);
 }
 vec2 mantle_uv(vec2 p,int ia,int ib,int ic){
  vec2 a=mantle_nodes[ia], b=mantle_nodes[ib]-a, c=mantle_nodes[ic]-a;
@@ -35,8 +36,8 @@ vec2 mantle_uv(vec2 p,int ia,int ib,int ic){
  return mantle_rest(ia)*(1.0-u-v)+mantle_rest(ib)*u+mantle_rest(ic)*v;
 }
 vec2 mantle_sample(vec2 p){
- if(p.y<21.0)return p;
- for(int y=0;y<4;y++){
+ if(p.y<3.0)return p;
+ for(int y=0;y<5;y++){
   for(int x=0;x<3;x++){
    int i=y*4+x;
    vec2 uv=mantle_uv(p,i,i+1,i+5);
