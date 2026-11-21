@@ -1,4 +1,7 @@
 extends RefCounted
+
+const EXCAVATION_LETTER := "secret_excavation"
+const DRILL_SAMPLE_INTERVAL := .05
 const PIT_WALL := [Color("76543c"),Color("674832"),Color("5c3f2e"),Color("51382b"),Color("473229"),Color("402e28"),Color("382b27"),Color("332925"),Color("2e2724"),Color("2b2523")]
 ## Optional world editing. Only the current room runs; other rooms keep saved data.
 const TOOLS := ["axe","shears","drill"]
@@ -78,6 +81,7 @@ func draw_bed_plant(id:String,point:Vector2,scale_factor:float)->void:
  var destination:=Rect2(point-Vector2(32,86)*scale_factor,Vector2(64,96)*scale_factor)
  g.draw_texture_rect_region(GROWTH_ART,destination,source)
 func install()->void:
+ restore_secret_excavation_letter()
  if seed_value!=int(g.save_data.seed):images.clear();masks.clear();textures.clear();sample_indices.clear();falling.clear();seed_value=int(g.save_data.seed)
  var data:=state()
  # One-time migration from the old isolated-pit save format.
@@ -261,11 +265,45 @@ func has_sample(pos:Vector2)->bool:
   sample_indices[room]={}
   for point in state().excavations:sample_indices[room]["%d:%d"%[point[0],point[1]]]=true
  return sample_indices[room].has("%d:%d"%[pos.x,pos.y])
+func secret_dig_target(data:Dictionary)->Vector2:
+ if not data.has("secret_dig_target"):
+  var candidates:Array[Vector2]=[]
+  var main_target:=Vector2(g.save_data.dig_target[0],g.save_data.dig_target[1])
+  for y in range(8,g.grid.size()-8):
+   for x in range(3,g.grid[y].length()-3):
+    var point:Vector2=Vector2(x+.5,y+.5)*g.TILE
+    if point.distance_to(main_target)>320 and soil(point):candidates.append(point)
+  if candidates.is_empty():return Vector2.INF
+  var rng:=RandomNumberGenerator.new()
+  rng.seed=int(g.save_data.seed)^0x53454352
+  var target:=candidates[rng.randi_range(0,candidates.size()-1)]
+  data.secret_dig_target=[target.x,target.y]
+ return Vector2(data.secret_dig_target[0],data.secret_dig_target[1])
+
+func restore_secret_excavation_letter()->void:
+ if g.level!=3 or EXCAVATION_LETTER in g.save_data.letters:return
+ var point:Array=state().get("secret_dig_exposed",[])
+ if point.size()!=2 or g.objects.any(func(obj):return obj.id==EXCAVATION_LETTER):return
+ g.objects.append({"kind":"note","id":EXCAVATION_LETTER,"solid":false,"pos":Vector2(point[0],point[1])})
+
 func excavate(pos:Vector2)->void:
  pos=pos.snapped(Vector2(12,12))
- if not soil(pos) or has_sample(pos):return
+ if not soil(pos):return
+ if g.level==3 and EXCAVATION_LETTER not in g.save_data.letters:
+  var data:=state()
+  if not data.has("secret_dig_exposed") and pos.distance_to(secret_dig_target(data))<=36:
+   data.secret_dig_exposed=[pos.x,pos.y]
+   restore_secret_excavation_letter()
+   # Ordinary soil and discovery visuals, without proximity or discovery text.
+   if not has_sample(pos):
+    g.stats.add(g,"digs")
+    record_excavation(pos)
+    g.scene_fx.soil(pos,10)
+   g.persist()
+   return
+ if has_sample(pos):return
  g.stats.add(g,"digs")
- ensure_dirt();state().excavations.append([pos.x,pos.y]);sample_indices[str(g.level)]["%d:%d"%[pos.x,pos.y]]=true;stamp(pos);textures[str(g.level)].update(images[str(g.level)])
+ record_excavation(pos)
  if g.level==3:
   var id:="%d:%d"%[pos.x,pos.y]
   if id not in g.save_data.dug:g.save_data.dug.append(id)
@@ -276,6 +314,9 @@ func excavate(pos:Vector2)->void:
  g.rune_stones.excavate(pos)
  g.scene_fx.soil(pos,10)
  g.persist()
+func record_excavation(pos:Vector2)->void:
+ ensure_dirt();state().excavations.append([pos.x,pos.y]);sample_indices[str(g.level)]["%d:%d"%[pos.x,pos.y]]=true;stamp(pos);textures[str(g.level)].update(images[str(g.level)])
+
 func update(delta:float)->void:
  if g.held_item!="drill" or g.paused or g.transition or not g.playing:drill_held=false
  drilling=drill_held and g.held_item=="drill" and g.playing and not g.paused and not g.transition and soil(ground_point())
@@ -285,7 +326,7 @@ func update(delta:float)->void:
   soil_fx_clock=.075 if shoveling else .085
   g.scene_fx.soil(g.task_target if shoveling else ground_point(),10 if shoveling else 7)
  drill_clock-=delta
- if drilling and drill_clock<=0:drill_clock=.18;excavate(ground_point())
+ if drilling and drill_clock<=0:drill_clock=DRILL_SAMPLE_INTERVAL;excavate(ground_point())
  if drill_voice==null:
   drill_voice=AudioStreamPlayer.new();var stream:=load("res://assets/drill_loop.wav").duplicate() as AudioStreamWAV;stream.loop_mode=AudioStreamWAV.LOOP_FORWARD;stream.loop_end=int(stream.get_length()*stream.mix_rate);drill_voice.stream=stream;drill_voice.volume_db=-80
   if OS.has_feature("web"):drill_voice.playback_type=AudioServer.PLAYBACK_TYPE_SAMPLE

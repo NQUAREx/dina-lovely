@@ -1,5 +1,6 @@
 """Draw the garden quest sprites at the game's two-screen-pixel scale."""
 
+import json
 from pathlib import Path
 from random import Random
 
@@ -257,24 +258,14 @@ def overgrown_tree(variant):
     return sprite
 
 
-def shears(on_ground, opened=False):
-    sprite, d = canvas()
-    # Curved bypass blade and short solid grips, centered on the hand pivot.
-    shape(d, [(29,47),(26,46),(20,42 if opened else 44),(19,44),(24,48),(28,50)], "#4a3941")
-    shape(d, [(29,48),(26,49),(21,53 if opened else 50),(22,55 if opened else 52),(29,51),(31,49)], "#4a3941")
-    d.line([(21,44 if opened else 45),(26,47),(29,48)], fill="#af7365")
-    d.line([(23,53 if opened else 51),(27,50),(29,49)], fill="#956050")
-    shape(d, [(28,47),(33,43),(39,39 if opened else 43),(41,39 if opened else 43),
-              (40,42 if opened else 46),(34,48),(30,50)], "#414c55")
-    d.line([(31,47),(35,44),(39,40 if opened else 44)], fill="#d5dcd1")
-    shape(d, [(29,47),(34,47),(40,50 if opened else 46),(40,52 if opened else 48),
-              (36,52 if opened else 49),(29,50)], "#748885")
-    d.rectangle((29,47,30,48), fill="#e1c397")
-    if on_ground:
-        piece = sprite.crop(sprite.getbbox()).rotate(47, resample=Image.Resampling.NEAREST, expand=True)
-        piece = piece.crop(piece.getbbox())
-        sprite = Image.new("RGBA", (CELL, CELL))
-        sprite.paste(piece, (32-piece.width//2, 55-piece.height))
+def shears(on_ground, closed=False):
+    name = "shears_closed" if closed else "shears"
+    index = json.loads((ASSETS / "atlas.json").read_text())[name]
+    x, y = index % 16 * 32, index // 16 * 48
+    with Image.open(ASSETS / "atlas.png") as atlas:
+        piece = atlas.convert("RGBA").crop((x, y, x + 32, y + 48))
+    sprite = Image.new("RGBA", (CELL, CELL))
+    sprite.paste(piece, (16, 11) if on_ground else (13, 13))
     return sprite
 
 
@@ -374,7 +365,7 @@ def main():
         sprites[45 + fill] = basket_sprite(fill, on_ground=True)
     for delivered in range(4):
         sprites[48 + delivered] = display_table(delivered)
-    sprites[52] = shears(on_ground=False, opened=True)
+    sprites[52] = shears(on_ground=False, closed=True)
     for variant in range(4):
         sprites[56+variant] = overgrown_tree(variant)
     rows = max(sprites) // COLUMNS + 1
