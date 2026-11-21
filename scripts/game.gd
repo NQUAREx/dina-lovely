@@ -1469,7 +1469,8 @@ func _physics_process(delta: float) -> void:
 			retry_beam_hall()
 			return
 	if playing and not paused and not transition and ("gold_brocade" in save_data.wearing or "gold_mantle" in save_data.wearing):
-		royal_cloth.update(player-previous_position,walk_facing,delta)
+		var heading:=aim if not weapon.is_empty() and (attack_flash>0 or rpg_windup>=0) else walk_facing
+		royal_cloth.update(player-previous_position,heading,delta,"gold_brocade" in save_data.wearing,"gold_mantle" in save_data.wearing)
 
 func _process(delta: float) -> void:
 	dig_quest.update(delta)
@@ -3364,15 +3365,30 @@ func update_fog() -> void:
 		var frame:=player_walk_frame()
 		var frame_names:Array[String]=["hero%d_%d"%[facing_id,frame]]
 		var cloth_tiles:=PackedVector2Array([Vector2(-1,0),Vector2(-1,0)])
+		var lining_tiles:=cloth_tiles.duplicate()
+		var row_ranges:=PackedVector2Array()
+		row_ranges.resize(18)
 		for item in OUTFIT_ORDER:
 			if item not in save_data.wearing:continue
 			var garment:int=royal_cloth.ITEMS.find(item)
-			if garment<0:frame_names.append("wear_%s_%d_%d"%[item,facing_id,frame])
-			else:cloth_tiles[garment]=royal_cloth.tile(garment,facing_id,frame)
+			if garment<0:
+				frame_names.append("wear_%s_%d_%d"%[item,facing_id,frame])
+				continue
+			cloth_tiles[garment]=royal_cloth.tile(garment,facing_id,frame)
+			lining_tiles[garment]=royal_cloth.lining_tile(garment,facing_id,frame)
+			var nodes:PackedVector2Array=royal_cloth.vertices(garment)
+			material.set_shader_parameter("dress_nodes" if garment==0 else "mantle_nodes",nodes)
+			for row in range(9):
+				var limits:=Vector2(nodes[row*7].y,nodes[row*7].y)
+				for col in range(1,7):
+					var y:=nodes[row*7+col].y
+					limits=Vector2(minf(limits.x,y),maxf(limits.y,y))
+				row_ranges[garment*9+row]=limits
+		material.set_shader_parameter("cloth_tiles",cloth_tiles)
 		if cloth_tiles[0].x>=0 or cloth_tiles[1].x>=0:
 			material.set_shader_parameter("cloth_atlas",royal_cloth.atlas())
-		material.set_shader_parameter("cloth_tiles",cloth_tiles)
-		if cloth_tiles[1].x>=0:material.set_shader_parameter("mantle_nodes",royal_cloth.mantle_vertices())
+			material.set_shader_parameter("lining_tiles",lining_tiles)
+			material.set_shader_parameter("cloth_row_ranges",row_ranges)
 		var tiles:=PackedVector2Array()
 		for frame_name in frame_names:
 			if not sprites.has(frame_name):continue
@@ -4515,6 +4531,8 @@ func collect_accessory(item: String) -> void:
 			save_data.wearing.erase(old);drop_accessory(old)
 	if item not in save_data.accessories:save_data.accessories.append(item)
 	save_data.wearing.append(item)
+	var cloth_index:=royal_cloth.ITEMS.find(item)
+	if cloth_index>=0:royal_cloth.panels[cloth_index].reset()
 	persist();sfx("chime");burst(player,8,PINK);find_nearest()
 	notify(tx("accessory_found") % tx("accessory_"+item))
 

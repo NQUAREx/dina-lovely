@@ -17,33 +17,46 @@ uniform vec2 hero_top_left = vec2(0.0);
 uniform vec2 hero_tiles[7];
 uniform sampler2D cloth_atlas : filter_nearest, repeat_disable;
 uniform vec2 cloth_tiles[2];
-uniform vec2 mantle_nodes[24];
+uniform vec2 lining_tiles[2];
+uniform vec2 dress_nodes[63];
+uniform vec2 mantle_nodes[63];
+uniform vec2 cloth_row_ranges[18];
 uniform int hero_tile_count = 0;
 uniform vec2 gate_lights[4];
 uniform int gate_light_count=0;
-vec2 mantle_rest(int vertex){
- float rows[6]={3.0,8.0,14.0,21.0,30.0,40.0};
- return vec2(8.0+float(vertex%4)*(32.0/3.0),rows[vertex/4]);
+vec2 cloth_node(int garment,int index){
+ return garment==0?dress_nodes[index]:mantle_nodes[index];
 }
-vec2 mantle_uv(vec2 p,int ia,int ib,int ic){
- vec2 a=mantle_nodes[ia], b=mantle_nodes[ib]-a, c=mantle_nodes[ic]-a;
- float determinant=b.x*c.y-b.y*c.x;
- if(abs(determinant)<.001)return vec2(-1.0);
- vec2 d=p-a;
- float u=(d.x*c.y-d.y*c.x)/determinant;
- float v=(b.x*d.y-b.y*d.x)/determinant;
- if(min(u,v)<-.0001 || u+v>1.0001)return vec2(-1.0);
- return mantle_rest(ia)*(1.0-u-v)+mantle_rest(ib)*u+mantle_rest(ic)*v;
+
+vec2 triangle_weights(vec2 offset,vec2 b,vec2 c){
+ float area=b.x*c.y-b.y*c.x;
+ if(abs(area)<0.0001)return vec2(-1.0);
+ vec2 weights=vec2(offset.x*c.y-offset.y*c.x,b.x*offset.y-b.y*offset.x)/area;
+ if(min(weights.x,weights.y)<-0.00001 || weights.x+weights.y>1.00001)return vec2(-1.0);
+ return weights;
 }
-vec2 mantle_sample(vec2 p){
- if(p.y<3.0)return p;
- for(int y=0;y<5;y++){
-  for(int x=0;x<3;x++){
-   int i=y*4+x;
-   vec2 uv=mantle_uv(p,i,i+1,i+5);
-   if(uv.x>=0.0)return uv;
-   uv=mantle_uv(p,i,i+5,i+4);
-   if(uv.x>=0.0)return uv;
+
+// Find the same mesh triangle that covers this pixel in the outfit draw.
+vec2 cloth_source(vec2 point,int garment){
+ float waist=garment==0?20.0:0.0;
+ vec2 cell=vec2(32.0/6.0,(40.0-waist)/8.0);
+ for(int row=0;row<8;row++){
+  int band=garment*9+row;
+  vec2 top=cloth_row_ranges[band],bottom=cloth_row_ranges[band+1];
+  if(point.y<min(top.x,bottom.x) || point.y>max(top.y,bottom.y))continue;
+  int index=row*7;
+  vec2 tl=cloth_node(garment,index),bl=cloth_node(garment,index+7);
+  for(int col=0;col<6;col++){
+   vec2 tr=cloth_node(garment,index+col+1),br=cloth_node(garment,index+col+8);
+   if(point.x>=min(min(tl.x,bl.x),min(tr.x,br.x)) && point.x<=max(max(tl.x,bl.x),max(tr.x,br.x))){
+    vec2 origin=vec2(8.0,waist)+vec2(float(col),float(row))*cell;
+    vec2 w=triangle_weights(point-tl,tr-tl,br-tl);
+    if(w.x>=-0.00001)return origin+cell*vec2(w.x+w.y,w.y);
+    w=triangle_weights(point-tl,br-tl,bl-tl);
+    if(w.x>=-0.00001)return origin+cell*vec2(w.x,w.x+w.y);
+   }
+   tl=tr;
+   bl=br;
   }
  }
  return vec2(-1.0);
@@ -80,14 +93,19 @@ void fragment(){
   }
  }
  vec2 cloth_pixel=(pixel-hero_top_left)*0.5+vec2(8.0,-7.0);
- if(hero_occludes_light && all(greaterThanEqual(cloth_pixel,vec2(0.0))) && all(lessThan(cloth_pixel,vec2(48.0,40.0)))){
-  vec2 cloth_size=vec2(textureSize(cloth_atlas,0));
-  for(int i=0;i<2;i++){
-   if(cloth_tiles[i].x<0.0)continue;
-   vec2 source=i==1?mantle_sample(cloth_pixel):cloth_pixel;
-   if(source.x<0.0)continue;
-   vec2 sprite_pixel=cloth_tiles[i]*vec2(48.0,40.0)+source;
-   hero_alpha=max(hero_alpha,texture(cloth_atlas,sprite_pixel/cloth_size).a);
+ if(hero_occludes_light && hero_alpha<1.0 && all(greaterThanEqual(cloth_pixel,vec2(0.0))) && all(lessThan(cloth_pixel,vec2(48.0,40.0)))){
+  vec2 atlas_size=vec2(textureSize(cloth_atlas,0));
+  vec2 tile_size=vec2(48.0,40.0);
+  for(int garment=0;garment<2;garment++){
+   if(cloth_tiles[garment].x<0.0)continue;
+   vec2 lining=lining_tiles[garment]*tile_size+cloth_pixel;
+   hero_alpha=max(hero_alpha,texture(cloth_atlas,lining/atlas_size).a);
+   if(hero_alpha>=1.0)break;
+   vec2 source=cloth_source(cloth_pixel,garment);
+   if(source.x<0.0 || source.y<0.0 || source.y>=tile_size.y)continue;
+   vec2 shell=cloth_tiles[garment]*tile_size+source;
+   hero_alpha=max(hero_alpha,texture(cloth_atlas,shell/atlas_size).a);
+   if(hero_alpha>=1.0)break;
   }
  }
  if(hero_occludes_light){
