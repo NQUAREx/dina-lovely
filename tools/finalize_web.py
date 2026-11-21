@@ -3,17 +3,19 @@ p=Path(__file__).resolve().parents[1]/'docs/index.html'
 s=p.read_text()
 marker='<!-- garden-recovery -->'
 if marker not in s:
- s=s.replace('</body>', '''<!-- garden-recovery -->
+ marker_position=s.index('<script src="index.js"')
+ s=s[:marker_position]+'''<!-- garden-recovery -->
 <script>
 (()=>{
  const canvas=document.getElementById('canvas');
  function recover(message){
   window.gardenHideLoading?.();
   if(document.getElementById('garden-recovery'))return;
+  document.getElementById('mobile-gate')?.remove();
   const box=document.createElement('div');box.id='garden-recovery';
   Object.assign(box.style,{position:'fixed',inset:'0',zIndex:'1000',background:'#242538',color:'#f5e3cf',display:'grid',placeContent:'center',textAlign:'center',padding:'32px',font:'18px GardenLetter,sans-serif'});
-  const text=document.createElement('p');text.textContent=window.gardenContent?.ui?.[message]?.text||'';box.append(text);
-  const button=document.createElement('button');button.textContent=window.gardenContent?.ui?.recovery_return?.text||' ';button.onclick=()=>{const url=new URL(location.href);url.searchParams.set('reload',Date.now());location.replace(url);};
+  const text=document.createElement('p');text.textContent=window.gardenContent?.ui?.[message]?.text||__BOOT_FAILURE__;box.append(text);
+  const button=document.createElement('button');button.textContent=window.gardenContent?.ui?.recovery_return?.text||__BOOT_RETRY__;button.onclick=()=>{const url=new URL(location.href);url.searchParams.set('reload',Date.now());location.replace(url);};
   Object.assign(button.style,{padding:'16px',background:'#70536e',color:'#f5e3cf',border:'1px solid #e5a6bd',borderRadius:'12px',font:'18px GardenLetter,sans-serif'});box.append(button);document.body.append(box);
  }
  window.addEventListener('garden-asset-error',()=>recover('recovery_load_failed'));
@@ -22,16 +24,24 @@ if marker not in s:
  if(notice)new MutationObserver(()=>{if(notice.textContent.trim())recover('recovery_load_failed');}).observe(notice,{childList:true,subtree:true});
 })();
 </script>
-</body>''')
+'''+s[marker_position:]
 
 # Engine diagnostics belong in the console; visible failure copy comes from letters.
 import re
 s=re.sub(r'function displayFailureNotice\(err\) \{.*?\n\t\}', "function displayFailureNotice(err) {\n\t\tconsole.error(err);\n\t\twindow.dispatchEvent(new Event('garden-asset-error'));\n\t}",s,flags=re.S)
+s=s.replace('const engine = new Engine(GODOT_CONFIG);',
+            "const engine = typeof Engine === 'function' && window.gardenLaunch ? new Engine(GODOT_CONFIG) : null;")
+s=s.replace('const missing = Engine.getMissingFeatures({',
+            "if (!engine) { displayFailureNotice('Startup scripts unavailable'); return; }\n\tconst missing = Engine.getMissingFeatures({")
 p.write_text(s)
 
 import json, shutil
 root=p.parent.parent
 content=json.loads((root/'content/letters.json').read_text())
+for marker,key in [('__BOOT_FAILURE__','recovery_load_failed'),('__BOOT_RETRY__','recovery_return')]:
+ s=s.replace(marker,json.dumps(content['ui'][key]['text'],ensure_ascii=True).replace('<',r'\u003c'))
+p.write_text(s)
+
 import hashlib
 from audit_content import required_ui
 frame_hash=hashlib.sha256(b''.join((root/'assets'/f'frame_{part}_{room}.png').read_bytes() for room in range(7) for part in ['field','top','bottom'])).hexdigest()[:12]
@@ -94,7 +104,7 @@ credits=(root/'assets/SFX-CREDITS.md').read_text()
 # Fit the canvas itself, leaving the page-colored area outside Godot.
 s=p.read_text().replace('"canvasResizePolicy":2','"canvasResizePolicy":0')
 s=s.replace('<canvas id="canvas"','<canvas width="540" height="960" id="canvas"')
-s=s.replace('</head>','<style>html,body{background:#242538!important}#status-splash{display:none!important}#canvas{position:fixed!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:min(100vw,calc((100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))*0.5625))!important;height:min(calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)),177.777778vw)!important;margin:0!important;display:block}</style></head>')
+s=s.replace('</head>','<style>html,body{background:#242538!important}#status-splash{display:none!important}#canvas{position:fixed!important;z-index:1;left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:min(100vw,calc((100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))*0.5625))!important;height:min(calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)),177.777778vw)!important;margin:0!important;display:block}</style></head>')
 p.write_text(s)
 
 # Do not flash a baked title while live content is loading.
@@ -106,8 +116,14 @@ import hashlib
 pack=p.parent/'index.pck'
 version=hashlib.sha256(pack.read_bytes()).hexdigest()[:12]
 name='game.'+version+'.pck'
-for old in p.parent.glob('game.*.pck'):
- if old.name!=name:old.unlink()
+# A previously loaded HTML document may still request the preceding release
+# while the CDN and installed web apps pick up the new entrypoint.
+previous_loader=p.parent/'asset-loader.js'
+previous_main=re.search(r'"(game\.[a-f0-9]+\.pck)"',previous_loader.read_text()) if previous_loader.exists() else None
+previous_name=previous_main.group(1) if previous_main else None
+previous=sorted((old for old in p.parent.glob('game.*.pck') if old.name!=name),
+                key=lambda old:(old.name==previous_name,old.stat().st_mtime_ns,old.name),reverse=True)
+for old in previous[1:]:old.unlink()
 shutil.copyfile(pack,p.parent/name)
 s=p.read_text()
 match=re.search(r'const GODOT_CONFIG = (\{.*?\});',s)
@@ -143,6 +159,7 @@ for old in p.parent.glob('engine.*.wasm.gz'):
  if old.name!=wasm_name:old.unlink()
 (p.parent/wasm_name).write_bytes(compressed)
 asset_sizes={wasm_name:len(compressed),'index.wasm':wasm.stat().st_size,name:pack.stat().st_size}
+for old in previous[:1]:asset_sizes[old.name]=old.stat().st_size
 loader=(root/'tools/asset_loader.js').read_text().replace('__WASM_GZIP__',wasm_name).replace('__ASSET_SIZES__',json.dumps(asset_sizes))
 (p.parent/'asset-loader.js').write_text(loader)
 patch_loader(p.parent/'index.js')

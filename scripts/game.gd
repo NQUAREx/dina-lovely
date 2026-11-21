@@ -271,6 +271,9 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(layout_ui)
 	layout_ui()
 	if OS.has_feature("web"):
+		# The room build suspended rendering. Keep the loading screen until
+		# the canvas has drawn the menu with rendering enabled again.
+		await RenderingServer.frame_post_draw
 		web_save_callback=JavaScriptBridge.create_callback(func(_args):
 			if playing:persist())
 		JavaScriptBridge.get_interface("window").gardenSaveNow=web_save_callback

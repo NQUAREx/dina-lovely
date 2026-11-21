@@ -1,17 +1,17 @@
 // Versioned, resumable static downloads; no service worker or server headers required.
 (()=>{
- const compressedWasm='engine.8032306d52d5.wasm.gz',sizes={"engine.8032306d52d5.wasm.gz": 10054758, "index.wasm": 39514754, "game.f257446fabd5.pck": 3542996},chunkSize=512*1024,parallel=2;
+ const compressedWasm='engine.8032306d52d5.wasm.gz',sizes={"engine.8032306d52d5.wasm.gz": 10054758, "index.wasm": 39514754, "game.9f8fc5f2e608.pck": 3461960, "game.f257446fabd5.pck": 3542996},chunkSize=512*1024,parallel=4;
  const cacheName='garden-assets-v1',writes=new Set();
  window.gardenFlushAssetCache=()=>Promise.all([...writes]);
  const cachePromise=typeof caches==='undefined'?Promise.resolve(null):caches.open(cacheName).catch(()=>null);
  cachePromise.then(async cache=>{if(!cache)return;try{for(const key of await cache.keys()){const name=new URL(key.url).pathname.split('/').pop();if(!Object.prototype.hasOwnProperty.call(sizes,name))await cache.delete(key);}}catch{}});
  const report=(file,loaded,total)=>window.gardenAssetBytes?.(file,loaded,total);
- async function request(url,range,attempt=0){
+ async function request(url,range){
   const controller=new AbortController();let timer;
   const arm=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(new Error('Asset download stalled')),25000);};arm();
   try{
    const target=new URL(url,location.href);if(range)target.searchParams.set('range',range.slice(6));
-   const response=await fetch(target.href,{cache:attempt?'reload':'force-cache',signal:controller.signal,headers:range?{Range:range}:{}});
+   const response=await fetch(target.href,{cache:'force-cache',signal:controller.signal,headers:range?{Range:range}:{}});
    return {response,arm,finish:()=>clearTimeout(timer),abort:()=>{clearTimeout(timer);controller.abort();}};
   }catch(error){clearTimeout(timer);throw error;}
  }
@@ -35,28 +35,15 @@
   // Probe support once. A server ignoring Range must not download the full file four times.
   let first=await cached(0),probe;
   if(!first){
-   for(let attempt=0;attempt<3;attempt++){
-    try{
-     probe=await request(url,'bytes=0-'+(Math.min(chunkSize,total)-1),attempt);
-     if(!probe.response.ok){
-      probe.finish();
-      if(probe.response.status===404||attempt===2)return probe.response;
-      throw Error('Asset request failed');
-     }
-     if(probe.response.status!==206){
-      const reader=probe.response.body.getReader();let loaded=0;
-      return new Response(new ReadableStream({async pull(stream){try{const item=await reader.read();if(item.done){probe.finish();stream.close();}else{probe.arm();loaded+=item.value.length;report(file,loaded,total);stream.enqueue(item.value);}}catch(error){probe.finish();stream.error(error);}},cancel(){probe.abort();return reader.cancel();}}),{headers:probe.response.headers});
-     }
-     validate(probe.response,0);first=await bytes(probe,n=>update(0,n));
-     if(first.length!==Math.min(chunkSize,total))throw Error('Truncated asset range');
-     save(0,first);break;
-    }catch(error){
-     probe?.abort();update(0,0);
-     if(attempt===2)throw error;
-    }
+   probe=await request(url,'bytes=0-'+(Math.min(chunkSize,total)-1));
+   if(!probe.response.ok){probe.finish();return probe.response;}
+   if(probe.response.status!==206){
+    const reader=probe.response.body.getReader();let loaded=0;
+    return new Response(new ReadableStream({async pull(stream){try{const item=await reader.read();if(item.done){probe.finish();stream.close();}else{probe.arm();loaded+=item.value.length;report(file,loaded,total);stream.enqueue(item.value);}}catch(error){probe.finish();stream.error(error);}},cancel(){probe.abort();return reader.cancel();}}),{headers:probe.response.headers});
    }
+   validate(probe.response,0);first=await bytes(probe,n=>update(0,n));
+   if(first.length!==Math.min(chunkSize,total))throw Error('Truncated asset range');save(0,first);
   }
-
   function validate(response,index){
    const start=index*chunkSize,end=Math.min(total,start+chunkSize)-1;
    if(response.status!==206||response.headers.get('Content-Range')!==`bytes ${start}-${end}/${total}`)throw Error('Invalid asset range');
@@ -66,7 +53,7 @@
    for(let attempt=0;attempt<3;attempt++){
     if(cancelled)throw Error('Download cancelled');let job;
     try{
-     const start=index*chunkSize;job=await request(url,`bytes=${start}-${Math.min(total,start+chunkSize)-1}`,attempt);controllers.add(job);validate(job.response,index);
+     const start=index*chunkSize;job=await request(url,`bytes=${start}-${Math.min(total,start+chunkSize)-1}`);controllers.add(job);validate(job.response,index);
      const data=await bytes(job,n=>update(index,n));controllers.delete(job);
      if(data.length!==Math.min(chunkSize,total-start))throw Error('Truncated asset range');save(index,data);return data;
     }catch(error){job?.abort();controllers.delete(job);update(index,0);if(attempt===2)throw error;}
@@ -81,6 +68,9 @@
   }catch(error){cancelled=true;controllers.forEach(job=>job.abort());stream.error(error);}},cancel(){cancelled=true;controllers.forEach(job=>job.abort());}}));
  }
  window.gardenFetchAsset=async file=>{
+  // Older cached documents can name a pack from before this size table.
+  // Let the engine fetch any such asset normally instead of assuming a size.
+  if(!Object.prototype.hasOwnProperty.call(sizes,file))return fetch(file);
   // Reuse the original engine URL from releases before gzip was introduced.
   // only-if-cached is essential: never start another 39 MB download on a miss.
   if(String(file).endsWith('.wasm')){

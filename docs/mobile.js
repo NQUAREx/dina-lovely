@@ -210,7 +210,8 @@
  const style=document.createElement('style');style.textContent=`@font-face{font-family:GardenLetter;src:url('letter-body.ttf?v=2053bce4ba63') format('truetype');font-display:swap}@font-face{font-family:GardenLetterTitle;src:url('letter-title.ttf?v=2053bce4ba63') format('truetype');font-display:swap}html,body{margin:0;background:#242538;overscroll-behavior:none;height:100%;touch-action:none}#mobile-gate,#portrait-gate{position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:2000;background:radial-gradient(ellipse at top,#55435d,#242538 75%);color:#f5e3cf;display:grid;place-content:center;padding:max(28px,env(safe-area-inset-top)) 28px max(28px,env(safe-area-inset-bottom));text-align:center;font:17px/1.6 GardenLetter,sans-serif}#mobile-gate h1{font-size:28px;line-height:1.3;color:#f5e3cf}#mobile-gate p,#mobile-gate li{font:18px/1.5 GardenLetter,sans-serif;color:#f5e3cf;margin:8px 0}#mobile-gate button{padding:18px 28px;border:1px solid #df9eb9;border-radius:18px;color:#fff0dc;background:#76556f;font:30px GardenLetter,sans-serif;margin-top:24px}#mobile-gate ol{text-align:left;max-width:340px}#portrait-gate{display:none;font-size:24px;z-index:3000}@media(orientation:landscape){#portrait-gate{display:grid}}canvas{touch-action:none}`;document.head.append(style);
  addEventListener('DOMContentLoaded',async()=>{
   const loaded=await liveContent;
-  if(!loaded){const retry=document.createElement('button');retry.innerHTML='<svg viewBox="0 0 32 32" width="48" height="48" aria-hidden="true"><path d="M26 14a11 11 0 1 0-2 10M26 5v9H17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';retry.style.cssText='position:fixed;left:45%;top:45%;font-size:48px;background:transparent;color:#edbdce;border:0';retry.onclick=()=>location.reload();document.body.append(retry);return;}
+  if(document.getElementById('garden-recovery'))return;
+  if(!loaded){window.dispatchEvent(new Event('garden-asset-error'));return;}
   const t=key=>loaded.ui?.[key]?.text||'';
   window.gardenOpenReply=(options={})=>{
    if(document.getElementById('reply-letter'))return;
@@ -293,7 +294,7 @@
   let loadProgress=0;window.gardenLoadProgress=(current,total)=>{if(Object.keys(boot.transfers).length)return;boot.loaded=current;boot.total=total;if(ios)return;const bar=document.getElementById('garden-progress');if(!bar)return;if(total>0)loadProgress=Math.max(loadProgress,Math.min(.99,current/total));bar.value=loadProgress;};
   window.gardenRoomProgress=value=>{window.gardenBootStage('rooms');if(ios)return;const bar=document.getElementById('garden-progress');if(bar)bar.value=value;};
   let movie=null,loadingReady=null,cancelMovieStart=null;
-  const startMovie=screen=>{
+  const startMovie=async screen=>{
    if(!movie){
     movie=document.createElement('video');
     movie.muted=true;movie.defaultMuted=true;movie.loop=true;movie.playsInline=true;
@@ -310,7 +311,7 @@
     let frameCallback=null;
     const finish=(usable=true)=>{
      clearTimeout(timeout);
-     if(frameCallback!==null)movie.cancelVideoFrameCallback(frameCallback);
+     if(frameCallback!==null)movie.cancelVideoFrameCallback?.(frameCallback);
      movie.removeEventListener('timeupdate',timeAdvanced);
      movie.removeEventListener('error',failed);
      cancelMovieStart=null;
@@ -330,7 +331,7 @@
     movie.addEventListener('error',failed,{once:true});
     if(movie.requestVideoFrameCallback)frameCallback=movie.requestVideoFrameCallback(sawFrame);
     else movie.addEventListener('timeupdate',timeAdvanced);
-    movie.play().catch(failed);
+    try{Promise.resolve(movie.play()).catch(failed);}catch{failed();}
    });
   };
   const resumeMovie=()=>{
@@ -366,7 +367,11 @@
      tips.append(track);screen.append(tips);
     }
     document.body.append(screen);paintChrome(chromeColor);
-    loadingReady=startMovie(screen);
+    loadingReady=startMovie(screen).catch(()=>{
+     movie?.remove();
+     cancelMovieStart=null;
+     window.gardenLoadingCanBuild=true;
+    });
     return loadingReady;
    }
    for(const pose of loadingHeroes)sprout.append(pose);
@@ -386,37 +391,35 @@
    for(const key of ['launch_intro','launch_goal','launch_sound_title','launch_sound_detail','launch_ios_sound'])add('p',key);
    const button=add('button','launch_button');button.onclick=async()=>{
     if(ios){
+     // Keep the video attached inside the gesture. Engine downloads can begin
+     // while the first frame is pending; room generation still waits for it.
      gate.remove();
-     // Start inline media inside the actual touch gesture, before booting the engine.
-     await window.gardenShowLoading();
-     launch();return;
+     try{window.gardenShowLoading();}finally{launch();}
+     return;
     }
-    try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();}catch(e){}
-    try{if(screen.orientation?.lock)await screen.orientation.lock('portrait');}catch(e){}
-    gate.remove();window.gardenShowLoading();
-    // Decode every resident pose, then commit opacity animations before WASM.
+    gate.remove();
+    window.gardenShowLoading();
+    launch();
+    try{screen.orientation?.lock?.('portrait').catch(()=>{});}catch{}
+    // Cosmetic assets must never keep the engine waiting.
     const decoded=await loadingHeroReady;
+    const visibleLoading=document.querySelector('#garden-loading');
+    if(!visibleLoading)return;
     if(decoded.some(ok=>!ok)){
-     // A missing pose must never create a hole in the walking cycle.
      for(let i=0;i<loadingHeroes.length;i++)if(!decoded[i])loadingHeroes[i].remove();
      for(const pose of loadingHeroes){pose.style.animation='none';pose.style.opacity='0';}
      const fallback=loadingHeroes.find((_,i)=>decoded[i]);
      if(fallback)fallback.style.opacity='1';
      else{
       const emergency=new Image();emergency.src=loadingHeroFallback;emergency.alt='';emergency.className='garden-loading-heroine-image';emergency.style.animation='none';emergency.style.opacity='1';
-      document.querySelector('.garden-loading-heroine')?.append(emergency);
+      visibleLoading.querySelector('.garden-loading-heroine')?.append(emergency);
      }
     }
-    const walkers=[...document.querySelectorAll('.garden-loading-heroine-image')];
-    await Promise.all(walkers.map(image=>image.decode().catch(()=>{})));
+    const walkers=[...visibleLoading.querySelectorAll('.garden-loading-heroine-image')];
     const animations=walkers.flatMap(image=>image.getAnimations?.()||[]);
     await Promise.all(animations.map(animation=>animation.ready));
-    // One document timeline origin for all eight discrete frame windows.
-    // Do not use independent negative delays or start each image on decode.
     const walkStart=document.timeline.currentTime;
     for(const animation of animations)animation.startTime=walkStart;
-    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-    launch();
    };
   }
   const credits=add('a','audio_credits');credits.href='audio-credits.html';credits.target='_blank';credits.rel='noopener';credits.style.cssText='color:#c3a7b8;font:12px GardenLetter,sans-serif;margin-top:24px';

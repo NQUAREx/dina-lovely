@@ -19,18 +19,23 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(file).pipe(res);
 });
 
-async function check(browser, ios, failVideo = false) {
+async function check(browser, ios, failVideo = false, stallFrames = false) {
   const page = await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true,
     userAgent:ios ? 'Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile Safari/604.1' : 'Mozilla/5.0 (Linux; Android 14) Chrome/153 Mobile'});
   try {
     if (ios) await page.addInitScript(() => Object.defineProperty(navigator,'standalone',{value:true}));
+    if (stallFrames) await page.addInitScript(() => {
+      HTMLImageElement.prototype.decode = () => new Promise(() => {});
+    });
     if (failVideo) await page.route('**/*.mp4*', route => route.abort());
     await page.route('https://raw.githubusercontent.com/**', route => route.fulfill({contentType:'application/json',body:content}));
     await page.goto('http://127.0.0.1:' + server.address().port);
     await page.locator('#mobile-gate button').tap();
-    await page.evaluate(() => window.gardenLaunch);
+    await page.waitForFunction(() => Promise.race([
+      window.gardenLaunch.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 100)),
+    ]));
     if (ios) {
-      assert.equal(await page.evaluate(() => window.gardenLoadingCanBuild), true);
+      await page.waitForFunction(() => window.gardenLoadingCanBuild === true);
       const movie = page.locator('#garden-loading video');
       if (failVideo) {
         assert.equal(await movie.count(), 0);
@@ -67,6 +72,7 @@ async function check(browser, ios, failVideo = false) {
     await check(browser,true);
     await check(browser,true,true);
     await check(browser,false);
-    console.log('PASS iOS playback, second launch, media fallback and Android byte progress');
+    await check(browser,false,false,true);
+    console.log('PASS iOS playback, second launch, media fallback, Android byte progress and startup with stalled animations');
   } finally {await browser.close();server.close();}
 })().catch(error => {console.error(error);server.close();process.exitCode=1;});
