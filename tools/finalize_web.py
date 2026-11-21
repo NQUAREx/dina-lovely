@@ -13,7 +13,7 @@ if marker not in s:
   const box=document.createElement('div');box.id='garden-recovery';
   Object.assign(box.style,{position:'fixed',inset:'0',zIndex:'1000',background:'#242538',color:'#f5e3cf',display:'grid',placeContent:'center',textAlign:'center',padding:'32px',font:'18px GardenLetter,sans-serif'});
   const text=document.createElement('p');text.textContent=window.gardenContent?.ui?.[message]?.text||'';box.append(text);
-  const button=document.createElement('button');button.textContent=window.gardenContent?.ui?.recovery_return?.text||' ';button.onclick=()=>location.reload();
+  const button=document.createElement('button');button.textContent=window.gardenContent?.ui?.recovery_return?.text||' ';button.onclick=()=>{const url=new URL(location.href);url.searchParams.set('reload',Date.now());location.replace(url);};
   Object.assign(button.style,{padding:'16px',background:'#70536e',color:'#f5e3cf',border:'1px solid #e5a6bd',borderRadius:'12px',font:'18px GardenLetter,sans-serif'});box.append(button);document.body.append(box);
  }
  window.addEventListener('garden-asset-error',()=>recover('recovery_load_failed'));
