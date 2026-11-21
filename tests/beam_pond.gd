@@ -12,6 +12,7 @@ func _initialize()->void:
 	for seed_value in range(80):
 		rng.seed=seed_value
 		pond.reset(rng)
+		assert(pond.pads.size()==10)
 		for tick in range(13):
 			pond.seconds=float(tick)*2.5
 			for index in range(pond.pads.size()):
@@ -25,11 +26,11 @@ func _initialize()->void:
 			var top:Vector2=pond.pad_position(0,pond.seconds)
 			var last:int=pond.pads.size()-1
 			var bottom:Vector2=pond.pad_position(last,pond.seconds)
-			assert(pond.pad_position(1,pond.seconds).y-top.y>=78)
-			assert(bottom.y-pond.pad_position(last-1,pond.seconds).y>=78)
+			assert(pond.pad_position(1,pond.seconds).y-top.y>=55)
+			assert(bottom.y-pond.pad_position(last-1,pond.seconds).y>=55)
 			for side in [-1.0,1.0]:
-				assert(pond.support(Vector2(top.x+side*42.0,pond.BOUNDS.position.y+.5))==0)
-				assert(pond.support(Vector2(bottom.x+side*42.0,pond.BOUNDS.end.y-.5))==last)
+				assert(pond.support(Vector2(top.x+side*36.0,pond.BOUNDS.position.y+.5))==0)
+				assert(pond.support(Vector2(bottom.x+side*36.0,pond.BOUNDS.end.y-.5))==last)
 		if seed_value<8:
 			for index in range(pond.pads.size()):
 				var pad:Dictionary=pond.pads[index]

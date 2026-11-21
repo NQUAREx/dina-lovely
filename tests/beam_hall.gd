@@ -98,8 +98,15 @@ func run() -> void:
 	for row in game.beam_traps.spikes:
 		assert(row.rect.position.x==48 and row.rect.end.x==480)
 	var spike:Dictionary=game.beam_traps.spikes.front()
-	spike.phase=PI/2
-	spike.warp=0.0
+	for group in spike.groups:
+		group.phase=-PI/2
+		group.warp=0.0
+	spike.groups[2].phase=PI/2
+	game.player=spike.rect.position+Vector2(24,22)
+	assert(not game.beam_traps.step(0.0))
+	for column in [4,5]:
+		game.player=spike.rect.position+Vector2(column*48+24,22)
+		assert(game.beam_traps.step(0.0))
 	game.player=spike.rect.get_center()
 	game._physics_process(0.001)
 	assert(game.player==entrance)

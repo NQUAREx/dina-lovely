@@ -3,6 +3,7 @@ extends RefCounted
 const LEFT := 48.0
 const WIDTH := 432.0
 const ROW_OFFSET := 1.8
+const SPIKE_COLUMNS := 9
 const SPIKE_CLOSED := Rect2(2,0,29,32)
 const SPIKE_RAISED := Rect2(32,0,32,32)
 const LOG_MIN_LENGTH := 70
@@ -32,10 +33,13 @@ func reset(rng:RandomNumberGenerator)->void:
 			"accent":rng.randf_range(0,TAU)})
 	for row in range(3):
 		var y:=(14.5+ROW_OFFSET+row*5+rng.randf_range(-.4,.4))*48
-		spikes.append({"rect":Rect2(LEFT,y-22,WIDTH,44),"phase":rng.randf_range(0,TAU),
-			"period":rng.randf_range(2.0,3.65),"warp":rng.randf_range(.40,.68),"rhythm":rng.randf_range(.65,1.05),
-			"accent":rng.randf_range(0,TAU),
-			"threshold":rng.randf_range(.03,.31)})
+		var groups:Array[Dictionary]=[]
+		# Four pairs share timing. The ninth tile has its own cycle.
+		for group in range((SPIKE_COLUMNS+1)/2):
+			groups.append({"phase":rng.randf_range(0,TAU),"period":rng.randf_range(2.0,3.65),
+				"warp":rng.randf_range(.40,.68),"rhythm":rng.randf_range(.65,1.05),
+				"accent":rng.randf_range(0,TAU),"threshold":rng.randf_range(.03,.31)})
+		spikes.append({"rect":Rect2(LEFT,y-22,WIDTH,44),"groups":groups})
 
 func place_gap_obstacles(rng:RandomNumberGenerator)->void:
 	# Spaced slots keep routes open between obstacles even at maximum jitter.
@@ -79,7 +83,9 @@ func step(delta:float)->bool:
 		if beam_box(beam).grow(7).has_point(game.player):return true
 	for spike in spikes:
 		var box:Rect2=spike.rect
-		if spike_height(spike)>.56 and Rect2(box.position+Vector2(0,4),box.size-Vector2(0,8)).has_point(game.player):return true
+		if not Rect2(box.position+Vector2(0,4),box.size-Vector2(0,8)).has_point(game.player):continue
+		var column:=floori((game.player.x-box.position.x)/48.0)
+		if spike_height(spike.groups[column/2])>.56:return true
 	return false
 
 func append_renderables(queue:Array[Dictionary])->void:
@@ -114,8 +120,8 @@ func draw_spikes()->void:
 		var row:Rect2=spike.rect
 		var p:Vector2=game.screen(row.position)
 		if not Rect2(p,row.size).intersects(game.get_viewport_rect().grow(24)):continue
-		var lift:=spike_height(spike)
-		for column in range(9):
+		for column in range(SPIKE_COLUMNS):
+			var lift:=spike_height(spike.groups[column/2])
 			var tile:=Rect2(p+Vector2(column*48,0),Vector2(48,row.size.y))
 			game.draw_texture_rect_region(spike_art,tile,SPIKE_CLOSED)
 			if lift>.01:

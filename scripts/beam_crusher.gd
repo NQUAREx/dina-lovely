@@ -53,11 +53,12 @@ func choose_stroke()->void:
 	phase=rng.randf_range(0.0,TAU)
 	stroke=(SHAFT.size.y-depth)/travel_speed
 	# The full block pauses briefly on the rails before reversing.
-	period=stroke+rng.randf_range(.32,.43)*150.0/walking
+	period=stroke+rng.randf_range(.20,.25)*150.0/walking
 
 func footprint()->Rect2:
 	if period<=0.0:return Rect2()
-	var eased:=smoothstep(0.0,1.0,minf(elapsed/stroke,1.0))
+	var progress:=minf(elapsed/stroke,1.0)
+	var eased:=lerpf(progress,smoothstep(0.0,1.0,progress),.55)
 	var wave:float=(sin(TAU*eased+phase)-sin(phase))/TAU
 	var travelled:=eased+modulation*wave
 	if not southbound:travelled=1.0-travelled

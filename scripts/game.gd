@@ -2739,19 +2739,21 @@ func _draw_world() -> void:
 			draw_rect(Rect2(screen(slot.position)+Vector2(2,0),slot.size-Vector2(4,0)),Color("322d3d"))
 			if barrier_rise==0.0:draw_arena_barrier(entrance_screen,0.0)
 	world_tools.draw_ground()
-	# Fixed contact shade ties raised masonry to the ground grid. Only exposed
-	# floor edges receive it; no dynamic light or per-frame shadow projection.
-	for wall in renderables:
-		if level==1:continue
-		if wall.kind!="stone" or not wall.get("wall",false) or not wall.has("cell"):continue
-		if corridor_row(wall.cell.y):continue
-		var cell:Vector2i=wall.cell
-		for side in [-1,1]:
-			var adjacent:=cell+Vector2i(side,0)
-			if adjacent.x<0 or adjacent.x>=grid[0].length() or grid[adjacent.y][adjacent.x]!=".":continue
-			var p:=screen(wall.pos)+Vector2(24 if side==1 else -30,-24)
-			draw_rect(Rect2(p,Vector2(6,48)),Color(.12,.10,.19,.23 if side==1 else .12))
-			if side==1:draw_rect(Rect2(p+Vector2(6,0),Vector2(4,48)),Color(.12,.10,.19,.09))
+	if level!=1:
+		for wall in renderables:
+			if wall.kind!="stone" or not wall.get("wall",false) or not wall.has("cell"):continue
+			if corridor_row(wall.cell.y):continue
+			for direction in [Vector2i.RIGHT,Vector2i.DOWN]:
+				var adjacent:Vector2i=wall.cell+direction
+				if not valid_ground((Vector2(adjacent)+Vector2(.5,.5))*TILE):continue
+				var origin:=screen(Vector2(adjacent)*TILE)
+				var along:=Vector2(direction.y,direction.x)*TILE
+				var depth:=Vector2(direction)*Vector2(SHADOW_DIRECTION.x,SHADOW_DIRECTION.y)*29.0
+				var shade:=SHADOW_TINT
+				shade.a=.28
+				var fade:=Color(shade,0.0)
+				draw_polygon(PackedVector2Array([origin,origin+along,origin+along+depth,origin+depth]),
+					PackedColorArray([shade,shade,fade,fade]))
 	for flower in objects:
 		if flower.kind in ["flowers","blueflowers"] and get_viewport_rect().grow(40).has_point(screen(flower.pos)):
 			draw_shadow(screen(flower.pos),14)
