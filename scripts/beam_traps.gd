@@ -4,12 +4,17 @@ const LEFT := 48.0
 const WIDTH := 432.0
 const SPIKE_CLOSED := Rect2(2,0,29,32)
 const SPIKE_RAISED := Rect2(32,0,32,32)
+const LOG_MIN_LENGTH := 70
+const LOG_MAX_LENGTH := 135
+const LOG_TILE := Vector2(136,28)
+const LOG_COLUMNS := 8
 
 var game:Node2D
 var beams:Array[Dictionary]=[]
 var spikes:Array[Dictionary]=[]
 var clock:=0.0
 var spike_art:Texture2D
+var log_art:Texture2D
 
 func _init(owner:Node2D)->void:
 	game=owner
@@ -53,7 +58,8 @@ func step(delta:float)->bool:
 func append_renderables(queue:Array[Dictionary])->void:
 	for beam in beams:
 		var box:=beam_box(beam)
-		queue.append({"kind":"hall_beam","pos":box.get_center(),"rect":box})
+		var variant:=mini(2,floori(float(beam.phase)*3.0/TAU))
+		queue.append({"kind":"hall_beam","pos":box.get_center(),"rect":box,"variant":variant})
 
 func draw_spikes()->void:
 	if spike_art==null:spike_art=load("res://assets/beam_spikes.png")
@@ -75,6 +81,9 @@ func draw(item:Dictionary)->void:
 	var left:Vector2=game.screen(Vector2(LEFT+8,box.get_center().y))
 	game.draw_rect(Rect2(left-Vector2(0,3),Vector2(WIDTH-16,6)),Color("514350"))
 	game.draw_rect(Rect2(left-Vector2(0,3),Vector2(WIDTH-16,2)),Color("9a7d7b"))
-	var count:=ceili(box.size.x/40.0)
-	for index in range(count):
-		game.draw_sprite("moving_bar",p+Vector2(box.size.x/count*(index+.5),26),Color.WHITE,box.size.x/count/40.0)
+	if log_art==null:log_art=load("res://assets/beam_logs.png")
+	var length:=clampi(roundi(box.size.x/2),LOG_MIN_LENGTH,LOG_MAX_LENGTH)
+	var index:int=int(item.variant)*(LOG_MAX_LENGTH-LOG_MIN_LENGTH+1)+length-LOG_MIN_LENGTH
+	var source:=Rect2(Vector2(index%LOG_COLUMNS,index/LOG_COLUMNS)*LOG_TILE,Vector2(length,LOG_TILE.y))
+	var destination:=Rect2(p+Vector2(0,-24),Vector2(box.size.x,LOG_TILE.y*2))
+	game.draw_texture_rect_region(log_art,destination,source)

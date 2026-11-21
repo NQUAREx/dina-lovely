@@ -17,31 +17,31 @@ uniform vec2 hero_top_left = vec2(0.0);
 uniform vec2 hero_tiles[7];
 uniform sampler2D cloth_atlas : filter_nearest, repeat_disable;
 uniform vec2 cloth_tiles[2];
-uniform vec2 dress_nodes[20];
+uniform vec2 mantle_nodes[20];
 uniform int hero_tile_count = 0;
 uniform vec2 gate_lights[4];
 uniform int gate_light_count=0;
-vec2 dress_rest(int vertex){
+vec2 mantle_rest(int vertex){
  return vec2(8.0+float(vertex%4)*(32.0/3.0),21.0+float(vertex/4)*4.75);
 }
-vec2 dress_uv(vec2 p,int ia,int ib,int ic){
- vec2 a=dress_nodes[ia], b=dress_nodes[ib]-a, c=dress_nodes[ic]-a;
+vec2 mantle_uv(vec2 p,int ia,int ib,int ic){
+ vec2 a=mantle_nodes[ia], b=mantle_nodes[ib]-a, c=mantle_nodes[ic]-a;
  float determinant=b.x*c.y-b.y*c.x;
  if(abs(determinant)<.001)return vec2(-1.0);
  vec2 d=p-a;
  float u=(d.x*c.y-d.y*c.x)/determinant;
  float v=(b.x*d.y-b.y*d.x)/determinant;
  if(min(u,v)<-.0001 || u+v>1.0001)return vec2(-1.0);
- return dress_rest(ia)*(1.0-u-v)+dress_rest(ib)*u+dress_rest(ic)*v;
+ return mantle_rest(ia)*(1.0-u-v)+mantle_rest(ib)*u+mantle_rest(ic)*v;
 }
-vec2 dress_sample(vec2 p){
+vec2 mantle_sample(vec2 p){
  if(p.y<21.0)return p;
  for(int y=0;y<4;y++){
   for(int x=0;x<3;x++){
    int i=y*4+x;
-   vec2 uv=dress_uv(p,i,i+1,i+5);
+   vec2 uv=mantle_uv(p,i,i+1,i+5);
    if(uv.x>=0.0)return uv;
-   uv=dress_uv(p,i,i+5,i+4);
+   uv=mantle_uv(p,i,i+5,i+4);
    if(uv.x>=0.0)return uv;
   }
  }
@@ -83,7 +83,7 @@ void fragment(){
   vec2 cloth_size=vec2(textureSize(cloth_atlas,0));
   for(int i=0;i<2;i++){
    if(cloth_tiles[i].x<0.0)continue;
-   vec2 source=i==0?dress_sample(cloth_pixel):cloth_pixel;
+   vec2 source=i==1?mantle_sample(cloth_pixel):cloth_pixel;
    if(source.x<0.0)continue;
    vec2 sprite_pixel=cloth_tiles[i]*vec2(48.0,40.0)+source;
    hero_alpha=max(hero_alpha,texture(cloth_atlas,sprite_pixel/cloth_size).a);

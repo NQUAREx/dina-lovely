@@ -16,17 +16,34 @@ func _initialize()->void:
 			pond.seconds=float(tick)*2.5
 			for index in range(pond.pads.size()):
 				var middle:Vector2=pond.pad_position(index,pond.seconds)
-				var size:Vector2=pond.pads[index].radius*pond.LEAF_SCALE
-				assert(pond.BOUNDS.encloses(Rect2(middle-size*.5,size)))
+				var size:Vector2=pond.leaf_size(index)
+				var artwork:=Rect2((middle-size*.5).round(),size)
+				assert(pond.BOUNDS.grow(-12).encloses(artwork))
+				var square:Rect2=pond.support_box(index)
+				assert(square.size.x==square.size.y)
+				assert(square.encloses(Rect2(middle-size*.5,size)))
 			var top:Vector2=pond.pad_position(0,pond.seconds)
 			var last:int=pond.pads.size()-1
 			var bottom:Vector2=pond.pad_position(last,pond.seconds)
-			assert(pond.support(Vector2(top.x,pond.BOUNDS.position.y+.5))==0)
-			assert(pond.support(Vector2(bottom.x,pond.BOUNDS.end.y-.5))==last)
+			for side in [-1.0,1.0]:
+				assert(pond.support(Vector2(top.x+side*42.0,pond.BOUNDS.position.y+.5))==0)
+				assert(pond.support(Vector2(bottom.x+side*42.0,pond.BOUNDS.end.y-.5))==last)
 		var rates:Dictionary={}
 		for pad in pond.pads:rates[pad.rate]=true
 		assert(rates.size()==pond.pads.size())
 	rng.seed=17
+	pond.reset(rng)
+	# Isolate a platform to prove the corners support feet independently
+	# of neighbours, without allowing a footprint on the transparent art.
+	pond.pads.assign([pond.pads[4]])
+	var square:Rect2=pond.support_box(0)
+	for corner in [Vector2.ONE,Vector2(-1,1),Vector2(1,-1),-Vector2.ONE]:
+		var inside:Vector2=square.get_center()+corner*(square.size.x*.5-.1)
+		walker.player=inside
+		assert(pond.support(inside)==0)
+		assert(pond.support(inside+corner*.2)==-1)
+		pond.record_print(inside,0.0)
+	assert(pond.prints.is_empty())
 	pond.reset(rng)
 	walker.player=pond.pad_position(4,0)
 	var before:=walker.player
@@ -52,5 +69,5 @@ func _initialize()->void:
 	walker.player=pond.BOUNDS.position-Vector2(0,4)
 	assert(not pond.step(.02))
 	walker.free()
-	print("PASS independent lily rates and in-bounds docks across 80 seeds; carried footprints, expiry and drowning")
+	print("PASS square lily support and clear bank artwork across 80 seeds; carried footprints, expiry and drowning")
 	quit()

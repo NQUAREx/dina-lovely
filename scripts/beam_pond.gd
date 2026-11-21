@@ -4,6 +4,9 @@ extends RefCounted
 const BOUNDS := Rect2(528,672,432,576)
 const PLATFORM_COUNT := 8
 const LEAF_SCALE := Vector2(2.12,2.05)
+# The retaining stones occupy eight pixels at each bank. Keep a strip of
+# water visible beyond them, with an extra pixel for sprite rounding.
+const LEAF_INSET := 13.0
 const LILY_REGION := Vector2(72,60)
 const RIPPLE := Color("#a0b7a7")
 
@@ -27,9 +30,12 @@ func reset(rng:RandomNumberGenerator)->void:
 	pads.clear()
 	prints.clear()
 	for index in range(PLATFORM_COUNT):
-		var radius:=Vector2(rng.randf_range(48,59),rng.randf_range(39.5,42.5))
+		var terminal:=index==0 or index==PLATFORM_COUNT-1
+		# The greater width lets the square reach land while all artwork
+		# stays off the retaining stones.
+		var radius:=Vector2(rng.randf_range(55 if terminal else 48,59),rng.randf_range(39.5,42.5))
 		var y:=lerpf(BOUNDS.position.y+45,BOUNDS.end.y-45,float(index)/(PLATFORM_COUNT-1))
-		var bank_offset:=radius.y*LEAF_SCALE.y*.5+1
+		var bank_offset:=ceilf(radius.y*LEAF_SCALE.y*.5)+LEAF_INSET
 		if index==0:y=BOUNDS.position.y+bank_offset
 		elif index==PLATFORM_COUNT-1:y=BOUNDS.end.y-bank_offset
 		else:y+=rng.randf_range(-1.0,1.0)
@@ -53,27 +59,34 @@ func pad_position(index:int,clock:float)->Vector2:
 	var pad:=pads[index]
 	var irregular:float=clock*pad.rhythm+pad.accent
 	var angle:float=clock*pad.rate+pad.phase+sin(irregular)*pad.drift
-	var half_width:float=pad.radius.x*LEAF_SCALE.x*.5+1
+	var half_width:float=ceilf(pad.radius.x*LEAF_SCALE.x*.5)+LEAF_INSET
 	var x:float=pad.center.x+sin(angle)*pad.amplitude+sin(irregular*.53)*10.0
 	return Vector2(clampf(x,BOUNDS.position.x+half_width,BOUNDS.end.x-half_width),
 		pad.center.y+sin(irregular*.8)*pad.bob)
 
+func leaf_size(index:int)->Vector2:
+	var radius:Vector2=pads[index].radius
+	return (radius*LEAF_SCALE).round()
+
+func support_box(index:int)->Rect2:
+	var size:=leaf_size(index)
+	var side:=maxf(size.x,size.y)
+	var square:=Vector2.ONE*side
+	return Rect2(pad_position(index,seconds)-square*.5,square)
+
 func support(foot:Vector2)->int:
 	var best:=-1
-	var margin:=1.0
+	var nearest:=INF
 	for index in range(pads.size()):
-		var normalized:Vector2=(foot-pad_position(index,seconds))/pads[index].radius
-		var distance:=normalized.length_squared()
-		if distance>1.0:
-			var bank_gap:=index==0 and foot.y<BOUNDS.position.y+12 or index==pads.size()-1 and foot.y>BOUNDS.end.y-12
-			if bank_gap and absf(normalized.x)<.48:return index
-			continue
-		# Keep the original support in the overlap until the feet are clearly
-		# over the next pad, so the carry direction cannot flicker.
-		var weight:=distance-(.13 if index==riding else 0.0)
-		if weight<margin:
+		var square:=support_box(index)
+		if not square.has_point(foot):continue
+		# Prefer the current support near the middle of a shared edge so
+		# the direction of carry does not flicker from frame to frame.
+		var normalized:Vector2=(foot-square.get_center())/(square.size.x*.5)
+		var weight:=normalized.length_squared()-(.13 if index==riding else 0.0)
+		if weight<nearest:
 			best=index
-			margin=weight
+			nearest=weight
 	return best
 
 func step(delta:float)->bool:
@@ -105,7 +118,7 @@ func record_print(position:Vector2,rotation:float)->void:
 	if lily_pixels==null:
 		var art:Texture2D=load("res://assets/beam_lilies.png")
 		lily_pixels=art.get_image()
-	var size:Vector2=pad.radius*LEAF_SCALE
+	var size:=leaf_size(index)
 	# Check the whole stamp, including the leaf notch. A mark whose edges
 	# would overhang is skipped, even where the stepping area is generous.
 	var region_start:=Vector2(float(pad.variant)*LILY_REGION.x,0)
@@ -151,13 +164,11 @@ func draw_ground()->void:
 	for index in range(pads.size()):
 		var pad:=pads[index]
 		var center:Vector2=game.screen(pad_position(index,seconds))
-		var size:Vector2=LEAF_SCALE*pad.radius
-		var leaf:=Rect2((center-size*.5).round(),size.round())
-		var visible:=leaf.intersection(pool)
-		if not visible.has_area():continue
-		var scale:=LILY_REGION/leaf.size
-		var source:=Rect2(Vector2(pad.variant*LILY_REGION.x,0)+(visible.position-leaf.position)*scale,visible.size*scale)
-		game.draw_texture_rect_region(lilies,visible,source)
+		var size:=leaf_size(index)
+		var leaf:=Rect2((center-size*.5).round(),size)
+		if not leaf.intersects(game.get_viewport_rect()):continue
+		var source:=Rect2(Vector2(pad.variant*LILY_REGION.x,0),LILY_REGION)
+		game.draw_texture_rect_region(lilies,leaf,source)
 		draw_prints(index,leaf.get_center())
 
 func draw_prints(index:int,center:Vector2)->void:

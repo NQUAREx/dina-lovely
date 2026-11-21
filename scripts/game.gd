@@ -3371,7 +3371,7 @@ func update_fog() -> void:
 		if cloth_tiles[0].x>=0 or cloth_tiles[1].x>=0:
 			material.set_shader_parameter("cloth_atlas",royal_cloth.atlas())
 		material.set_shader_parameter("cloth_tiles",cloth_tiles)
-		if cloth_tiles[0].x>=0:material.set_shader_parameter("dress_nodes",royal_cloth.dress_vertices())
+		if cloth_tiles[1].x>=0:material.set_shader_parameter("mantle_nodes",royal_cloth.mantle_vertices())
 		var tiles:=PackedVector2Array()
 		for frame_name in frame_names:
 			if not sprites.has(frame_name):continue
