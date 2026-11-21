@@ -48,18 +48,19 @@ func run() -> void:
 	for beam in game.beam_traps.beams:
 		var row:=floori(beam.y/game.TILE)
 		assert(game.grid[row][0]=="#" and game.grid[row][10]=="#")
-	var crates:Array=game.objects.filter(func(obj):return obj.kind=="crate")
-	assert(crates.size()>=18 and crates.size()<=24)
+	var obstacles:Array=game.objects.filter(func(obj):return obj.id.begins_with("beam_gap_"))
+	assert(obstacles.size()>=12 and obstacles.size()<=24)
 	for index in range(game.beam_traps.spikes.size()):
 		for side in range(2):
-			var prefix:="beam_crate_%d_%d_"%[index,side]
-			var count:=crates.filter(func(obj):return obj.id.begins_with(prefix)).size()
-			assert(count>=3 and count<=4)
-	for crate in crates:
-		assert(crate.solid and game.blocked(crate.pos) and not game.available(crate))
-		for beam in game.beam_traps.beams:assert(absf(crate.pos.y-beam.y)>36)
-		for spikes in game.beam_traps.spikes:assert(absf(crate.pos.y-spikes.rect.get_center().y)>38)
-	assert(game.objects.filter(func(obj):return obj.kind in ["tree","tree_apples"]).size()==12)
+			var prefix:="beam_gap_%d_%d_"%[index,side]
+			var count:=obstacles.filter(func(obj):return obj.id.begins_with(prefix)).size()
+			assert(count>=2 and count<=4)
+	for obstacle in obstacles:
+		assert(obstacle.solid and game.blocked(obstacle.pos))
+		if obstacle.kind=="crate":assert(not game.available(obstacle))
+		for beam in game.beam_traps.beams:assert(absf(obstacle.pos.y-beam.y)>36)
+		for spikes in game.beam_traps.spikes:assert(absf(obstacle.pos.y-spikes.rect.get_center().y)>38)
+	assert(game.objects.filter(func(obj):return obj.kind in ["tree","tree_apples"] and not obj.id.begins_with("beam_gap_")).size()==22)
 	assert(not game.level_complete())
 	var pond:Rect2=game.beam_pond.BOUNDS
 	var edge_column:=floori(pond.end.x/game.TILE)

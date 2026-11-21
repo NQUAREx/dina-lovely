@@ -1473,6 +1473,8 @@ func _physics_process(delta: float) -> void:
 		royal_cloth.update(player-previous_position,heading,delta,"gold_brocade" in save_data.wearing,"gold_mantle" in save_data.wearing)
 
 func _process(delta: float) -> void:
+	if playing and not paused and not transition and not rotate_overlay.visible and not save_data.finished:
+		stats.track_time(self,delta)
 	dig_quest.update(delta)
 	note_flowers.update(delta)
 	world_tools.update(delta)
@@ -3539,6 +3541,16 @@ func decorate_beam_hall(rng:RandomNumberGenerator)->void:
 		[Vector2i(24,7),Vector2i(25,7)],
 		[Vector2i(23,29),Vector2i(24,30)],
 		[Vector2i(25,32),Vector2i(26,32)],
+		[Vector2i(3,11),Vector2i(4,11)],
+		[Vector2i(5,30),Vector2i(6,29)],
+		[Vector2i(12,11),Vector2i(12,12)],
+		[Vector2i(17,10),Vector2i(18,11)],
+		[Vector2i(12,27),Vector2i(12,28)],
+		[Vector2i(16,27),Vector2i(17,28)],
+		[Vector2i(21,31),Vector2i(22,31)],
+		[Vector2i(29,31),Vector2i(29,32)],
+		[Vector2i(23,6),Vector2i(24,6)],
+		[Vector2i(29,8),Vector2i(28,8)],
 	]
 	for cluster in groves:
 		var cell:Vector2i=cluster[rng.randi_range(0,cluster.size()-1)]
@@ -3571,7 +3583,7 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 		objects.assign(objects.filter(func(o):return o.kind=="doorway"))
 		# The letter waits on the dry bank after the lily crossing.
 		put_object("note",Vector2i(18,26),"crossing")
-		beam_traps.place_crates(rng)
+		beam_traps.place_gap_obstacles(rng)
 		decorate_beam_hall(rng)
 		return
 	objects.assign(objects.filter(func(o):return o.kind=="doorway" or valid_ground(o.pos)))
@@ -4354,7 +4366,7 @@ func prepare_room_details(rng: RandomNumberGenerator) -> void:
 			if obj.kind=="column":obj.kind="column_wreath"
 			elif obj.kind=="candle":obj.kind="candle_heart"
 		for cell in [Vector2i(9,10),Vector2i(17,10),Vector2i(8,20),Vector2i(18,20)]:put_object("heart_stand",cell,"",true)
-	var trees:Array=objects.filter(func(o):return o.kind in ["tree","tree_apples"])
+	var trees:Array=objects.filter(func(o):return o.kind in ["tree","tree_apples"] and not o.id.begins_with("beam_gap_"))
 	var apple_flags:Array[bool]=[]
 	for obj in trees:apple_flags.append(rng.randf()<.45)
 	if trees.size()>1:

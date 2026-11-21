@@ -1424,6 +1424,14 @@
     "accessory_gold_beads": {
       "_comment": "Название аксессуара gold_beads над предметом и в уведомлении.",
       "text": "Золотые бусы"
+    },
+    "stats_time_line": {
+      "_comment": "Первая строка камня статистики. Сохраните {time}.",
+      "text": "Время прохождения — {time}"
+    },
+    "stats_time_unknown": {
+      "_comment": "Время для старого сохранения без замера.",
+      "text": "нет данных"
     }
   },
   "schema_version": 2,

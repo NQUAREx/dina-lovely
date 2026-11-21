@@ -35,8 +35,8 @@ func reset(rng:RandomNumberGenerator)->void:
 			"period":rng.randf_range(2.0,3.65),"warp":rng.randf_range(.25,.58),
 			"threshold":rng.randf_range(.03,.31)})
 
-func place_crates(rng:RandomNumberGenerator)->void:
-	# Spaced slots keep routes open between crates even at maximum jitter.
+func place_gap_obstacles(rng:RandomNumberGenerator)->void:
+	# Spaced slots keep routes open between obstacles even at maximum jitter.
 	for index in range(spikes.size()):
 		var spike:Rect2=spikes[index].rect
 		var before:float=(float(beams[index].y)+spike.get_center().y)*.5
@@ -44,7 +44,7 @@ func place_crates(rng:RandomNumberGenerator)->void:
 		var block_right_gap:=rng.randi_range(0,1)
 		for side in range(2):
 			var slots:Array[int]=[0,1,2,3,4,5]
-			var count:=rng.randi_range(3,4)
+			var count:=rng.randi_range(2,4)
 			var selected:Array[int]=[]
 			if side==block_right_gap:
 				selected.append(slots.pop_back())
@@ -55,7 +55,8 @@ func place_crates(rng:RandomNumberGenerator)->void:
 			var y:=before if side==0 else after
 			for slot in selected:
 				var x:=LEFT+28.0+slot*75.2+rng.randf_range(-6,6)
-				game.objects.append({"kind":"crate","id":"beam_crate_%d_%d_%d"%[index,side,slot],
+				var kind:="tree" if rng.randi_range(0,1)==0 else "crate"
+				game.objects.append({"kind":kind,"id":"beam_gap_%d_%d_%d"%[index,side,slot],
 					"pos":Vector2(x,y+rng.randf_range(-3,3)),"solid":true})
 
 func phase(trap:Dictionary)->float:
