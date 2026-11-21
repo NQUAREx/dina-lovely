@@ -35,7 +35,7 @@ var reply_deposit_active := false
 var reply_deposit_progress := -1.0
 var reply_slot := Vector2.ZERO
 var reply_hand_start := Vector2.ZERO
-const ROOM_FIELDS := ["pending_spawns","prepared_wave","arena_barrier_lift","poison_zones","grid","objects","enemies","shots","particles","skulls","damage_numbers","path_texture","path_ground","path_pads","hedge_trees","grass_details","path_targets","path_navigation","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","skull_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
+const ROOM_FIELDS := ["pending_spawns","prepared_wave","arena_barrier_lift","poison_zones","grid","wall_shadow_rows","objects","enemies","shots","particles","skulls","damage_numbers","path_texture","path_ground","path_pads","hedge_trees","grass_details","path_targets","path_navigation","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","skull_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
 var room_cache:Dictionary={}
 var room_cache_seed := -1
 var web_building_rooms := false
@@ -1043,10 +1043,15 @@ func show_card() -> void:
 func put_object(kind: String, cell: Vector2i, id: String = "", solid: bool = false) -> void:
 	objects.append({"kind":kind,"pos":Vector2(cell)*TILE+Vector2.ONE*TILE/2,"id":id,"solid":solid})
 
+var wall_shadow_rows:Array[Array]=[]
+const WALL_SHADOW_COLORS := [Color(.045,.055,.085,.28),Color(.045,.055,.085,.28),Color(.045,.055,.085,0),Color(.045,.055,.085,0)]
+
 func set_cell(x: int, y: int, value: String) -> void:
+	wall_shadow_rows.clear()
 	grid[y] = grid[y].substr(0,x) + value + grid[y].substr(x+1)
 
 func build_level(index: int) -> void:
+	wall_shadow_rows.clear()
 	poison_zones=[]
 	room_build_count+=1
 	level = index
@@ -1244,6 +1249,7 @@ func build_level(index: int) -> void:
 	if level==6:
 		objects.assign(objects.filter(func(obj):return obj.kind not in ["crate","column","column_wreath","lamp","candle","candle_heart","heart_stand"] or not Rect2(Vector2(20.8*48,8.8*48),Vector2(3.4*48,9.7*48)).has_point(obj.pos)))
 	await prepare_grass_details()
+	if level not in [0,1]:prepare_wall_shadows()
 	restore_accessory_drops()
 	restore_gate_key()
 	world_tools.install();restore_weapon_drops();torch.install();companion.install();rune_stones.install();dig_quest.install()
@@ -2628,6 +2634,32 @@ func draw_reply_deposit() -> void:
 		var lip:=screen(reply_slot)+Vector2(0,2)
 		draw_line(lip-Vector2(14,0),lip+Vector2(14,0),Color("e1c5be"),3)
 
+func prepare_wall_shadows() -> void:
+	wall_shadow_rows.resize(grid.size())
+	for y in range(grid.size()):
+		var shadows:Array=[]
+		wall_shadow_rows[y]=shadows
+		if corridor_row(y):continue
+		for x in range(grid[y].length()):
+			var cell:=Vector2i(x,y)
+			if grid[y][x]!="#" or gate_junctions.skip_wall(cell):continue
+			for direction in [Vector2i.RIGHT,Vector2i.DOWN]:
+				var adjacent:Vector2i=cell+direction
+				if not valid_ground((Vector2(adjacent)+Vector2(.5,.5))*TILE):continue
+				var origin:=Vector2(adjacent)*TILE
+				var along:=Vector2(direction.y,direction.x)*TILE
+				var depth:=Vector2(direction)*SHADOW_DIRECTION*29.0
+				shadows.append({"column":x,"points":PackedVector2Array([origin,origin+along,origin+along+depth,origin+depth])})
+
+func draw_wall_shadows(first:Vector2i,last:Vector2i,origin:Vector2) -> void:
+	if wall_shadow_rows.is_empty():prepare_wall_shadows()
+	draw_set_transform(origin)
+	for y in range(maxi(0,first.y),mini(wall_shadow_rows.size(),last.y)):
+		for shadow in wall_shadow_rows[y]:
+			if shadow.column>=first.x and shadow.column<last.x:
+				draw_polygon(shadow.points,WALL_SHADOW_COLORS)
+	draw_set_transform(Vector2.ZERO)
+
 func _draw_world() -> void:
 	if grid.is_empty(): return
 	var viewport := get_viewport_rect()
@@ -2729,21 +2761,8 @@ func _draw_world() -> void:
 			draw_rect(Rect2(screen(slot.position)+Vector2(2,0),slot.size-Vector2(4,0)),Color("322d3d"))
 			if barrier_rise==0.0:draw_arena_barrier(entrance_screen,0.0)
 	world_tools.draw_ground()
-	if level!=1:
-		for wall in renderables:
-			if wall.kind!="stone" or not wall.get("wall",false) or not wall.has("cell"):continue
-			if corridor_row(wall.cell.y):continue
-			for direction in [Vector2i.RIGHT,Vector2i.DOWN]:
-				var adjacent:Vector2i=wall.cell+direction
-				if not valid_ground((Vector2(adjacent)+Vector2(.5,.5))*TILE):continue
-				var origin:=screen(Vector2(adjacent)*TILE)
-				var along:=Vector2(direction.y,direction.x)*TILE
-				var depth:=Vector2(direction)*Vector2(SHADOW_DIRECTION.x,SHADOW_DIRECTION.y)*29.0
-				var shade:=SHADOW_TINT
-				shade.a=.28
-				var fade:=Color(shade,0.0)
-				draw_polygon(PackedVector2Array([origin,origin+along,origin+along+depth,origin+depth]),
-					PackedColorArray([shade,shade,fade,fade]))
+	if level not in [0,1]:
+		draw_wall_shadows(from,to,world_origin)
 	for flower in objects:
 		if flower.kind in ["flowers","blueflowers"] and get_viewport_rect().grow(40).has_point(screen(flower.pos)):
 			draw_shadow(screen(flower.pos),14)
