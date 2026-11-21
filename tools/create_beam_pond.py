@@ -10,7 +10,7 @@ rng = random.Random(65431)
 
 
 def paint_water():
-    width, height = 216, 288
+    width, height = 216, 312
     image = Image.new("RGB", (width, height), "#2c5356")
     draw = ImageDraw.Draw(image)
     for y in range(height):

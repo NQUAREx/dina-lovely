@@ -25,6 +25,8 @@ func _initialize()->void:
 			var top:Vector2=pond.pad_position(0,pond.seconds)
 			var last:int=pond.pads.size()-1
 			var bottom:Vector2=pond.pad_position(last,pond.seconds)
+			assert(pond.pad_position(1,pond.seconds).y-top.y>=78)
+			assert(bottom.y-pond.pad_position(last-1,pond.seconds).y>=78)
 			for side in [-1.0,1.0]:
 				assert(pond.support(Vector2(top.x+side*42.0,pond.BOUNDS.position.y+.5))==0)
 				assert(pond.support(Vector2(bottom.x+side*42.0,pond.BOUNDS.end.y-.5))==last)

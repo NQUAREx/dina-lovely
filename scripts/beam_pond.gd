@@ -1,7 +1,7 @@
 extends RefCounted
 ## Lily motion and marks use pond-local coordinates so the same water draws
 ## from either side of the room.
-const BOUNDS := Rect2(528,672,432,576)
+const BOUNDS := Rect2(528,648,432,624)
 const PLATFORM_COUNT := 8
 const LEAF_SCALE := Vector2(2.12,2.05)
 # The retaining stones occupy eight pixels at each bank. Keep a strip of
@@ -34,7 +34,9 @@ func reset(rng:RandomNumberGenerator)->void:
 		# The greater width lets the square reach land while all artwork
 		# stays off the retaining stones.
 		var radius:=Vector2(rng.randf_range(55 if terminal else 48,59),rng.randf_range(39.5,42.5))
-		var y:=lerpf(BOUNDS.position.y+45,BOUNDS.end.y-45,float(index)/(PLATFORM_COUNT-1))
+		# Interior tracks keep their original positions. The extra water
+		# at either end gives the dock leaves a separate strip of room.
+		var y:=lerpf(717.0,1203.0,float(index)/(PLATFORM_COUNT-1))
 		var bank_offset:=ceilf(radius.y*LEAF_SCALE.y*.5)+LEAF_INSET
 		if index==0:y=BOUNDS.position.y+bank_offset
 		elif index==PLATFORM_COUNT-1:y=BOUNDS.end.y-bank_offset

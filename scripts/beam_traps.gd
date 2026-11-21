@@ -61,6 +61,26 @@ func append_renderables(queue:Array[Dictionary])->void:
 		var variant:=mini(2,floori(float(beam.phase)*3.0/TAU))
 		queue.append({"kind":"hall_beam","pos":box.get_center(),"rect":box,"variant":variant})
 
+func draw_log_shadows()->void:
+	var view:Rect2=game.get_viewport_rect()
+	for beam in beams:
+		var box:=beam_box(beam)
+		var position:Vector2=game.screen(box.get_center())
+		if not Rect2(position-box.size*.5,box.size).intersects(view.grow(32)):continue
+		for layer in game.SHADOW_CAST_LAYERS:
+			var center:Vector2=position+game.SHADOW_DIRECTION*(15.0+layer.x)
+			var radius:=10.0+float(layer.x)*.55
+			var half_run:=box.size.x*.5-9.0
+			var points:=PackedVector2Array()
+			for end in [1,-1]:
+				var angle:=0.0 if end==1 else PI
+				for segment in range(9):
+					var corner:=Vector2.from_angle(angle-PI*.5+segment*PI/8.0)
+					points.append(center+Vector2(half_run*end,0)+corner*Vector2(radius,radius*.7))
+			var tint:Color=game.SHADOW_TINT
+			tint.a=layer.y
+			game.draw_colored_polygon(points,tint)
+
 func draw_spikes()->void:
 	if spike_art==null:spike_art=load("res://assets/beam_spikes.png")
 	for spike in spikes:

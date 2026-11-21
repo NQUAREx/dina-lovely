@@ -2721,6 +2721,7 @@ func _draw_world() -> void:
 	if level==2:
 		beam_pond.draw_ground()
 		beam_crusher.draw_track()
+		beam_traps.draw_log_shadows()
 		beam_traps.draw_spikes()
 		beam_traps.append_renderables(renderables)
 		var crusher:=beam_crusher.drawable()
