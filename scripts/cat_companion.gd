@@ -162,6 +162,7 @@ func draw_cat()->void:
 
 func draw_prints()->void:
  for mark in prints:
+  if g.level==2 and g.beam_pond.BOUNDS.grow(9).has_point(mark.pos):continue
   if not g.world_tools.print_clear(mark.pos,mark.angle):continue
   if not g.get_viewport_rect().grow(20).has_point(g.screen(mark.pos)):continue
   if not g.shadow_floor_cell(Vector2i(mark.pos/48)):continue

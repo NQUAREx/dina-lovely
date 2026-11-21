@@ -61,6 +61,7 @@ var world_tools := preload("res://scripts/world_tools.gd").new(self)
 var garden_quest := preload("res://scripts/garden_quest.gd").new(self)
 var garden_lawn := preload("res://scripts/garden_lawn.gd").new()
 const SPEED := 150.0
+const BEAM_HAZARD_RATE := .85
 const SAVE_PATH := "user://garden_save_v1.json"
 const TITLES := ["room_maze", "room_darkness", "room_obstacles", "room_digging", "room_combat", "room_garden", "room_final"]
 const REQUIRED := ["dawn", "flower", "star"]
@@ -1460,9 +1461,10 @@ func _physics_process(delta: float) -> void:
 		release_at_gate(previous_foot)
 		hedge_contact=pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
 	if level==2 and playing and not paused and not transition and not rotate_overlay.visible:
-		var beam_hit:=beam_traps.step(delta)
-		var drowned:=beam_pond.step(delta)
-		var crushed:=beam_crusher.tick(delta,previous_position)
+		var hazard_delta:=delta*BEAM_HAZARD_RATE
+		var beam_hit:=beam_traps.step(hazard_delta)
+		var drowned:=beam_pond.step(hazard_delta)
+		var crushed:=beam_crusher.tick(hazard_delta,previous_position)
 		if beam_hit or drowned or crushed:
 			retry_beam_hall()
 			return
@@ -1485,6 +1487,7 @@ func _process(delta: float) -> void:
 		if door.kind=="doorway":
 			door.gate_amount=move_toward(float(door.get("gate_amount",0)),1.0 if door_is_open(str(door.id)) else 0.0,delta*2.5)
 			if door.id=="exit" and door_is_open("exit"):resolve_gate_overlap(door)
+	if level==2:beam_pond.age_prints(delta)
 	for i in range(footprints.size()-1,-1,-1):
 		footprints[i].life-=delta
 		if footprints[i].life<=0:footprints.remove_at(i)
@@ -2718,6 +2721,7 @@ func _draw_world() -> void:
 	if level==2:
 		beam_pond.draw_ground()
 		beam_crusher.draw_track()
+		beam_traps.draw_spikes()
 		beam_traps.append_renderables(renderables)
 		var crusher:=beam_crusher.drawable()
 		if not crusher.is_empty():renderables.append(crusher)
@@ -2818,7 +2822,7 @@ func _draw_world() -> void:
 				draw_arc(p+Vector2(0,-20),101,angle-.8,angle+.8,18,Color(1,.65,.79,attack_flash/.19),3)
 			if hedge_field!=null:
 				draw_hedge_canopy(visible_crowns,1)
-		elif kind in ["hall_beam","hall_spike"]:
+		elif kind=="hall_beam":
 			beam_traps.draw(item)
 		elif kind=="beam_crusher":
 			beam_crusher.draw_block()
@@ -3367,6 +3371,7 @@ func update_fog() -> void:
 		if cloth_tiles[0].x>=0 or cloth_tiles[1].x>=0:
 			material.set_shader_parameter("cloth_atlas",royal_cloth.atlas())
 		material.set_shader_parameter("cloth_tiles",cloth_tiles)
+		if cloth_tiles[0].x>=0:material.set_shader_parameter("dress_nodes",royal_cloth.dress_vertices())
 		var tiles:=PackedVector2Array()
 		for frame_name in frame_names:
 			if not sprites.has(frame_name):continue
@@ -3945,7 +3950,11 @@ func leave_footprint(direction: Vector2) -> void:
 	left_foot=not left_foot
 	var stone := stone_surface(player)
 	var position := player-direction*5+direction.orthogonal()*(5 if left_foot else -5)
-	footprints.append({"pos":position,"rotation":direction.angle()+PI/2,"life":6.75,"stone":stone})
+	var rotation:=direction.angle()+PI/2
+	if level==2 and (beam_pond.BOUNDS.has_point(player) or beam_pond.BOUNDS.grow(9).has_point(position)):
+		beam_pond.record_print(position,rotation)
+		return
+	footprints.append({"pos":position,"rotation":rotation,"life":6.75,"stone":stone})
 	if footprints.size()>113:footprints.pop_front()
 	for n in range(8):
 		if particles.size()>=420:break
@@ -3954,6 +3963,7 @@ func leave_footprint(direction: Vector2) -> void:
 func draw_footprints() -> void:
 	var id:int=sprites["footprint"]
 	for footprint in footprints:
+		if level==2 and beam_pond.BOUNDS.grow(9).has_point(footprint.pos):continue
 		if not world_tools.print_clear(footprint.pos,footprint.rotation):continue
 		var point:=screen(footprint.pos)
 		if not get_viewport_rect().grow(20).has_point(point):continue

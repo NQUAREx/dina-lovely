@@ -50,10 +50,21 @@ func run() -> void:
 	game.clear_modal()
 	game.rotate_overlay.hide()
 	var entrance:=Vector2(13.5,31.5)*48
+	game.player=entrance
+	game.beam_traps.clock=0
+	game.beam_pond.seconds=0
+	game.beam_crusher.elapsed=0
+	game._physics_process(.1)
+	assert(is_equal_approx(game.beam_traps.clock,.085))
+	assert(is_equal_approx(game.beam_pond.seconds,.085))
+	assert(is_equal_approx(game.beam_crusher.elapsed,.085))
 	game.player=game.beam_traps.beam_box(game.beam_traps.beams.front()).get_center()
 	game._physics_process(0.001)
 	assert(game.player==entrance)
 	game.beam_traps.clock=0
+	assert(game.beam_traps.spikes.size()==3)
+	for row in game.beam_traps.spikes:
+		assert(row.rect.position.x==48 and row.rect.end.x==480)
 	var spike:Dictionary=game.beam_traps.spikes.front()
 	spike.phase=PI/2
 	spike.warp=0.0
@@ -64,7 +75,7 @@ func run() -> void:
 	game.player=game.beam_crusher.footprint().get_center()
 	game._physics_process(0.001)
 	assert(game.player==entrance)
-	game.player=Vector2(538,950)
+	game.player=Vector2(529,950)
 	assert(game.beam_pond.support(game.player)<0)
 	game._physics_process(0.001)
 	assert(game.player==entrance)

@@ -1,15 +1,17 @@
 extends RefCounted
-## Inward-moving neighbours cross twice in every base cycle. Their varying
-## phases and secondary oscillators change when and where the crossings occur.
+## Lily motion and marks use pond-local coordinates so the same water draws
+## from either side of the room.
 const BOUNDS := Rect2(528,672,432,576)
-const PLATFORM_COUNT := 9
-const BASE_RATE := 1.12
+const PLATFORM_COUNT := 8
+const LEAF_SCALE := Vector2(2.12,2.05)
 const LILY_REGION := Vector2(72,60)
 const RIPPLE := Color("#a0b7a7")
 
 var game:Node2D
 var water:Texture2D
 var lilies:Texture2D
+var lily_pixels:Image
+var prints:Array[Dictionary]=[]
 var pads:Array[Dictionary]=[]
 var seconds:=0.0
 var riding:=-1
@@ -23,18 +25,26 @@ func reset(rng:RandomNumberGenerator)->void:
 	riding=-1
 	hop=0.0
 	pads.clear()
-	var phase:=rng.randf_range(0.0,TAU)
+	prints.clear()
 	for index in range(PLATFORM_COUNT):
+		var radius:=Vector2(rng.randf_range(48,59),rng.randf_range(39.5,42.5))
+		var y:=lerpf(BOUNDS.position.y+45,BOUNDS.end.y-45,float(index)/(PLATFORM_COUNT-1))
+		var bank_offset:=radius.y*LEAF_SCALE.y*.5+1
+		if index==0:y=BOUNDS.position.y+bank_offset
+		elif index==PLATFORM_COUNT-1:y=BOUNDS.end.y-bank_offset
+		else:y+=rng.randf_range(-1.0,1.0)
+		# Alternating speed ranges keep adjacent leaves from travelling in
+		# lockstep. Each has its own phase, sweep, acceleration and drift.
+		var rate:=rng.randf_range(.61,.95) if index%2==0 else rng.randf_range(1.08,1.46)
 		pads.append({
-			"center": Vector2(
-				BOUNDS.get_center().x+rng.randf_range(-24,24),
-				lerpf(BOUNDS.position.y+33,BOUNDS.end.y-33,float(index)/(PLATFORM_COUNT-1))),
-			"radius": Vector2(rng.randf_range(50,62),rng.randf_range(44,51)),
-			"amplitude": rng.randf_range(97,124),
-			"bob": rng.randf_range(2,4),
-			"phase": phase+index*PI+rng.randf_range(-.27,.27),
-			"drift": rng.randf_range(.15,.38),
-			"rhythm": rng.randf_range(.48,1.07),
+			"center": Vector2(BOUNDS.get_center().x+rng.randf_range(-45,45),y),
+			"radius": radius,
+			"amplitude": rng.randf_range(82,113),
+			"bob": rng.randf_range(.5,1.5) if index>0 and index<PLATFORM_COUNT-1 else 0.0,
+			"phase": rng.randf_range(0.0,TAU),
+			"rate": rate,
+			"drift": rng.randf_range(.20,.51),
+			"rhythm": rng.randf_range(.44,1.28),
 			"accent": rng.randf_range(0,TAU),
 			"variant": rng.randi_range(0,5),
 		})
@@ -42,10 +52,11 @@ func reset(rng:RandomNumberGenerator)->void:
 func pad_position(index:int,clock:float)->Vector2:
 	var pad:=pads[index]
 	var irregular:float=clock*pad.rhythm+pad.accent
-	var angle:float=clock*BASE_RATE+pad.phase+sin(irregular)*pad.drift
-	return pad.center+Vector2(
-		sin(angle)*pad.amplitude+sin(irregular*.53)*9.0,
-		sin(irregular*.8)*pad.bob)
+	var angle:float=clock*pad.rate+pad.phase+sin(irregular)*pad.drift
+	var half_width:float=pad.radius.x*LEAF_SCALE.x*.5+1
+	var x:float=pad.center.x+sin(angle)*pad.amplitude+sin(irregular*.53)*10.0
+	return Vector2(clampf(x,BOUNDS.position.x+half_width,BOUNDS.end.x-half_width),
+		pad.center.y+sin(irregular*.8)*pad.bob)
 
 func support(foot:Vector2)->int:
 	var best:=-1
@@ -53,7 +64,10 @@ func support(foot:Vector2)->int:
 	for index in range(pads.size()):
 		var normalized:Vector2=(foot-pad_position(index,seconds))/pads[index].radius
 		var distance:=normalized.length_squared()
-		if distance>1.0:continue
+		if distance>1.0:
+			var bank_gap:=index==0 and foot.y<BOUNDS.position.y+12 or index==pads.size()-1 and foot.y>BOUNDS.end.y-12
+			if bank_gap and absf(normalized.x)<.48:return index
+			continue
 		# Keep the original support in the overlap until the feet are clearly
 		# over the next pad, so the carry direction cannot flicker.
 		var weight:=distance-(.13 if index==riding else 0.0)
@@ -83,6 +97,34 @@ func step(delta:float)->bool:
 func lift()->float:
 	return sin(hop*PI/.24)*14.0
 
+func record_print(position:Vector2,rotation:float)->void:
+	var index:=support(game.player)
+	if index<0:return
+	var pad:=pads[index]
+	var offset:=position-pad_position(index,seconds)
+	if lily_pixels==null:
+		var art:Texture2D=load("res://assets/beam_lilies.png")
+		lily_pixels=art.get_image()
+	var size:Vector2=pad.radius*LEAF_SCALE
+	# Check the whole stamp, including the leaf notch. A mark whose edges
+	# would overhang is skipped, even where the stepping area is generous.
+	var region_start:=Vector2(float(pad.variant)*LILY_REGION.x,0)
+	for y in range(-8,9):
+		for x in range(-5,6):
+			var point:=offset+Vector2(x,y).rotated(rotation)
+			var uv:=point/size+Vector2(.5,.5)
+			if not Rect2(Vector2.ZERO,Vector2.ONE).has_point(uv):return
+			var pixel:=Vector2i(region_start+uv*LILY_REGION)
+			var surface:=lily_pixels.get_pixelv(pixel)
+			if surface.a<.92 or surface.g<.30:return
+	prints.append({"pad":index,"offset":offset,"rotation":rotation,"life":6.75})
+	if prints.size()>72:prints.pop_front()
+
+func age_prints(delta:float)->void:
+	for index in range(prints.size()-1,-1,-1):
+		prints[index].life-=delta
+		if prints[index].life<=0:prints.remove_at(index)
+
 func draw_ground()->void:
 	var origin:Vector2=game.screen(BOUNDS.position)
 	var pool:=Rect2(origin,BOUNDS.size)
@@ -91,6 +133,14 @@ func draw_ground()->void:
 		water=load("res://assets/beam_pond.png")
 		lilies=load("res://assets/beam_lilies.png")
 	game.draw_texture_rect(water,pool,false)
+	# Short bands sample the underlying pixel texture at slightly different
+	# positions. The retaining stones and pool edges stay fixed.
+	for y in range(12,int(pool.size.y)-12,12):
+		var shift:=roundf(1.45*sin(y*.071-seconds*2.4)+.50*sin(y*.14+seconds*3.1))
+		var size:=Vector2(pool.size.x-12,12)
+		var position:=Vector2(6,y)
+		game.draw_texture_rect_region(water,Rect2(origin+position,size),
+			Rect2(position*.5+Vector2(shift,0),size*.5))
 	for index in range(26):
 		var x:=fposmod(index*127.4+seconds*4.0,BOUNDS.size.x-34)+14
 		var y:=fposmod(index*153.0,BOUNDS.size.y-28)+14
@@ -101,12 +151,23 @@ func draw_ground()->void:
 	for index in range(pads.size()):
 		var pad:=pads[index]
 		var center:Vector2=game.screen(pad_position(index,seconds))
-		var size:Vector2=Vector2(2.18,2.31)*pad.radius
+		var size:Vector2=LEAF_SCALE*pad.radius
 		var leaf:=Rect2((center-size*.5).round(),size.round())
-		# Docking leaves hang over the stone lip instead of being cut in half.
-		var horizontal_limit:=Rect2(pool.position.x,leaf.position.y,pool.size.x,leaf.size.y)
-		var visible:=leaf.intersection(horizontal_limit)
+		var visible:=leaf.intersection(pool)
 		if not visible.has_area():continue
 		var scale:=LILY_REGION/leaf.size
 		var source:=Rect2(Vector2(pad.variant*LILY_REGION.x,0)+(visible.position-leaf.position)*scale,visible.size*scale)
 		game.draw_texture_rect_region(lilies,visible,source)
+		draw_prints(index,leaf.get_center())
+
+func draw_prints(index:int,center:Vector2)->void:
+	if prints.is_empty():return
+	var id:int=game.sprites["footprint"]
+	var source:=Rect2(Vector2(id%16*32+12,id/16*48+32),Vector2(8,14))
+	for mark in prints:
+		if mark.pad!=index:continue
+		game.draw_set_transform(center+Vector2(mark.offset),float(mark.rotation))
+		var tint:=Color("294d42")
+		tint.a=.58*minf(1.0,float(mark.life)/2)
+		game.draw_texture_rect_region(game.atlas,Rect2(Vector2(-4,-7),Vector2(8,14)),source,tint)
+	game.draw_set_transform(Vector2.ZERO)

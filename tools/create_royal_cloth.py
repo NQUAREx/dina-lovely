@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw
 
 from create_royal_outfit import ASSETS, DARK, GOLD, GOLD_LIGHT, GOLD_SHADE, diamond
 
-WIDTH, HEIGHT, COLUMNS = 68, 48, 60
+WIDTH, HEIGHT, COLUMNS = 48, 40, 64
 TOP = 7
 SWAY_STEPS, SPREAD_STEPS = 9, 7
 GARMENTS = ('gold_brocade', 'gold_mantle')
@@ -36,72 +36,39 @@ def flowing_mantle(layer, face):
     return base
 
 
-def brocade_train(layer, face, frame):
-    """Add layered, embroidered cloth below the existing fitted bodice."""
-    base = Image.new('RGBA', (44, 56))
-    draw = ImageDraw.Draw(base)
-    side = -1 if face in (3, 5, 7) else 1 if face in (1, 4, 6) else 0
-    hang = 1 if face in (0, 4, 5) else 0
-    center = 22 + side * 3
-    fall = 1 if frame % 4 in (1, 2) else 0
-    hem = 47 + hang + fall
-    edge = [(11, 34), (31, 34), (33 + side * 2, 41),
-            (center + 14, hem - 2), (center + 11, hem + 1),
-            (center + 5, hem + 2), (center, hem), (center - 7, hem + 2),
-            (center - 14, hem - 1), (10 + side * 2, 41)]
-    draw.polygon(edge, fill='#41293e')
-    draw.polygon([(13, 35), (28, 35), (center + 9, hem - 2),
-                  (center + 4, hem), (center - 8, hem), (center - 12, hem - 2)], fill='#723d59')
-    draw.polygon([(21, 35), (24, 36), (center + 4, hem - 1), (center - 1, hem - 2)], fill='#9b6276')
-    draw.polygon([(15, 35), (18, 36), (center - 7, hem - 1), (center - 9, hem - 2)], fill='#4f2c47')
-    draw.line(edge[3:9], fill=GOLD_SHADE, width=2)
-    draw.line([(x, y - 2) for x, y in edge[3:9]], fill=GOLD)
-    for x in range(center - 10, center + 13, 4):
-        draw.point((x, hem - 2), fill=GOLD_LIGHT)
-    for x, y in [(center - 8, hem - 5), (center + 7, hem - 6), (center, hem - 8)]:
-        diamond(draw, x, y)
-        draw.line([(x-2, y+1), (x-3, y+2), (x-4, y+2)], fill=GOLD_SHADE)
-        draw.line([(x+2, y+1), (x+3, y+2), (x+4, y+2)], fill=GOLD_SHADE)
-    # Fuse the train to the pose-specific waist without duplicating the old hem.
-    base.alpha_composite(layer.crop((0, 0, 32, 36)), (6, 0))
-    return base
-
-
-def deform(layer, garment, sway, spread, face, frame):
+def deform(layer, sway, spread, face, frame):
     output = Image.new('RGBA', (WIDTH, HEIGHT))
-    attachment = 30 if garment == 0 else 23
-    spread_depth = 7.0 if garment == 0 else 4.2
-    travel = 17.0 if garment == 0 else 9.0
+    attachment = 23
+    spread_depth = 4.2
+    travel = 9.0
     bottom = layer.getbbox()[3] - 1
     padding = (WIDTH - layer.width) // 2
     for y in range(TOP, TOP + HEIGHT):
         # Keep the bodice and head attached while the lower fabric swings.
         weight = max(0., (y - attachment) / (bottom - attachment))
-        lift = spread * (.6 if garment == 0 else 2.9)
+        lift = spread * 2.9
         source_y = round(y + lift * weight ** 2)
         if source_y >= layer.height:
             continue
-        row = layer.crop((0, source_y, layer.width, source_y + 1))
+        row = layer.crop((0, source_y, 32, source_y + 1))
         bounds = row.getbbox()
         if bounds is None:
             continue
         left, _, right, _ = bounds
         expansion = round(spread * spread_depth * weight)
-        wave = 3.3 if garment == 0 else 1.0
-        fold = sin(weight * 5.5 + frame * 1.4 + face * .7) * spread * weight * wave
-        shift = round(sway * travel * weight ** 1.65 + fold)
+        fold = sin(weight * 6.0 + frame * 1.4 + face * .7) * spread * weight
+        shift = round(sway * travel * weight ** 1.45 + fold)
         strip = row.crop((left, 0, right, 1))
         if expansion:
             strip = strip.resize((strip.width + expansion * 2, 1), Image.Resampling.NEAREST)
-        x = max(1, min(WIDTH - strip.width - 1, padding + left + shift - expansion))
-        output.paste(strip, (x, y - TOP))
+        output.paste(strip, (padding + left + shift - expansion, y - TOP))
     return output
 
 
 def generate():
     atlas = Image.open(ASSETS / 'atlas.png').convert('RGBA')
     sprites = json.loads((ASSETS / 'atlas.json').read_text())
-    slots = len(GARMENTS) * sum(FRAME_COUNTS) * SWAY_STEPS * SPREAD_STEPS
+    slots = sum(FRAME_COUNTS) * (1 + SWAY_STEPS * SPREAD_STEPS)
     sheet = Image.new('RGBA', (COLUMNS * WIDTH, -(-slots // COLUMNS) * HEIGHT))
     index = 0
     for garment, item in enumerate(GARMENTS):
@@ -110,13 +77,16 @@ def generate():
                 sprite = sprites[f'wear_{item}_{face}_{frame}']
                 x, y = sprite % 16 * 32, sprite // 16 * 48
                 layer = atlas.crop((x, y, x + 32, y + 48))
-                if garment == 1:
-                    layer = flowing_mantle(layer, face)
-                else:
-                    layer = brocade_train(layer, face, frame)
+                if garment == 0:
+                    # The original fitted hem is animated by the live mesh.
+                    sheet.paste(layer.crop((0, TOP, 32, TOP + HEIGHT)),
+                                (index % COLUMNS * WIDTH + 8, index // COLUMNS * HEIGHT))
+                    index += 1
+                    continue
+                layer = flowing_mantle(layer, face)
                 for spread in range(SPREAD_STEPS):
                     for sway in range(SWAY_STEPS):
-                        pose = deform(layer, garment, sway / 4 - 1, spread / 6, face, frame)
+                        pose = deform(layer, sway / 4 - 1, spread / 6, face, frame)
                         sheet.paste(pose, (index % COLUMNS * WIDTH, index // COLUMNS * HEIGHT))
                         index += 1
     sheet.save(ASSETS / 'royal_cloth.png', optimize=True)
