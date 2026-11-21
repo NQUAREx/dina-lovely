@@ -11,10 +11,7 @@ const SHADOW_CONTACT_LAYERS := [Vector2(1.28,.045),Vector2(1.08,.045),Vector2(.8
 const SHADOW_CAST_KINDS := {"tree":true,"tree_apples":true,"crate":true,"column":true,"column_wreath":true,"heart_stand":true,"well":true,"bench":true,"cat_hut":true,"house":true,"pond":true,"lamp":true,"lamp_off":true,"candle":true,"candle_heart":true,"letter_box":true,"chest":true,"skull_stand":true,"swing":true,"secret_book":true,"arch":true,"stats_stone":true,"quest_bench":true,"quest_rock":true,"quest_pebble":true,"flashlight_pedestal":true,"stand_flashlight":true,"riddle_stone":true,"stone":true}
 var hedge_shadow_settings := {"opacity":.31,"fade_start":-7.0,"fade_end":5.0,"offset_x":16.0,"offset_y":19.0,"width":10.0,"height":8.0,"rounding":4.0,"ripple_x":.45,"ripple_y":.45,"red":.84,"green":.78,"blue":.70}
 var hedge_shadow_base:Image
-var shadow_debug_panel:Control
-var shadow_debug_toggle:Control
 var shadow_debug_overlay:CanvasLayer
-var shadow_debug_timer:Timer
 
 const HedgeField := preload("res://scripts/hedge_field.gd")
 const TILE := 48.0
@@ -38,7 +35,7 @@ var reply_deposit_active := false
 var reply_deposit_progress := -1.0
 var reply_slot := Vector2.ZERO
 var reply_hand_start := Vector2.ZERO
-const ROOM_FIELDS := ["pending_spawns","prepared_wave","arena_barrier_lift","poison_zones","grid","objects","enemies","shots","particles","skulls","damage_numbers","path_meshes","path_texture","path_ground","path_pads","hedge_trees","grass_details","path_targets","path_navigation","path_terminals","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","skull_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","bloom_times","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
+const ROOM_FIELDS := ["pending_spawns","prepared_wave","arena_barrier_lift","poison_zones","grid","objects","enemies","shots","particles","skulls","damage_numbers","path_texture","path_ground","path_pads","hedge_trees","grass_details","path_targets","path_navigation","footprints","stride_distance","left_foot","hedge_field","berry_cells","paths","skull_clock","grass_texture","health","invincible","wave","wave_timer","combat_done","puzzle","chest_open","magazine","reload_time","rpg_reload","attack_cd","attack_flash","player"]
 var room_cache:Dictionary={}
 var room_cache_seed := -1
 var web_building_rooms := false
@@ -95,7 +92,6 @@ var damage_numbers: Array[Dictionary] = []
 var room_remains: Dictionary = {}
 var rocket_audio:=preload("res://scripts/rocket_audio.gd").new(self)
 var rocket_voice: AudioStreamPlayer
-var path_meshes: Array = []
 var path_texture: Texture2D
 var path_ground: Image
 var path_pads: Array[Dictionary] = []
@@ -105,14 +101,12 @@ var rpg_aim := Vector2.RIGHT
 var grass_details: Array[Dictionary] = []
 var path_targets: Array[Dictionary] = []
 var path_navigation: AStarGrid2D
-var path_terminals: Array[bool] = []
 var footprints: Array[Dictionary] = []
 var stride_distance := 0.0
 var left_foot := false
 var hedge_field: RefCounted
 var berry_cells: Dictionary = {}
 var paths: Array = []
-var foliage_contact := false
 var skull_clock := 2.0
 var held_item := ""
 var magazine := 30
@@ -165,7 +159,6 @@ var combat_done := false
 var garden_can := false
 var water := 0
 var watered: Array = []
-var bloom_times: Dictionary = {}
 var puzzle: Array[String] = []
 var chest_open := false
 var playing := false
@@ -215,7 +208,6 @@ var vegetation_fx_anchor := Vector2.INF
 var vegetation_fx_spacing := 38.0
 var vegetation_fx_cooldown := 0.0
 var vegetation_was_touched := false
-var hedge_contact := false
 var gate_creak_delay := -1.0
 var poison_zones:Array[Dictionary]=[]
 var rune_stones:=preload("res://scripts/riddle_stones.gd").new(self)
@@ -227,9 +219,6 @@ var shake_offset := Vector2.ZERO
 var ambience_clock := 3.0
 var sound: AudioStreamPlayer
 var sound_on := true
-var fps_average := 60.0
-var low_fx := false
-var save_error := false
 var session_prepared := false
 const HIDDEN_REACH := 56.0
 
@@ -343,7 +332,6 @@ func persist() -> void:
 		file.store_string(JSON.stringify(save_data, "\t"))
 		file.flush()
 	else:
-		save_error = true
 		if is_instance_valid(toast): notify(tx("storage_unavailable"))
 
 func setup_audio() -> void:
@@ -1064,7 +1052,7 @@ func build_level(index: int) -> void:
 	level = index
 	hedge_trees.clear();hedge_field=null;path_texture=null;path_ground=null;path_pads.clear();rpg_windup=-1
 	if not save_data.has("open_gates"):save_data.open_gates=[]
-	berry_cells.clear();paths.clear();grass_details.clear();path_targets.clear();path_navigation=null;path_terminals.clear();path_meshes.clear();footprints.clear();stride_distance=0.0;damage_numbers.clear()
+	berry_cells.clear();paths.clear();grass_details.clear();path_targets.clear();path_navigation=null;footprints.clear();stride_distance=0.0;damage_numbers.clear()
 	skull_clock=2.0
 	skulls.clear()
 	if is_instance_valid(fog): fog.visible = level==1
@@ -1078,7 +1066,6 @@ func build_level(index: int) -> void:
 	objects.clear()
 	enemies.clear()
 	particles.clear()
-	bloom_times.clear()
 	health = 8
 	invincible = 1.0
 	wave = 0
@@ -1462,7 +1449,6 @@ func _physics_process(delta: float) -> void:
 		var previous_foot:=player
 		move_player(delta,joy_vector if joy_active else Vector2.ZERO)
 		release_at_gate(previous_foot)
-		hedge_contact=pushing_hedge(player,joy_vector if joy_active else Vector2.ZERO)
 	if level==2 and playing and not paused and not transition and not rotate_overlay.visible:
 		var hazard_delta:=delta*BEAM_HAZARD_RATE
 		var beam_hit:=beam_traps.step(hazard_delta)
@@ -1506,8 +1492,6 @@ func _process(delta: float) -> void:
 	time += delta
 	toast_time -= delta
 	toast.visible = toast_time>0
-	fps_average = lerpf(fps_average, 1.0/maxf(delta,0.001), 0.01)
-	low_fx = false
 	if gate_creak_delay>=0:
 		gate_creak_delay-=delta
 		if gate_creak_delay<0:sfx("gate_open")
@@ -1542,7 +1526,6 @@ func _process(delta: float) -> void:
 		if level == 4 and not combat_done and battle.player_in_arena(): update_combat(minf(delta,0.04))
 		if level==4:
 			arena_barrier_lift=move_toward(arena_barrier_lift,1.0 if arena_exit_sealed() else 0.0,delta*2.2)
-		for id in bloom_times: bloom_times[id] = minf(1.0,bloom_times[id]+delta/2.8)
 		interaction_clock-=delta
 		if interaction_clock<=0:
 			interaction_clock=.07;find_nearest();update_hud()
@@ -1696,8 +1679,6 @@ func required_flower_count() -> int:
 	return count
 
 func required_flowers_ready() -> bool:return required_flower_count()==GARDEN_BEDS
-
-func blooms_ready() -> bool:return required_flowers_ready()
 
 func garden_mission_ready() -> bool:
 	return required_flowers_ready() and garden_quest.ready()
@@ -2537,7 +2518,6 @@ func draw_heart(pos: Vector2, size: float, color: Color) -> void:
 func _draw() -> void:
 	if grid.is_empty():return
 	# Only draw the visible edge of one cached neighbour. Its simulation stays frozen.
-	var night_band:=Rect2()
 	var corridor_pedestal:=Vector2.INF
 	var corridor_torch:=Vector2.INF
 	var corridor_torch_ground:=false
@@ -2559,7 +2539,6 @@ func _draw() -> void:
 		camera=old_camera+offset;player=old_state.player+offset;drawing_neighbor=true;neighbor_return_gate=destination<old_level
 		_draw_world()
 		if level==1:
-			night_band=Rect2(screen(Vector2(0,5*TILE)),Vector2(grid[0].length()*TILE,(grid.size()-10)*TILE))
 			for obj in objects:
 				if not torch.neighbor_overlay(obj):continue
 				if obj.kind=="flashlight_pedestal":corridor_pedestal=screen(obj.pos)
@@ -2580,15 +2559,6 @@ func _draw() -> void:
 		var c:=Color(.06,.07,.13,.025*(8-i))
 		draw_rect(Rect2(Vector2(i*5,i*5),view-Vector2.ONE*i*10),c,false,5)
 	# Shared darkness shader handles the neighbour and current room consistently.
-
-func draw_night_mask(area: Rect2) -> void:
-	var feather:=128.0
-	draw_rect(Rect2(area.position+Vector2(0,feather),area.size-Vector2(0,feather*2)),Color.BLACK)
-	for n in range(128):
-		var distance:float=n
-		var alpha:=smoothstep(0,feather,distance+.5)
-		draw_rect(Rect2(area.position+Vector2(0,distance),Vector2(area.size.x,1)),Color(0,0,0,alpha))
-		draw_rect(Rect2(Vector2(area.position.x,area.end.y-distance-1),Vector2(area.size.x,1)),Color(0,0,0,alpha))
 
 func open_reply_letter() -> void:
 	if OS.has_feature("web"):
@@ -2660,31 +2630,47 @@ func draw_reply_deposit() -> void:
 
 func _draw_world() -> void:
 	if grid.is_empty(): return
-	var view := get_viewport_rect().size
+	var viewport := get_viewport_rect()
+	var view := viewport.size
+	var world_origin := screen(Vector2.ZERO)
+	var columns := grid[0].length()
+	var rows := grid.size()
+	var baked_floor := grass_texture!=null and level not in [4,6]
 	var from := Vector2i((camera-view/2)/TILE)-Vector2i(2,3)
 	var to := Vector2i((camera+view/2)/TILE)+Vector2i(3,4)
 	var renderables: Array[Dictionary] = []
 	if not drawing_neighbor:renderables=draw_corridor_extensions()
-	for y in range(maxi(0,from.y),mini(grid.size(),to.y)):
-		for x in range(maxi(0,from.x),mini(grid[0].length(),to.x)):
-			if grid[y][x]==" " or (drawing_neighbor and corridor_row(y)): continue
-			var p := screen(Vector2(x,y)*TILE)
-			var tile := 0
-			if level==4 or level==6: tile=2 if (x+y)%3 else 1
-
-			elif level==0: tile=3
-			if corridor_row(y):
-				var north:int=15 if level==0 else 13
-				var height:=TILE
-				draw_ground_region(ground,Rect2(p,Vector2(TILE,height)),Rect2(Vector2(24,0),Vector2(24,height/2)))
-				draw_corridor_edge_shade(p,x,15 if level==0 and y<5 else 13)
-			elif grass_texture!=null and level not in [4,6]:draw_ground_region(grass_texture,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(x,y)*24,Vector2(24,24)))
-			else:draw_ground_region(romance_ground if level==6 else ground,Rect2(p,Vector2.ONE*TILE),Rect2(Vector2(tile*24,0),Vector2(24,24)))
-			if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
-				draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
-				if x==10 or x==16: draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
-			if gate_junctions.skip_wall(Vector2i(x,y)):continue
-			if grid[y][x]=="#" and not corridor_row(y) and level!=0:
+	for y in range(maxi(0,from.y),mini(rows,to.y)):
+		var corridor := corridor_row(y)
+		if drawing_neighbor and corridor:continue
+		var row:String=grid[y]
+		# The middle of the room has no floor clipping or doorway bridges.
+		var full_floor_row := y>=6 and y<rows-7
+		var py := world_origin.y+y*TILE
+		var floor_visible := py<viewport.end.y+2 and py+TILE>viewport.position.y-2
+		var first_x:=maxi(0,from.x)
+		var last_x:=mini(columns,to.x)
+		for x in range(first_x,last_x):
+			var cell := row[x]
+			if cell==" ":continue
+			var p := Vector2(world_origin.x+x*TILE,py)
+			if floor_visible and p.x<viewport.end.x+2 and p.x+TILE>viewport.position.x-2:
+				var destination := Rect2(p,Vector2.ONE*TILE)
+				if corridor:
+					draw_ground_region(ground,destination,Rect2(Vector2(24,0),Vector2(24,24)))
+					draw_corridor_edge_shade(p,x,15 if level==0 and y<5 else 13)
+				else:
+					var tile := (2 if (x+y)%3 else 1) if level in [4,6] else 3 if level==0 else 0
+					var floor_texture:Texture2D=grass_texture if baked_floor else romance_ground if level==6 else ground
+					var source := Rect2(Vector2(x,y)*24 if baked_floor else Vector2(tile*24,0),Vector2(24,24))
+					if full_floor_row and x>0 and x<columns-1:
+						draw_texture_rect_region(floor_texture,destination,source)
+					else:
+						draw_ground_region(floor_texture,destination,source)
+				if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
+					draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
+					if x==10 or x==16:draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
+			if cell=="#" and not corridor and level!=0 and not gate_junctions.skip_wall(Vector2i(x,y)):
 				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	if not drawing_neighbor:boundary_backdrop.draw_tree_shadows()
@@ -2708,7 +2694,7 @@ func _draw_world() -> void:
 			continue
 		var p := screen(obj.pos)
 		var bounds:=Rect2(p-Vector2(144,160),Vector2(288,224)) if obj.kind=="doorway" else Rect2(p-Vector2(100,150),Vector2(200,250))
-		if not bounds.intersects(Rect2(Vector2.ZERO,view)):continue
+		if not bounds.intersects(viewport):continue
 		if obj.kind in ["berries","dug"]:continue
 		if obj.kind=="skull_relic" and (not save_data.get("house_open",false) or save_data.get("skull_taken",false) or save_data.get("skull_inserted",false)):continue
 		if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>HIDDEN_REACH:continue
@@ -2773,12 +2759,18 @@ func _draw_world() -> void:
 	draw_footprints()
 	if not drawing_neighbor:companion.draw_prints()
 	battle.draw_poison()
+	var particle_view:=viewport.grow(20)
 	for part in particles:
-		if part.get("ground",false) and shadow_floor_cell(Vector2i(part.pos/TILE)):
-			var dust_color:Color=part.color;dust_color.a=minf(1,part.life*2)
-			draw_rect(Rect2(screen(part.pos),Vector2(3,3)),dust_color)
+		if not part.get("ground",false):continue
+		var position:=screen(part.pos)
+		if not particle_view.has_point(position) or not shadow_floor_cell(Vector2i(part.pos/TILE)):continue
+		var dust_color:Color=part.color;dust_color.a=minf(1,part.life*2)
+		draw_rect(Rect2(position,Vector2(3,3)),dust_color)
 	for remains in room_remains.get(level,[]):
-		draw_sprite(remains.kind,screen(remains.pos),Color.WHITE,float(remains.get("scale",1.0)))
+		var point:=screen(remains.pos)
+		var scale_factor:=float(remains.get("scale",1.0))
+		if viewport.grow(96*scale_factor).has_point(point):
+			draw_sprite(remains.kind,point,Color.WHITE,scale_factor)
 	for hole in objects:
 		if hole.kind=="dug":draw_sprite("dug",screen(hole.pos))
 	if not drawing_neighbor and (level not in [1,2,4] or not inside_main_room()):
@@ -2960,10 +2952,12 @@ func _draw_world() -> void:
 	if level==5 and not drawing_neighbor:garden_quest.draw_hints()
 	if not drawing_neighbor:draw_item_names()
 	# Deterministic ambient fireflies and butterflies, no nodes allocated per frame.
+	var ambient_view := viewport.grow(36.0)
 	for i in range(132):
-		var world := Vector2(fposmod(i*137.7,grid[0].length()*TILE),fposmod(i*193.3,grid.size()*TILE))+Vector2(sin(time*.3+i)*26,cos(time*.4+i)*18)
-		if not valid_ground(world) or corridor_row(floori(world.y/TILE)) or world.y<6*TILE or world.y>(grid.size()-6)*TILE: continue
-		var p := screen(world)
+		var world := Vector2(fposmod(i*137.7,columns*TILE),fposmod(i*193.3,rows*TILE))+Vector2(sin(time*.3+i)*26,cos(time*.4+i)*18)
+		var p := world+world_origin
+		if not ambient_view.has_point(p):continue
+		if world.y<6*TILE or world.y>(rows-6)*TILE or corridor_row(floori(world.y/TILE)) or not valid_ground(world):continue
 		var alpha := .25+.4*(sin(time*1.7+i)+1)/2
 		if level==5 and i%3==0:
 			var flap := absf(sin(time*6+i))*5+1
@@ -2979,10 +2973,12 @@ func _draw_world() -> void:
 			draw_set_transform(Vector2.ZERO)
 	for part in particles:
 		if part.get("ground",false) or part.get("foliage",false) or part.get("physical_fx",false):continue
+		var position:=screen(part.pos)
+		if not particle_view.has_point(position):continue
 		var c: Color = part.color
 		c.a = minf(1,part.life)
-		if part.heart:draw_heart(screen(part.pos),1.2,c)
-		else:draw_rect(Rect2(screen(part.pos),Vector2(3,3)),c)
+		if part.heart:draw_heart(position,1.2,c)
+		else:draw_rect(Rect2(position,Vector2(3,3)),c)
 	if level==1:draw_dark_room_skulls()
 	if not drawing_neighbor:
 		draw_extra_effects()
@@ -3071,15 +3067,6 @@ func travel(destination: int) -> void:
 	save_data.level=destination;transition=false
 	if is_instance_valid(fog):fog.visible=level==1
 	update_fog();find_nearest();update_hud();sync_room_theme();persist()
-
-func corridor_position(pos: Vector2) -> void:
-	var travel_direction := (pos-player).normalized()
-	if travel_direction.length()>.1:walk_facing=travel_direction
-	stride_distance+=pos.distance_to(player)
-	player = pos
-	if stride_distance>=24 and travel_direction.length()>.1:
-		stride_distance=fmod(stride_distance,24.0);leave_footprint(travel_direction)
-	camera = camera_target()
 
 func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	task_return_direction=direction;task_return_facing=walk_facing;task_return_aim=aim
@@ -3478,12 +3465,6 @@ func draw_dark_room_skulls() -> void:
 	for skull in skulls:
 		draw_sprite("skull",screen(skull.pos),Color(1,1,1,minf(1,skull.life)))
 
-func cycle_weapon() -> void:
-	var inventory: Array = save_data.weapons_taken
-	if inventory.is_empty(): return
-	weapon = inventory[(inventory.find(weapon)+1)%inventory.size()]
-	persist();sfx("ui")
-
 func dig_here() -> void:
 	if level==3 and dig_quest.state().get("broken",false):notify(tx("shovel_needs_repair"));return
 	if task_time>0:return
@@ -3735,7 +3716,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 		var tangent:Vector2=(spine_points[mini(n+1,spine_points.size()-1)]-spine_points[maxi(0,n-1)])/7
 		spine.add_point(spine_points[n],-tangent,tangent)
 	var main_path:=roughen_path(await continuous_path(spine.get_baked_points(),start,end,rng),int(save_data.seed)+level)
-	if main_path.size()>1:paths.append(main_path);path_terminals.append(false)
+	if main_path.size()>1:paths.append(main_path)
 	if main_path.size()>12:
 		# A second independent walk reconnects with the main route at both ends.
 		var from:=main_path[int(main_path.size()*.15)]
@@ -3746,7 +3727,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 		for n in range(knots.size()):
 			var handle:Vector2=(knots[mini(n+1,knots.size()-1)]-knots[maxi(0,n-1)])/5
 			alternate.add_point(knots[n],-handle,handle)
-		paths.append(roughen_path(alternate.get_baked_points(),int(save_data.seed)+9811));path_terminals.append(false)
+		paths.append(roughen_path(alternate.get_baked_points(),int(save_data.seed)+9811))
 	path_pads.append({"pos":start,"radius":43.0})
 	path_pads.append({"pos":end,"radius":43.0})
 	var targets:Array[Dictionary]=[]
@@ -3810,7 +3791,7 @@ func prepare_foliage_and_paths(rng: RandomNumberGenerator) -> void:
 		var trimmed:=PackedVector2Array([junction])
 		for n in range(merge+1,branch.size()):trimmed.append(branch[n])
 		if trimmed.size()>1:
-			paths.append(trimmed);path_terminals.append(true)
+			paths.append(trimmed)
 			path_targets.append({"id":target.id,"object":target,"path":paths.size()-1,"end":trimmed[-1]})
 	if level==5:await add_garden_quest_paths()
 	generating_paths=false
@@ -3851,7 +3832,6 @@ func add_garden_quest_paths() -> void:
 				detour.append(point)
 				branch=detour
 		paths.append(branch)
-		path_terminals.append(true)
 		path_targets.append({"id":obj.id,"object":obj,"path":paths.size()-1,"end":point})
 
 func path_clearance_grid() -> Dictionary:
@@ -3911,10 +3891,10 @@ func update_vegetation(delta: float) -> void:
 	for obj in objects:
 		if obj.kind not in ["flowers","blueflowers"]:continue
 		var away: Vector2 = obj.pos-player
-		var target := clampf((25-away.length())/15,0,1)
-		if away.length()<25:contact=true;flower_source=obj.pos
+		var distance := away.length()
+		var target := clampf((25-distance)/15,0,1)
+		if distance<25:contact=true;flower_source=obj.pos
 		if target>.01 or obj.has("press"):obj.press=lerpf(float(obj.get("press",0)),target,1-exp(-delta*11))
-	foliage_contact=contact
 	var intent:=joy_vector.length() if joy_active else 0.0
 	foliage_motion=maxf(hedge_field.contact_strength if hedge_field!=null else 0.0,1.0 if contact else 0.0)*minf(1,intent*2)
 	if hedge_field!=null:foliage_motion=maxf(foliage_motion,clampf((hedge_field.motion_strength-3)/90,0,1)*.3)
@@ -3940,15 +3920,23 @@ func update_vegetation(delta: float) -> void:
 
 func emit_vegetation_bits(origin: Vector2, petals: bool) -> void:
 	if particles.size()>360:return
-	if particles.filter(func(p):return p.get("foliage",false)).size()>=16:return
+	var leaves:=0
+	for part in particles:
+		if part.get("foliage",false):
+			leaves+=1
+			if leaves>=16:return
 	var amount := 1 if petals or randf()<.7 else 2
 	for i in range(amount):particles.append(leaf_debris.spawn(origin,petals and i==0))
 
 func draw_leaf_debris() -> void:
+	var visible:=get_viewport_rect().grow(24)
+	var room:=Rect2(Vector2.ZERO,Vector2(grid[0].length(),grid.size())*TILE)
 	for part in particles:
 		if not part.get("foliage",false):continue
-		if not Rect2(Vector2.ZERO,Vector2(grid[0].length(),grid.size())*TILE).has_point(part.pos):continue
+		if not room.has_point(part.pos):continue
 		var height: float = part.get("leaf_height",0.0)
+		var point:=screen(part.pos)
+		if not visible.has_point(point) and not visible.has_point(point-Vector2(0,height)):continue
 		var flutter := sin(float(part.get("age",0))*float(part.get("flutter",4))+float(part.get("phase",0)))
 		var floating: bool = not part.get("landed",false)
 		var color: Color = part.color
@@ -3993,24 +3981,19 @@ func build_path_meshes() -> void:
 	# with no overlapping strips, stone borders, caps or camera-dependent edges.
 	var size:=Vector2i(grid[0].length()*24,grid.size()*24)
 	var coverage:=PackedFloat32Array();coverage.resize(size.x*size.y)
-	for path_index in range(paths.size()):
-		var path:PackedVector2Array=paths[path_index]
-		var remaining:=0.0
-		var distances:Array[float]=[];distances.resize(path.size())
-		for n in range(path.size()-2,-1,-1):remaining+=path[n].distance_to(path[n+1]);distances[n]=remaining
-		var terminal:=false
+	for path:PackedVector2Array in paths:
 		for n in range(path.size()-1):
 			if n % 8 == 0:await yield_room_build()
 			var steps:=maxi(1,ceili(path[n].distance_to(path[n+1])/2))
 			for step in range(steps):
 				var t:=float(step)/steps
 				var point:=path[n].lerp(path[n+1],t)/2
-				var left:=lerpf(distances[n],distances[n+1],t)
-				var radius:=7.5*(sqrt(clampf(left/42,0,1)) if terminal else 1.0)
-				for y in range(maxi(0,int(point.y-9)),mini(size.y,int(point.y+10))):
+				# A 7.5-pixel stamp reaches less than five pixels along
+				# its foreshortened axis. Samples beyond that add zero coverage.
+				for y in range(maxi(0,int(point.y-5)),mini(size.y,int(point.y+6))):
 					for x in range(maxi(0,int(point.x-9)),mini(size.x,int(point.x+10))):
 						var distance:=((Vector2(x+.5,y+.5)-point)/Vector2(1,GROUND_DEPTH)).length()
-						var value:=radius-distance
+						var value:=7.5-distance
 						coverage[y*size.x+x]=maxf(coverage[y*size.x+x],value+.01)
 	# Pads and walks share the same union field and the same opaque soil pixels.
 	for pad in path_pads:
@@ -4037,15 +4020,6 @@ func build_path_meshes() -> void:
 	path_texture=ImageTexture.create_from_image(image)
 	path_ground=image
 
-func is_path_terminal(index: int) -> bool:
-	if index<path_terminals.size() and not path_terminals[index]:return false
-	var tip: Vector2 = paths[index][-1]
-	for j in range(paths.size()):
-		if j==index:continue
-		for point in paths[j]:
-			if tip.distance_to(point)<28:return false
-	return true
-
 func leave_footprint(direction: Vector2) -> void:
 	stats.add(self,"steps")
 	left_foot=not left_foot
@@ -4063,11 +4037,12 @@ func leave_footprint(direction: Vector2) -> void:
 
 func draw_footprints() -> void:
 	var id:int=sprites["footprint"]
+	var visible := get_viewport_rect().grow(20)
 	for footprint in footprints:
+		var point:=screen(footprint.pos)
+		if not visible.has_point(point):continue
 		if level==2 and beam_pond.BOUNDS.grow(9).has_point(footprint.pos):continue
 		if not world_tools.print_clear(footprint.pos,footprint.rotation):continue
-		var point:=screen(footprint.pos)
-		if not get_viewport_rect().grow(20).has_point(point):continue
 		draw_set_transform(point,footprint.rotation)
 		var garden_mark:bool=level==5 and footprint.pos.y>=7*TILE and footprint.pos.y<=(grid.size()-7)*TILE
 		var color:=Color("74583f") if footprint.stone and garden_mark else Color("b8ab9a") if footprint.stone else Color("243a2d")
@@ -4124,12 +4099,6 @@ func nearest_path_node(pos: Vector2) -> Vector2i:
 		if best.x>=0:return best
 	return Vector2i(-1,-1)
 
-func sample_line(start: Vector2, end: Vector2) -> PackedVector2Array:
-	var points := PackedVector2Array()
-	var count := maxi(1,ceili(start.distance_to(end)/8))
-	for n in range(count+1):points.append(start.lerp(end,float(n)/count))
-	return points
-
 func pushing_hedge(pos: Vector2, input: Vector2) -> bool:
 	if level!=0 or input.length()<.35:return false
 	return touching_hedge(pos) and blocked(pos+input.normalized()*7)
@@ -4176,9 +4145,14 @@ func prepare_grass_details() -> void:
 			if level==5:lawn_stamps.append({"art":motif,"pos":origin,"root":point,"blades":variant<12})
 			else:image.blend_rect(motif,Rect2i(Vector2i.ZERO,motif.get_size()),origin)
 	var sheet := atlas.get_image();sheet.convert(Image.FORMAT_RGBA8)
+	var detail_stamps:Dictionary={}
 	for detail in grass_details:
 		var id: int = sprites[detail.kind]
-		var stamp := sheet.get_region(Rect2i(id%16*32,id/16*48,32,48));stamp.resize(19,29,Image.INTERPOLATE_NEAREST)
+		if not detail_stamps.has(id):
+			var motif:=sheet.get_region(Rect2i(id%16*32,id/16*48,32,48))
+			motif.resize(19,29,Image.INTERPOLATE_NEAREST)
+			detail_stamps[id]=motif
+		var stamp:Image=detail_stamps[id]
 		var point:=Vector2i(detail.pos/2)
 		if level==5:lawn_stamps.append({"art":stamp,"pos":point+Vector2i(-10,-20),"root":point,"blades":false})
 		else:image.blend_rect(stamp,Rect2i(0,0,19,29),point+Vector2i(-10,-20))
@@ -4235,12 +4209,6 @@ func bake_hedge_shadow(image:Image)->void:
 			if alpha<=0:continue
 			var color:=image.get_pixel(x,y)
 			image.set_pixel(x,y,Color(color.r*(1-alpha*hedge_shadow_settings.red),color.g*(1-alpha*hedge_shadow_settings.green),color.b*(1-alpha*hedge_shadow_settings.blue),color.a))
-
-func draw_grass_details() -> void:
-	var viewport := get_viewport_rect().grow(55)
-	for detail in grass_details:
-		var p := screen(detail.pos)
-		if viewport.has_point(p):draw_sprite(detail.kind,p+Vector2(0,12),Color.WHITE,.6)
 
 func level_complete() -> bool:
 	match level:

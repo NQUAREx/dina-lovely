@@ -77,12 +77,6 @@
     "license": "CC0",
     "sha256": "b3a28df744c0f9d792316b3a34a311b7a98e054b0d7d865bd8af7a8cb7eed484"
   },
-  "rocket": {
-    "source_file": "sci-fi-sounds/Audio/thrusterFire_000.ogg",
-    "pack": "Kenney",
-    "license": "CC0",
-    "sha256": "6dbb2a8e9011e48ba2aca085b5502c17f946714bcaf13da284ddc58a51581324"
-  },
   "explosion": {
     "source_file": "sci-fi-sounds/Audio/explosionCrunch_000.ogg",
     "pack": "Kenney",

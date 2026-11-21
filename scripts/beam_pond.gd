@@ -138,7 +138,8 @@ func age_prints(delta:float)->void:
 func draw_ground()->void:
 	var origin:Vector2=game.screen(BOUNDS.position)
 	var pool:=Rect2(origin,BOUNDS.size)
-	if not pool.intersects(game.get_viewport_rect()):return
+	var view:Rect2=game.get_viewport_rect()
+	if not pool.intersects(view):return
 	if water==null:
 		water=load("res://assets/beam_pond.png")
 		lilies=load("res://assets/beam_lilies.png")
@@ -146,6 +147,7 @@ func draw_ground()->void:
 	# Short bands sample the underlying pixel texture at slightly different
 	# positions. The retaining stones and pool edges stay fixed.
 	for y in range(12,int(pool.size.y)-12,12):
+		if origin.y+y+12<=view.position.y or origin.y+y>=view.end.y:continue
 		var shift:=roundf(1.45*sin(y*.071-seconds*2.4)+.50*sin(y*.14+seconds*3.1))
 		var size:=Vector2(pool.size.x-12,12)
 		var position:=Vector2(6,y)
@@ -155,6 +157,7 @@ func draw_ground()->void:
 		var x:=fposmod(index*127.4+seconds*4.0,BOUNDS.size.x-34)+14
 		var y:=fposmod(index*153.0,BOUNDS.size.y-28)+14
 		var crest:=origin+Vector2(roundf(x*.5)*2,roundf(y*.5)*2)
+		if not view.intersects(Rect2(crest,Vector2(14,2))):continue
 		var glint:=RIPPLE
 		glint.a=.13+.12*sin(seconds*2.4+index)
 		game.draw_rect(Rect2(crest,Vector2(8+index%4*2,2)),glint)
@@ -163,7 +166,7 @@ func draw_ground()->void:
 		var center:Vector2=game.screen(pad_position(index))
 		var size:=leaf_size(index)
 		var leaf:=Rect2((center-size*.5).round(),size)
-		if not leaf.intersects(game.get_viewport_rect()):continue
+		if not leaf.intersects(view):continue
 		var source:=Rect2(Vector2(pad.variant*LILY_REGION.x,0),LILY_REGION)
 		game.draw_texture_rect_region(lilies,leaf,source)
 		draw_prints(index,leaf.get_center())

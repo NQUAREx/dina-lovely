@@ -202,7 +202,7 @@ func complete(kind:String,pos:Vector2)->bool:
   var id:=kind.split(":")[1];var texture:="bloom%d_plant"%flower_variant(id)
   if kind.begins_with("uproot:"):falling.append({"room":g.level,"pos":pos,"texture":texture,"age":0.0})
   else:g.burst(pos,30,Color("e9a3c6"))
-  g.plants.erase(id);g.watered.erase(id);g.save_data.watered=g.watered.duplicate();g.fertilized.erase(id);g.bloom_times.erase(id);return true
+  g.plants.erase(id);g.watered.erase(id);g.save_data.watered=g.watered.duplicate();g.fertilized.erase(id);return true
  return false
 func cut_particles(pos:Vector2)->void:
  for n in range(randi_range(28,38)):

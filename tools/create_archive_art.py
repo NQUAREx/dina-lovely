@@ -72,13 +72,3 @@ for variant in range(3):
     for x, y in [(10, 94), (145, 91), (5, 21)]:
         d.point((x, y), fill="#ceb5aa")
     paper.save(assets / f"archive_sheet_{variant}.png")
-
-for down in [False, True]:
-    image = Image.new("RGBA", (24, 24))
-    d = ImageDraw.Draw(image)
-    points = [(4, 14), (12, 6), (20, 14), (16, 18), (12, 14), (8, 18)]
-    if down:
-        points = [(x, 24 - y) for x, y in points]
-    d.polygon([(x, y + 2) for x, y in points], fill="#342c42")
-    d.polygon(points, fill="#ffead0")
-    image.save(assets / ("archive_down.png" if down else "archive_up.png"))

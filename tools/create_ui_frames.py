@@ -5,7 +5,7 @@ A=Path(__file__).resolve().parents[1]/'assets'/'ui'
 def save(im,name):im.resize((im.width*2,im.height*2),Image.Resampling.NEAREST).save(A/name)
 def generate():
  A.mkdir(exist_ok=True)
- for state,base,edge,hi in [('normal','#523f58','#ac7e96','#e2b4b2'),('hover','#654b65','#c897a8','#f2cdb5'),('pressed','#3e3449','#8e708a','#c29ca8'),('disabled','#443e4c','#716779','#938396'),('panel','#44384e','#a77d95','#dbb3b3'),('paper','#f5e7cf','#b2899d','#edd0bb'),('focus','#523f58','#d4b28b','#f1d3ab')]:
+ for state,base,edge,hi in [('normal','#523f58','#ac7e96','#e2b4b2'),('hover','#654b65','#c897a8','#f2cdb5'),('pressed','#3e3449','#8e708a','#c29ca8'),('disabled','#443e4c','#716779','#938396'),('panel','#44384e','#a77d95','#dbb3b3'),('paper','#f5e7cf','#b2899d','#edd0bb')]:
   im=Image.new('RGBA',(32,32));d=ImageDraw.Draw(im)
   def box(i,c,col):
    a=i;b=31-i

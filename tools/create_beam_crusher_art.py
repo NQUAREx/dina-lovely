@@ -1,4 +1,4 @@
-"""Generate the masonry shuttle, floor rails and refuge markers."""
+"""Generate the masonry shuttle, and floor rails."""
 from pathlib import Path
 from PIL import Image, ImageDraw
 
@@ -45,18 +45,6 @@ def make_rails():
     return texture
 
 
-def make_niche():
-    texture = Image.new("RGBA", (24, 48))
-    draw = ImageDraw.Draw(texture)
-    draw.polygon([(5, 12), (19, 12), (21, 15), (21, 32), (18, 35), (4, 35),
-                  (2, 32), (2, 15)], fill="#37483f")
-    draw.line([(4, 32), (4, 16), (6, 14), (18, 14), (19, 16), (19, 31),
-               (17, 33), (6, 33), (4, 32)], fill="#566b57")
-    draw.line([(8, 25), (12, 20), (16, 25)], fill="#b7a479", width=2)
-    draw.line([(8, 29), (12, 24), (16, 29)], fill="#827e59")
-    return texture
-
-
 if __name__ == "__main__":
-    for name, graphic in (("block", make_shuttle()), ("rail", make_rails()), ("niche", make_niche())):
+    for name, graphic in (("block", make_shuttle()), ("rail", make_rails())):
         graphic.save(ASSETS / f"beam_crusher_{name}.png", optimize=True)

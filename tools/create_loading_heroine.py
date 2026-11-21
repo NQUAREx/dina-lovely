@@ -20,20 +20,5 @@ def generate():
  # Resident frame images avoid WebKit culling a strip translated out of its clip.
  for frame in range(8):
   strip.crop((frame*64,0,(frame+1)*64,64)).save(A/f'loading_heroine_{frame}.png')
- # Native animated images do not need video autoplay, seek at every loop,
- # CSS stepping, or an opaque media surface. Reserve one transparent index
- # in one shared palette so the original wallpaper remains visible.
- palette=strip.convert('RGB').quantize(colors=255,method=Image.Quantize.MEDIANCUT)
- frames=[]
- for frame in range(8):
-  rgba=strip.crop((frame*64,0,(frame+1)*64,64)).resize((128,128),Image.Resampling.NEAREST)
-  tile=rgba.convert('RGB').quantize(palette=palette,dither=Image.Dither.NONE)
-  alpha=rgba.getchannel('A')
-  tile.paste(255,mask=alpha.point(lambda value:255 if value<128 else 0))
-  tile.info['transparency']=255
-  frames.append(tile)
- frames[0].save(A/'loading_heroine.gif',save_all=True,append_images=frames[1:],
-                duration=80,loop=0,transparency=255,disposal=2,optimize=False)
- (A/'loading_heroine.mp4').unlink(missing_ok=True)
  print('Generated eight side-walk frames: white dress/veil/scarf, silver crown, sword')
 if __name__=='__main__':generate()

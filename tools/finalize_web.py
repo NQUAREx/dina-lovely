@@ -61,9 +61,8 @@ with Image.open(root/'assets/ui/flower_corner.png') as flower:ImageOps.mirror(fl
 shutil.copyfile(root/'assets/loading_heroine.png',p.parent/'loading-heroine.png')
 loading_frames=[f'loading-heroine-{frame}.png' for frame in range(8)]
 for frame,target in enumerate(loading_frames):shutil.copyfile(root/f'assets/loading_heroine_{frame}.png',p.parent/target)
-shutil.copyfile(root/'assets/loading_heroine.gif',p.parent/'loading-heroine.gif')
 (p.parent/'loading-heroine.mp4').unlink(missing_ok=True)
-shell_hash=hashlib.sha256(b''.join((p.parent/name).read_bytes() for name in [*shell_files.values(),'ui-flower-right.png','loading-heroine.png','loading-heroine.gif',*loading_frames])).hexdigest()[:12]
+shell_hash=hashlib.sha256(b''.join((p.parent/name).read_bytes() for name in [*shell_files.values(),'ui-flower-right.png','loading-heroine.png',*loading_frames])).hexdigest()[:12]
 from create_ios_loading_movie import generate as generate_ios_movie
 generate_ios_movie()
 movie_hash=hashlib.sha256(b''.join((p.parent/name).read_bytes() for name in ['ios-loading.mp4','ios-loading-play.mp4','ios-loading-poster.png','loading-pattern.png'])).hexdigest()[:12]
@@ -141,7 +140,7 @@ if callback not in s:
  s=s.replace("'onProgress': function (current, total) {", "'onProgress': function (current, total) {\n\t\t\t\t"+callback)
 p.write_text(s)
 
-for frame_asset in ["frame_top.png","frame_bottom.png"] + [f"frame_{part}_{room}.png" for room in range(7) for part in ["top","bottom","field"]]:
+for frame_asset in [f"frame_{part}_{room}.png" for room in range(7) for part in ["top","bottom","field"]]:
  shutil.copyfile(root/"assets"/frame_asset,p.parent/frame_asset)
 
 # Extend the existing decorative fields beneath the iOS status bar / sensor housing.

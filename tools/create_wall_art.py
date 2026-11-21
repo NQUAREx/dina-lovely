@@ -5,11 +5,10 @@ vertical run the next roof occludes the face, but never exposes floor through
 its chamfers. Every cut roof corner has a corresponding vertical stone plane.
 """
 from PIL import Image, ImageDraw
-from pathlib import Path
 import random
-A=Path(__file__).resolve().parents[1]/'assets'
-for variant in range(4):
- for joined in (False,True):
+
+
+def wall_art(variant=0):
   im=Image.new('RGBA',(32,64));d=ImageDraw.Draw(im);r=random.Random(914+variant)
   top=['#8e7b94','#887b93','#927d94','#8c8098'][variant]
   # Ground outline stays x4..27,y31..54. The roof is its 20px extrusion.
@@ -50,7 +49,4 @@ for variant in range(4):
    d.point((x,y),fill=r.choice(['#a58b9f','#9b829b','#7d708a','#b39aaa']))
   x=11+variant%2*4;y=20
   for dx,dy in [(0,0),(2,0),(-1,1),(1,1),(3,1),(0,2),(2,2),(1,3)]:d.point((x+dx,y+dy),fill='#baa0af')
-  # Stacked and exposed both retain the shell; the lower neighbour naturally
-  # covers the forward face. Keep the roof palette independent of adjacency.
-  im.save(A/(('wall_stacked' if joined else 'wall_exposed')+('' if variant==0 else str(variant))+'.png'))
-print('Generated eight solid 20px-rise masonry tiles with closed chamfer faces')
+  return im

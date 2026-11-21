@@ -474,7 +474,14 @@ func draw_object(obj:Dictionary,pos:Vector2,highlighted:bool)->void:
 	g.draw_texture_rect_region(texture(),box,source)
 
 func draw_hints()->void:
+	var origin:Vector2=g.screen(Vector2.ZERO)
+	var hint_view:Rect2=g.get_viewport_rect().grow(46.0)
+	# A badge can sit above the visible crown, but never more than the
+	# sprite anchor plus the badge offset and its three-pixel bob.
+	var candidate_view:=Rect2(hint_view.position-origin,
+		hint_view.size+Vector2(0,ANCHOR.y*2+45.0))
 	for obj in g.objects:
+		if not candidate_view.has_point(obj.pos):continue
 		var tree:=tree_needs_trim(obj)
 		if not tree and (obj.kind not in ["garden_grass","garden_bush","garden_table"] or not visible(obj)):continue
 		if obj.kind!="garden_bush":
@@ -485,7 +492,7 @@ func draw_hints()->void:
 		if needed.is_empty():continue
 		var world_box:=bounds(obj)
 		var top:=world_box.position.y-42+sin(g.time*2.2+float(obj.get("variant",0)))*3
-		g.draw_garden_need(needed,g.screen(Vector2(obj.pos.x,top)).round())
+		g.draw_garden_need(needed,(Vector2(obj.pos.x,top)+origin).round())
 
 func held_pose()->Dictionary:
 	var shears:bool=g.held_item=="garden_shears"

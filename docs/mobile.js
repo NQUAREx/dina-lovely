@@ -37,7 +37,7 @@
  motifStyle.textContent='#mobile-gate::before,#portrait-gate::before,#garden-loading::before,#garden-recovery::before{content:"";position:absolute;inset:0;pointer-events:none;background-position:-20px -18px;background-image:url("data:image/svg+xml,'+encodeURIComponent(motifSvg)+'");image-rendering:pixelated}'
   +'#garden-loading::before{background:url("loading-pattern.png?v='+movieVersion+'") 0 0 / 100% 100% no-repeat}';document.head.append(motifStyle);
  const roseStyle=document.createElement('style');
- const shellUI='10a4c55de987';
+ const shellUI='1c3f96bd907b';
  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
  // A sprite fallback is available if the browser disables inline video.
  const iosWalk=ios?new Image():null;

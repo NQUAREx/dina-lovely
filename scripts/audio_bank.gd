@@ -30,7 +30,6 @@ const STREAMS := {
 	"rake":preload("res://assets/rake.wav"),
 	"reload":preload("res://assets/reload.wav"),
 	"rifle":preload("res://assets/rifle.wav"),
-	"rocket":preload("res://assets/rocket.wav"),
 	"rustle":preload("res://assets/rustle.wav"),
 	"step_grass":preload("res://assets/step_grass.wav"),
 	"step_grass_2":preload("res://assets/step_grass_2.wav"),

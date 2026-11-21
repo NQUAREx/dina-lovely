@@ -7,6 +7,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 import random
 
+from create_wall_art import wall_art
+
 A = Path(__file__).resolve().parents[1] / 'assets'
 ROOF = [(7,11),(24,11),(27,14),(27,31),(24,34),(7,34),(4,31),(4,14)]
 
@@ -83,7 +85,7 @@ def earth_block(variant):
                 pixels[x,y] = (round(red*factors[0]),round(green*factors[1]),
                                round(blue*factors[2]),alpha)
     # Clamp coverage to the same standard block shell used throughout game.
-    mask = Image.open(A/'wall_exposed.png').convert('RGBA').getchannel('A')
+    mask = wall_art().getchannel('A')
     im.putalpha(mask)
     return im
 

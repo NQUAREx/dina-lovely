@@ -75,13 +75,16 @@ func held_mask(shader:ShaderMaterial)->void:
  shader.set_shader_parameter("held_rect",Vector4(box.position.x,box.position.y,box.size.x,box.size.y))
  shader.set_shader_parameter("held_origin",origin);shader.set_shader_parameter("held_rotation",rotation);shader.set_shader_parameter("held_flip",flip)
 func posts(objects:Array,origin:Vector2,room_id:int)->void:
+ var viewport:Rect2=g.get_viewport_rect()
  for door in objects:
-  if door.kind!="doorway":continue
+  # Lower entrance posts are already drawn in world depth order.
+  if door.kind!="doorway" or door.id!="exit":continue
   var world:Vector2=door.pos+origin
   var pos:Vector2=g.screen(world)
-  if not Rect2(pos-Vector2(144,160),Vector2(288,224)).intersects(g.get_viewport_rect()):continue
   for side in [-1,1]:
-   var key:="junction_stone_stone_%s_%s"%["top" if door.id=="exit" else "bottom","left" if side<0 else "right"]
+   var bounds:=Rect2(pos+Vector2(side*96-48,-160),Vector2(96,224))
+   if not bounds.intersects(viewport):continue
+   var key:="junction_stone_stone_top_%s"%("left" if side<0 else "right")
    if not textures.has(key):textures[key]=load("res://assets/"+key+".png")
    var post_key:=str(room_id)+":"+str(door.id)+":"+str(side)
    if not sprites.has(post_key):
@@ -89,19 +92,17 @@ func posts(objects:Array,origin:Vector2,room_id:int)->void:
     var shader:=ShaderMaterial.new();shader.shader=preload("res://shaders/pillar_occlusion.gdshader")
     sprite.material=shader;add_child(sprite);sprites[post_key]=sprite
    var sprite:Sprite2D=sprites[post_key]
-   # Lower entrance posts already participate in world depth sorting.
-   # Repainting them above everything covers the foreground wall.
-   sprite.visible=door.id=="exit";sprite.texture=textures[key]
-   sprite.position=pos+Vector2(side*96-48,-160)
+   sprite.visible=true
+   sprite.texture=textures[key]
+   sprite.position=bounds.position
    var shader:ShaderMaterial=sprite.material
    var box:=player_box()
-   shader.set_shader_parameter("view_size",g.get_viewport_rect().size)
+   shader.set_shader_parameter("view_size",viewport.size)
    shader.set_shader_parameter("player_mask",player_mask())
    shader.set_shader_parameter("player_rect",Vector4(box.position.x,box.position.y,box.size.x,box.size.y))
    shader.set_shader_parameter("player_in_front",foreground(g.player,world))
    held_mask(shader)
    var actor_rects:Array[Vector4]=[];var actor_uvs:Array[Vector4]=[]
-   var bounds:=Rect2(sprite.position,Vector2(96,224))
    for enemy in g.enemies:
     if not foreground(enemy.pos,world):continue
     var kind:String="enemy_rocketeer" if enemy.type==7 else "enemy_gunner" if enemy.type in [5,6] else "enemy"+str(int(enemy.type)%3)

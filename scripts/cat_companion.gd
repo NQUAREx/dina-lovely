@@ -153,21 +153,25 @@ func update(delta:float)->void:
    stride=fmod(stride,16);prints.append({"pos":position-v.normalized()*9,"angle":v.angle()+PI/2,"life":9.75,"stone":g.stone_surface(position)})
    if prints.size()>90:prints.pop_front()
 func draw_cat()->void:
- var name:="cat_walk"+str(direction)+"_"+str(int(anim*10)%4) if moving else "cat_idle"+str(direction)+"_"+str(2 if fposmod(g.time,4.7)>4.55 else int(g.time*1.5)%2)
  var p:Vector2=g.screen(position)
+ if not g.get_viewport_rect().grow(130).has_point(p):return
+ var name:="cat_walk"+str(direction)+"_"+str(int(anim*10)%4) if moving else "cat_idle"+str(direction)+"_"+str(2 if fposmod(g.time,4.7)>4.55 else int(g.time*1.5)%2)
  g.draw_cast_shadow(name,p,.8)
  g.draw_shadow(p,10)
  if g.hedge_field==null:g.draw_sprite(name,p,Color.WHITE,.8)
  else:draw_ground_cat(name,p)
 
 func draw_prints()->void:
+ var viewport:Rect2=g.get_viewport_rect().grow(20)
+ var check_pond:bool=g.level==2
+ var pond:Rect2=g.beam_pond.BOUNDS.grow(9)
  for mark in prints:
-  if g.level==2 and g.beam_pond.BOUNDS.grow(9).has_point(mark.pos):continue
+  var point:Vector2=g.screen(mark.pos)
+  if not viewport.has_point(point) or (check_pond and pond.has_point(mark.pos)):continue
   if not g.world_tools.print_clear(mark.pos,mark.angle):continue
-  if not g.get_viewport_rect().grow(20).has_point(g.screen(mark.pos)):continue
   if not g.shadow_floor_cell(Vector2i(mark.pos/48)):continue
   var color:=Color("a39180") if mark.stone else Color("223a2b");color.a=.68*minf(1,mark.life/2)
-  g.draw_set_transform(g.screen(mark.pos),mark.angle);g.draw_sprite("cat_paw",Vector2.ZERO,color,.42);g.draw_set_transform(Vector2.ZERO)
+  g.draw_set_transform(point,mark.angle);g.draw_sprite("cat_paw",Vector2.ZERO,color,.42);g.draw_set_transform(Vector2.ZERO)
 
 func can_feed(obj:Dictionary)->bool:
  # Reach the doorway from the accessible side, regardless of facing/held tool.

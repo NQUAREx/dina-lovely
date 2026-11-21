@@ -6,34 +6,9 @@ collision footprint, no anti-aliasing, game foliage/soil/masonry palettes.
 from pathlib import Path
 from PIL import Image,ImageDraw
 import random
-A=Path(__file__).resolve().parents[1]/'assets'
+from create_wall_art import wall_art
 
-def foliage(variant,trees=False):
-    im=Image.new('RGBA',(32,64));d=ImageDraw.Draw(im);r=random.Random(182+variant)
-    # Deep stems and roots disappear beneath a connected canopy.
-    d.polygon([(6,30),(25,30),(27,47),(23,53),(7,53),(4,47)],fill='#29483f')
-    if trees:
-        for x,y in [(10,44),(22,47)]:
-            d.rectangle((x-2,y-13,x+2,y+5),fill='#66544e')
-            d.line((x-1,y-11,x-1,y+3),fill='#9a7f68')
-            d.polygon([(x-2,y),(x-4,y+5),(x+4,y+5),(x+1,y-3)],fill='#66544e')
-    else:
-        d.rectangle((6,32,25,46),fill='#3c6250')
-    # Several overlapping broadleaf crowns read as a thicket, not stone tiles.
-    crowns=[(14,17,11),(22,27,8),(8,30,8),(17,35,9)] if trees else [(9,24,8),(22,23,8),(16,32,11)]
-    for cx,cy,rad in crowns:
-        cy+=r.choice([-1,0,1]);dark='#274e43' if trees else '#315d49'
-        mid='#4d795d' if trees else '#58815e';light='#71916a' if trees else '#8fa775'
-        points=[(cx-rad+2,cy-rad//2),(cx-rad//2,cy-rad),(cx+2,cy-rad),
-                (cx+rad-2,cy-rad//2),(cx+rad,cy+2),(cx+rad-3,cy+rad-2),
-                (cx,cy+rad),(cx-rad+1,cy+rad//2)]
-        d.polygon(points,fill=dark)
-        d.polygon([(x,y-2) for x,y in points[0:6]]+[(cx-3,cy+rad-3),(cx-rad+2,cy+2)],fill=mid)
-        d.line([(cx-rad+3,cy-2),(cx-rad+3,cy-rad//2),(cx-rad//2,cy-rad+2),(cx,cy-rad+2)],fill=light,width=1)
-        for i in range(4):
-            x=cx+r.randint(-rad//2,rad//2);y=cy+r.randint(-rad//2,rad//2)
-            d.line((x,y,x+1,y),fill=r.choice([light,mid,dark]))
-    return im
+A=Path(__file__).resolve().parents[1]/'assets'
 
 def thicket(variant):
     im=Image.new('RGBA',(32,64));d=ImageDraw.Draw(im);r=random.Random(19103+variant*137)
@@ -97,15 +72,14 @@ def fence(variant):
     for x,y in [(8+variant,29),(22,15)]:d.point((x,y),fill='#735f46')
     return im
 
-for room in range(7):
+for room in range(1, 7):
     for variant in range(16 if room==1 else 4):
         suffix='' if variant==0 else str(variant)
         for kind in ['exposed','stacked']:
-            if room==0:im=foliage(variant)
-            elif room==1:im=thicket(variant)
+            if room==1:im=thicket(variant)
             elif room==3:im=earth(variant)
             elif room==5:im=fence(variant)
-            else:im=Image.open(A/f'wall_{kind}{suffix}.png').convert('RGBA')
+            else:im=wall_art(variant)
             if room==4:
                 for y in range(im.height):
                     for x in range(im.width):
@@ -115,14 +89,14 @@ for room in range(7):
 print('Generated dark varied thickets, excavation-soil banks and squared timber fence')
 
 if __name__=='__main__':
-    sheet=Image.new('RGBA',(7*112,160),'#242538')
-    for room in range(7):
+    sheet=Image.new('RGBA',(6*112,160),'#242538')
+    for room in range(1, 7):
         tile=Image.open(A/f'wall_room{room}_exposed.png')
         projected=Image.new('RGBA',(64,104))
         projected.alpha_composite(tile.crop((0,0,32,34)).resize((64,68),Image.Resampling.NEAREST))
         projected.alpha_composite(tile.crop((0,34,32,64)).resize((64,36),Image.Resampling.NEAREST),(0,68))
-        sheet.alpha_composite(projected,(room*112+24,24))
-        ImageDraw.Draw(sheet).text((room*112+44,136),str(room),fill='#e4d0bd')
+        sheet.alpha_composite(projected,((room-1)*112+24,24))
+        ImageDraw.Draw(sheet).text(((room-1)*112+44,136),str(room),fill='#e4d0bd')
     sheet.save('/tmp/room-materials.png')
     variants=Image.new('RGBA',(16*72,240),'#242538')
     for row,room in enumerate([1,3]):

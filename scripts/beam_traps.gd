@@ -80,6 +80,7 @@ func spike_height(spike:Dictionary)->float:
 func step(delta:float)->bool:
 	clock+=delta
 	for beam in beams:
+		if absf(game.player.y-float(beam.y))>19.5:continue
 		if beam_box(beam).grow(7).has_point(game.player):return true
 	for spike in spikes:
 		var box:Rect2=spike.rect
@@ -120,8 +121,9 @@ func draw_spikes()->void:
 		var row:Rect2=spike.rect
 		var p:Vector2=game.screen(row.position)
 		if not Rect2(p,row.size).intersects(game.get_viewport_rect().grow(24)):continue
+		var lift:=0.0
 		for column in range(SPIKE_COLUMNS):
-			var lift:=spike_height(spike.groups[column/2])
+			if column%2==0:lift=spike_height(spike.groups[column/2])
 			var tile:=Rect2(p+Vector2(column*48,0),Vector2(48,row.size.y))
 			game.draw_texture_rect_region(spike_art,tile,SPIKE_CLOSED)
 			if lift>.01:
@@ -130,6 +132,8 @@ func draw_spikes()->void:
 
 func draw(item:Dictionary)->void:
 	var box:Rect2=item.rect
+	var strip:=Rect2(game.screen(Vector2(LEFT,box.position.y-24)),Vector2(WIDTH,56))
+	if not strip.intersects(game.get_viewport_rect()):return
 	var p:Vector2=game.screen(box.position)
 	var left:Vector2=game.screen(Vector2(LEFT,box.get_center().y))
 	game.draw_rect(Rect2(left-Vector2(0,3),Vector2(WIDTH,6)),Color("514350"))

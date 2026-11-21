@@ -13,7 +13,8 @@ for node in source.body:
 atlas=Image.open(A/'atlas.png').convert('RGBA');names=json.loads((A/'atlas.json').read_text())
 def save(name,im):
  global atlas
- index=names.setdefault(name,len(names));bottom=(index//16+1)*48
+ if name not in names:names[name]=max(names.values(),default=-1)+1
+ index=names[name];bottom=(index//16+1)*48
  if bottom>atlas.height:
   grown=Image.new('RGBA',(512,bottom));grown.paste(atlas,(0,0));atlas=grown
  box=(index%16*32,index//16*48);atlas.paste(im,box)

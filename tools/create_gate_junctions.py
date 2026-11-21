@@ -8,12 +8,14 @@ block roofs, bottom outlines or the seams between stacked blocks.
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageOps
 
+from create_wall_art import wall_art
+
 A = Path(__file__).resolve().parents[1] / 'assets'
 NEAREST = Image.Resampling.NEAREST
 
 
 def masonry_strip(height):
-    wall = Image.open(A / 'wall_exposed.png').convert('RGBA')
+    wall = wall_art()
     # Two interior courses, including both chamfered side faces. No tile rim.
     material = wall.crop((4, 35, 28, 49))
     # The next course starts on the last row of this crop. Continue the first
@@ -31,7 +33,7 @@ def masonry_strip(height):
 
 
 def column():
-    wall = Image.open(A / 'wall_exposed.png').convert('RGBA')
+    wall = wall_art()
     im = Image.new('RGBA', (96, 224))
     d = ImageDraw.Draw(im)
     # One continuous 24-source-pixel shaft, the same width as a wall block.
@@ -140,10 +142,6 @@ def column():
 
 if __name__ == '__main__':
     im = column()
-    for room in ['hedge', 'stone']:
-        for corridor in ['stone', 'tree']:
-            for end in ['top', 'bottom']:
-                for side in ['left', 'right']:
-                    # Lighting stays aligned with the walls on both posts.
-                    (ImageOps.mirror(im) if side == 'right' else im).save(A / f'junction_{room}_{corridor}_{end}_{side}.png')
-    print('Generated 16 standalone posts with wall-projected continuous masonry')
+    im.save(A / 'junction_stone_stone_top_left.png')
+    ImageOps.mirror(im).save(A / 'junction_stone_stone_top_right.png')
+    print('Generated the mirrored pair of gate posts')

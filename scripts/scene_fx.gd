@@ -64,10 +64,15 @@ func step(p:Dictionary,delta:float)->void:
    p.vel=Vector2(p.vel)*exp(-p.drag*dt)+drift*dt;p.pos+=p.vel*dt
   p.angle+=p.spin*dt
 func draw(ground:bool)->void:
+ var viewport:Rect2=g.get_viewport_rect()
  for p in g.particles:
   if not p.get("physical_fx",false) or (p.fx_kind=="dirt")!=ground or p.fx_kind=="muzzle":continue
   var point:Vector2=g.screen(Vector2(p.pos)-Vector2(0,float(p.height))).round()
-  if not g.get_viewport_rect().grow(140).has_point(point):continue
+  # Bound the biggest possible footprint before evaluating animation.
+  # Rotating a 12-pixel tile fits inside a radius of 9 times its scale.
+  var radius:float=float(p.size)*(
+   24.0 if p.fx_kind=="blast" else 22.5 if p.fx_kind=="smoke" else 9.0)
+  if not viewport.grow(radius+1.0).has_point(point):continue
   var ratio:float=clampf(maxf(float(p.age),float(p.duration)-float(p.life))/maxf(.01,float(p.duration)),0,1)
   if p.fx_kind=="blast":
    var frame:=mini(7,int(ratio*8));var size:=Vector2.ONE*48*float(p.size)

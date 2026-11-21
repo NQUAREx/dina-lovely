@@ -6,6 +6,10 @@ R=Path(__file__).resolve().parents[1]; A=R/'assets'; random.seed(17)
 NAMES=[]; atlas=Image.new('RGBA',(32*16,48*36))
 def sprite(name,fn):
  im=Image.new('RGBA',(32,48));d=ImageDraw.Draw(im);fn(d);i=len(NAMES);NAMES.append(name);atlas.paste(im,((i%16)*32,(i//16)*48))
+def reserve_slots(count):
+ # Preserve downstream sprite indices when retiring an atlas slot.
+ NAMES.extend([None] * count)
+
 def leaf(d,x,y,r=6):
  d.ellipse((x-r,y-r,x+r,y+r),fill='#183e43'); d.ellipse((x-r,y-r,x+r-1,y+r-3),fill=random.choice(['#376453','#44785b','#548568']));d.line((x-r+3,y-r+2,x,y-r+1),fill='#83aa73')
 def tree(d):
@@ -38,10 +42,10 @@ sprite('well',well)
 def can(d):
  d.ellipse((6,27,24,42),fill='#426d80');d.rectangle((7,29,22,39),fill='#7bb9bb');d.line((8,27,8,23,19,23,19,28),fill='#a8d3c8',width=2);d.polygon([(21,33),(27,27),(30,28),(24,38)],fill='#9dccc5')
 sprite('can',can)
-def plant(d,grown):
- d.ellipse((4,35,28,44),fill='#54404d');d.line((16,40,16,28 if grown else 35),fill='#83b47d',width=2);d.ellipse((8,31 if grown else 35,16,37),fill='#6c9c72');d.ellipse((16,28 if grown else 34,23,35),fill='#a1c483')
- if grown:flower(d)
-sprite('sprout',lambda d:plant(d,False));sprite('bloom',lambda d:plant(d,True))
+def sprout(d):
+ d.ellipse((4,35,28,44),fill='#54404d');d.line((16,40,16,35),fill='#83b47d',width=2);d.ellipse((8,35,16,37),fill='#6c9c72');d.ellipse((16,34,23,35),fill='#a1c483')
+sprite('sprout',sprout)
+reserve_slots(1)
 def arch(d):
  d.rectangle((1,15,6,43),fill='#8f8497');d.rectangle((26,15,31,43),fill='#8f8497');d.arc((1,1,31,31),180,360,fill='#c6abba',width=6);d.line((3,22,3,40),fill='#c4a6ad',width=2);d.line((28,22,28,40),fill='#c4a6ad',width=2)
  for x,y in [(4,18),(26,10),(29,25)]:leaf(d,x,y,3)
@@ -97,11 +101,7 @@ for kind in ['rpg','rifle','sword']:
  sprite('weapon_'+kind,lambda d,k=kind:weapon(d,k))
 sprite('rocket_item',lambda d:(d.rectangle((8,22,24,27),fill='#a4b39b'),d.polygon([(24,20),(30,25),(24,30)],fill='#d49b8a'),d.polygon([(8,22),(3,18),(5,25),(3,32),(8,27)],fill='#eab879')))
 sprite('fertilizer',lambda d:(d.rounded_rectangle((7,23,25,43),3,fill='#b89d81'),d.rectangle((8,24,24,27),fill='#f0d6a5'),d.ellipse((13,30,20,38),fill='#678a6e'),d.line((16,31,16,39),fill='#abc18e')))
-for stage in [1,2]:
- def growing(d,st=stage):
-  plant(d,False);d.line((16,40,16,23 if st==2 else 29),fill='#82aa79',width=2);d.ellipse((9,27,16,32),fill='#90b57e');d.ellipse((16,25,24,30),fill='#6c996b')
-  if st==2:d.ellipse((12,18,20,27),fill='#c68caa');d.line((16,19,16,25),fill='#efb7c9')
- sprite('plant'+str(stage),growing)
+reserve_slots(2)
 def flashlight(d):
  d.polygon([(13,24),(21,24),(19,43),(14,43)],fill='#687d80');d.rectangle((12,22,22,27),fill='#bed0bf');d.rectangle((13,20,21,23),fill='#fff1a9');d.rectangle((15,32,18,36),fill='#e3bc85')
 def shovel(d):
@@ -116,7 +116,7 @@ def flashlight_rest(d):
  d.rectangle((21,17,25,26),fill='#bed0bf');d.rectangle((25,18,28,25),fill='#fff1a9');d.rectangle((12,20,16,22),fill='#e3bc85')
 sprite('flashlight_rest',flashlight_rest)
 sprite('dug',lambda d:(d.ellipse((2,30,30,44),fill='#87674f'),d.ellipse((6,32,26,42),fill='#382f3b'),d.line((8,32,22,31),fill='#ba9270')))
-sprite('moving_bar',lambda d:(d.rectangle((5,24,26,41),fill='#4b4050'),d.rectangle((5,24,26,29),fill='#b6a1a0'),d.rectangle((5,30,26,38),fill='#bf9d70'),d.polygon([(5,30),(10,30),(18,38),(13,38)],fill='#594956'),d.polygon([(17,30),(22,30),(26,34),(26,38),(25,38)],fill='#594956')))
+reserve_slots(1)
 sprite('rack_empty',lambda d:(d.rectangle((3,34,28,39),fill='#886775'),d.rectangle((5,39,8,45),fill='#4e4358'),d.rectangle((24,39,27,45),fill='#4e4358')))
 sprite('pedestal',lambda d:(d.ellipse((6,38,26,44),fill='#443b51'),d.rectangle((10,27,22,41),fill='#827387'),d.rectangle((6,23,26,29),fill='#baa3a4'),d.line((8,24,24,24),fill='#e0c5ae')))
 sprite('doorpost',lambda d:(d.rectangle((10,7,22,43),fill='#5f566b'),d.rectangle((11,8,21,12),fill='#b7a1ac'),d.rectangle((9,39,24,44),fill='#95818e'),d.rectangle((13,15,20,19),fill='#dfb583'),d.line((12,22,12,36),fill='#968495')))
@@ -201,16 +201,13 @@ def book_stand(d):
  d.polygon([(5,17),(15,18),(19,29),(8,31)],fill='#efe0c5');d.polygon([(15,18),(25,15),(29,27),(19,29)],fill='#fff3da')
  d.line((15,18,19,29),fill='#ae917f');d.line((8,20,14,21),fill='#bca59c');d.line((9,23,15,24),fill='#bca59c');d.line((19,20,24,19),fill='#c7b2a6');d.line((20,23,25,22),fill='#c7b2a6')
  d.line((20,28,22,34),fill='#d47c9f',width=2)
-def table_piece(d):
- d.rectangle((5,23,27,44),fill='#614953');d.rectangle((7,24,25,42),fill='#95745c')
- for x in [8,14,20]:d.line((x,25,x,41),fill='#745946')
- d.rectangle((3,21,29,29),fill='#bc9468');d.line((4,22,27,22),fill='#e1bb84');d.line((4,28,28,28),fill='#83624c')
- for x in [7,24]:d.line((x,30,x,44),fill='#513e43',width=2)
 def fallen_tree(d):
  d.ellipse((2,36,12,44),fill='#483e37');d.rectangle((4,33,10,40),fill='#886249');d.ellipse((3,31,11,36),fill='#cba16c');d.ellipse((5,32,9,34),outline='#886249')
  d.line((11,40,26,36),fill='#58483e',width=5);d.line((12,38,27,35),fill='#b08b60',width=2)
  for x,y,r in [(23,30,7),(27,33,5),(20,35,7)]:leaf(d,x,y,r)
-for name,fn in [('axe',axe),('shears',shears),('drill',drill),('secret_book',book_stand),('tool_table_piece',table_piece),('fallen_tree',fallen_tree)]:sprite(name,fn)
+for name,fn in [('axe',axe),('shears',shears),('drill',drill),('secret_book',book_stand)]:sprite(name,fn)
+reserve_slots(1)
+sprite('fallen_tree',fallen_tree)
 
 def gunner(d):
  d.ellipse((7,19,25,42),fill='#4b5266');d.polygon([(7,33),(25,33),(28,43),(19,41),(14,44),(5,42)],fill='#67758a')
@@ -354,12 +351,7 @@ def swing(d):
  d.line((3,43,7,5,25,5,29,43),fill='#806955',width=3);d.line((6,5,26,5),fill='#d0ad7d',width=3)
  d.line((11,8,11,32),fill='#c5b394');d.line((22,8,22,32),fill='#c5b394');d.rectangle((8,33,25,36),fill='#b9866b')
 sprite('swing',swing)
-for i in range(3):
- def path_stone(d,v=i):
-  x=16;y=34
-  pts=[(x-10,y-3),(x-4,y-8-v),(x+7,y-6),(x+11,y),(x+6,y+6),(x-6,y+7)]
-  d.polygon([(xx,yy+2) for xx,yy in pts],fill='#75573d');d.polygon(pts,fill=['#c9aa72','#bb925b','#d6b67d'][v]);d.line((x-6,y-5,x+3,y-5),fill='#e5c995')
- sprite('path_stone'+str(i),path_stone)
+reserve_slots(3)
 for name,color in [('flowers','#e99bb6'),('blueflowers','#b6b3ed')]:
  for frame in range(3):
   def pressed(d,c=color,f=frame):
@@ -468,7 +460,8 @@ sprite('gate_ajar',gate_ajar)
 def padlock(d,opened=False):
  d.arc((11,25,23,39),175 if opened else 180,330 if opened else 360,fill='#e9c686',width=3)
  d.rectangle((10,34,23,44),fill='#6d4654');d.rectangle((11,34,22,42),fill='#d9ac67');d.line((12,35,20,35),fill='#ffe0a0');d.rectangle((16,37,17,40),fill='#69474d')
-sprite('lock_closed',lambda d:padlock(d));sprite('lock_open',lambda d:padlock(d,True))
+sprite('lock_closed',padlock)
+reserve_slots(1)
 def lamp_off(d):
  lamp(d);d.rectangle((12,17,19,24),fill='#333443');d.line((13,18,16,20,14,22,17,24),fill='#7d7880')
 sprite('lamp_off',lamp_off)
@@ -678,8 +671,6 @@ for name in ['hedge_tree','hedge_tree_apples']:
    r,g,b,a=im.getpixel((x,y))
    if a and g>r and g>b:im.putpixel((x,y),(round(r*.86),round(g*.98),min(255,round(b*1.12)),a))
  im.resize((64,96),Image.Resampling.NEAREST).save(A/(name+'.png'))
-for name in ['gate_key','lock_open_key']:
- i=NAMES.index(name);atlas.crop(((i%16)*32,(i//16)*48,(i%16+1)*32,(i//16+1)*48)).save(A/(name+'.png'))
 # A separate original first-aid case; fixed atlas position appended after retained artwork.
 def medkit(d):
  d.ellipse((4,40,28,45),fill='#272938');d.rectangle((11,23,21,28),fill='#4c4857');d.rectangle((13,24,19,27),fill='#b9b4ac')
@@ -688,7 +679,7 @@ def medkit(d):
  d.rectangle((13,30,18,38),fill='#d85d78');d.rectangle((10,32,21,35),fill='#d85d78');d.line((14,30,17,30),fill='#ffb4b5')
  for px in [7,24]:d.rectangle((px,36,px+1,40),fill='#817a86')
 sprite('medkit',medkit)
-atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES)}))
+atlas.save(A/'atlas.png');(A/'atlas.json').write_text(json.dumps({n:i for i,n in enumerate(NAMES) if n is not None}))
 # Seamless textured ground tiles.
 im=Image.new('RGB',(24*4,24));d=ImageDraw.Draw(im)
 for k,base in enumerate(['#314d4e','#85777c','#48495e','#536861']):

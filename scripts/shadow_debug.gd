@@ -46,7 +46,6 @@ func _ready():
  )
  copy_button.pressed.connect(copy_settings)
  timer=Timer.new();timer.one_shot=true;timer.wait_time=.2;timer.timeout.connect(game.refresh_debug_hedge_shadow);add_child(timer)
- game.shadow_debug_panel=panel;game.shadow_debug_toggle=toggle
  toggle.text="Свернуть ✕"
 func copy_settings():
  var result="Параметры теней кустов Love in Bloom:\n"+JSON.stringify(game.hedge_shadow_settings,"  ")
