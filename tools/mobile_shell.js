@@ -228,12 +228,13 @@
     event.preventDefault();if(busy||sent||opening)return;
     if(!text.value.trim()){status.textContent=copy('reply_empty');text.focus();return;}
     if(!vpn.checked){status.textContent=copy('reply_vpn');content.scrollTop=content.scrollHeight;return;}
-    const endpoint=window.gardenContent?.reply_delivery?.endpoint||'';
-    if(!/^https:\/\//.test(endpoint)){status.textContent=copy('reply_unconfigured');content.scrollTop=content.scrollHeight;return;}
+    let endpoint;
+    try{endpoint=new URL(window.gardenContent?.reply_delivery?.endpoint)}catch{}
+    if(endpoint?.protocol!=='https:'||endpoint.hostname==='api.telegram.org'){status.textContent=copy('reply_unconfigured');content.scrollTop=content.scrollHeight;return;}
     busy=true;send.disabled=true;close.disabled=true;text.disabled=true;status.textContent=copy('reply_sending');content.scrollTop=content.scrollHeight;
     const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),20000);
     try{
-     const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({chat_id:String(window.gardenContent?.reply_delivery?.chat_id||''),text:text.value.trim()}),signal:controller.signal,credentials:'omit'});
+     const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({text:text.value.trim()}),signal:controller.signal,credentials:'omit'});
      const result=await response.json();if(!response.ok||result.ok!==true)throw Error('delivery');
      sent=true;status.textContent=copy('reply_sent');try{localStorage.removeItem(draftKey)}catch{}
      setTimeout(()=>packLetter(),450);

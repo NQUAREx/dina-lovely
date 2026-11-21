@@ -1,0 +1,20 @@
+{
+  "name": "love-in-bloom-reply",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-21",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": { "GAME_ORIGIN": "https://nquarex.github.io" },
+  "ratelimits": [
+    {
+      "name": "REPLY_PER_CLIENT",
+      "namespace_id": "4170601",
+      "simple": { "limit": 3, "period": 60 }
+    },
+    {
+      "name": "REPLY_TOTAL",
+      "namespace_id": "4170602",
+      "simple": { "limit": 12, "period": 60 }
+    }
+  ]
+}

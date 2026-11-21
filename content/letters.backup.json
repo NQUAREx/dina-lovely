@@ -1519,8 +1519,7 @@
     "loading_clouds"
   ],
   "reply_delivery": {
-    "_comment": "Прямая доставка из браузера. Endpoint содержит публичный токен по явному решению владельца игры.",
-    "endpoint": "https://api.telegram.org/bot9171057878:AAEVR-Gpltp5LHbcfpN9XeAE51ornKcf14k/sendMessage",
-    "chat_id": "8370650143"
+    "_comment": "Публичный HTTPS-адрес Cloudflare Worker для отправки писем.",
+    "endpoint": "https://love-in-bloom-reply.nquare-x.workers.dev/send"
   }
 }
