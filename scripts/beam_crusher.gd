@@ -49,7 +49,7 @@ func prepare()->void:
 func choose_stroke()->void:
 	var walking:float=g.movement_speed()
 	var travel_speed:=walking*rng.randf_range(2.65,3.05)
-	modulation=rng.randf_range(.05,.12)
+	modulation=rng.randf_range(.10,.22)
 	phase=rng.randf_range(0.0,TAU)
 	stroke=(SHAFT.size.y-depth)/travel_speed
 	# The full block pauses briefly on the rails before reversing.

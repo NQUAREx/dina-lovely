@@ -1641,6 +1641,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		joy_vector = ((event.position-joy_origin)/52).limit_length()
 
 func available(obj: Dictionary) -> bool:
+	if level==2 and obj.kind=="tree":return false
 	if level==5 and obj.kind in garden_quest.KINDS:return garden_quest.available(obj)
 	if level==5 and garden_quest.tree_needs_trim(obj):return held_item=="garden_shears"
 	if obj.has("flight_start") and time<float(obj.flight_start)+float(obj.flight_duration):return false
@@ -3551,10 +3552,29 @@ func decorate_beam_hall(rng:RandomNumberGenerator)->void:
 		[Vector2i(29,31),Vector2i(29,32)],
 		[Vector2i(23,6),Vector2i(24,6)],
 		[Vector2i(29,8),Vector2i(28,8)],
+		[Vector2i(16,31),Vector2i(17,31)],
+		[Vector2i(18,31),Vector2i(18,32)],
 	]
 	for cluster in groves:
 		var cell:Vector2i=cluster[rng.randi_range(0,cluster.size()-1)]
 		put_object("tree_apples" if rng.randf()<.25 else "tree",cell,"beam_tree_%d"%objects.size(),true)
+	# Use the edges of staging areas and banks, keeping the routes and
+	# the gate's central approach clear.
+	var crate_groups := [
+		[Vector2i(11,31),Vector2i(11,32)],
+		[Vector2i(16,32),Vector2i(17,32)],
+		[Vector2i(2,11),Vector2i(2,12)],
+		[Vector2i(8,30),Vector2i(9,31)],
+		[Vector2i(14,10),Vector2i(15,11)],
+		[Vector2i(19,26),Vector2i(19,27)],
+		[Vector2i(26,30),Vector2i(27,31)],
+		[Vector2i(26,6),Vector2i(27,6)],
+	]
+	for group in crate_groups:
+		var cell:Vector2i=group[rng.randi_range(0,group.size()-1)]
+		var point:=(Vector2(cell)+Vector2(.5,.5))*TILE
+		if valid_ground(point) and not blocked(point):
+			put_object("crate",cell,"",true)
 	var flowers := [
 		Vector2i(4,7),Vector2i(5,6),Vector2i(6,8),Vector2i(9,8),
 		Vector2i(12,11),Vector2i(15,10),Vector2i(18,11),
@@ -3582,7 +3602,7 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 	if level==2:
 		objects.assign(objects.filter(func(o):return o.kind=="doorway"))
 		# The letter waits on the dry bank after the lily crossing.
-		put_object("note",Vector2i(18,26),"crossing")
+		put_object("note",Vector2i(rng.randi_range(13,18),26),"crossing")
 		beam_traps.place_gap_obstacles(rng)
 		decorate_beam_hall(rng)
 		return

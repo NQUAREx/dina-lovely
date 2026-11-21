@@ -28,11 +28,13 @@ func reset(rng:RandomNumberGenerator)->void:
 		var width:=rng.randf_range(140,270)
 		beams.append({"width":width,"y":(12.0+ROW_OFFSET+row*5+rng.randf_range(-.35,.35))*48,
 			"phase":rng.randf_range(0.0,TAU),"period":rng.randf_range(2.7,4.9),
-			"warp":rng.randf_range(.20,.61),"amp":(WIDTH-width)*rng.randf_range(.37,.49)})
+			"warp":rng.randf_range(.62,.84),"rhythm":rng.randf_range(.73,1.05),
+			"accent":rng.randf_range(0,TAU)})
 	for row in range(3):
 		var y:=(14.5+ROW_OFFSET+row*5+rng.randf_range(-.4,.4))*48
 		spikes.append({"rect":Rect2(LEFT,y-22,WIDTH,44),"phase":rng.randf_range(0,TAU),
-			"period":rng.randf_range(2.0,3.65),"warp":rng.randf_range(.25,.58),
+			"period":rng.randf_range(2.0,3.65),"warp":rng.randf_range(.40,.68),"rhythm":rng.randf_range(.65,1.05),
+			"accent":rng.randf_range(0,TAU),
 			"threshold":rng.randf_range(.03,.31)})
 
 func place_gap_obstacles(rng:RandomNumberGenerator)->void:
@@ -55,17 +57,17 @@ func place_gap_obstacles(rng:RandomNumberGenerator)->void:
 			var y:=before if side==0 else after
 			for slot in selected:
 				var x:=LEFT+28.0+slot*75.2+rng.randf_range(-6,6)
-				var kind:="tree" if rng.randi_range(0,1)==0 else "crate"
+				var kind:="tree" if rng.randf()<.25 else "crate"
 				game.objects.append({"kind":kind,"id":"beam_gap_%d_%d_%d"%[index,side,slot],
 					"pos":Vector2(x,y+rng.randf_range(-3,3)),"solid":true})
 
 func phase(trap:Dictionary)->float:
 	var t:=clock*TAU/float(trap.period)+float(trap.phase)
-	return sin(t+sin(t*.51+float(trap.phase))*float(trap.warp))
+	return sin(t+sin(t*float(trap.rhythm)+float(trap.accent))*float(trap.warp))
 
 func beam_box(beam:Dictionary)->Rect2:
 	var size:=Vector2(float(beam.width),25)
-	var center:=Vector2(LEFT+WIDTH*.5+float(beam.amp)*phase(beam),beam.y)
+	var center:=Vector2(LEFT+WIDTH*.5+(WIDTH-size.x)*.5*phase(beam),beam.y)
 	return Rect2(center-size/2,size)
 
 func spike_height(spike:Dictionary)->float:
