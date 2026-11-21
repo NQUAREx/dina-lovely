@@ -44,7 +44,17 @@ func run() -> void:
 		for x in range(from_x,from_x+9):game.set_cell(x,19,"#")
 		assert(not route_exists(game))
 		game.grid[19]=row
-	assert(game.objects.all(func(obj):return obj.kind in ["doorway","accessory","note","riddle_stone"]))
+	assert(game.objects.all(func(obj):return obj.kind in ["doorway","accessory","note","riddle_stone","tree","tree_apples","flowers","blueflowers","crate"]))
+	for beam in game.beam_traps.beams:
+		var row:=floori(beam.y/game.TILE)
+		assert(game.grid[row][0]=="#" and game.grid[row][10]=="#")
+	var crates:Array=game.objects.filter(func(obj):return obj.kind=="crate")
+	assert(crates.size()==6)
+	for crate in crates:
+		assert(crate.solid and game.blocked(crate.pos))
+		for beam in game.beam_traps.beams:assert(absf(crate.pos.y-beam.y)>36)
+		for spikes in game.beam_traps.spikes:assert(absf(crate.pos.y-spikes.rect.get_center().y)>38)
+	assert(game.objects.filter(func(obj):return obj.kind in ["tree","tree_apples"]).size()==6)
 	assert(not game.level_complete())
 	var pond:Rect2=game.beam_pond.BOUNDS
 	var edge_column:=floori(pond.end.x/game.TILE)

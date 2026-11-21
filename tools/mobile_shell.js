@@ -103,10 +103,14 @@
  const preloadFrame=room=>{if(!loadedFrames.has(room))loadedFrames.set(room,Promise.all(['field','top','bottom'].map(part=>new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(true);image.onerror=()=>resolve(false);image.src=frameAsset(part,room);}))));return loadedFrames.get(room);};
  window.gardenSetRoom=async room=>{room=Math.max(0,Math.min(6,Math.trunc(Number(room)||0)));if(room===wantedRoom)return;wantedRoom=room;const request=++frameRequest;const loaded=await preloadFrame(room);if(request!==frameRequest||!loaded.every(Boolean))return;if(performance.now()<frameBusyUntil)await new Promise(resolve=>setTimeout(resolve,frameBusyUntil-performance.now()+20));if(request!==frameRequest)return;const next=1-activeFrame,slot=frameSlots[next];slot.field.style.backgroundImage='url('+frameAsset('field',room)+')';slot.borders.forEach((image,i)=>image.src=frameAsset(i?'bottom':'top',room));layoutFrames();requestAnimationFrame(()=>{if(request!==frameRequest)return;[slot.field,...slot.borders].forEach(e=>e.style.opacity='1');const old=frameSlots[activeFrame];[old.field,...old.borders].forEach(e=>e.style.opacity='0');activeFrame=next;pageField(room);syncChrome(room);frameBusyUntil=performance.now()+1100;window.gardenFrameRoom=room;});};
  addEventListener('resize',layoutFrames);window.visualViewport?.addEventListener('resize',layoutFrames);window.visualViewport?.addEventListener('scroll',layoutFrames);addEventListener('load',layoutFrames);new ResizeObserver(layoutFrames).observe(document.documentElement);requestAnimationFrame(layoutFrames);preloadFrame(0);
- // All DOM UI buttons share a small pixel-heart burst. Canvas buttons use Godot's layer.
+ // Share the pixel-heart burst between the loading screen and DOM buttons.
  document.addEventListener('click',event=>{
-  const button=event.target.closest?.('button');if(!button||button.disabled)return;
-  const box=button.getBoundingClientRect(),x=Number.isFinite(event.clientX)&&event.clientX>0?event.clientX:box.left+box.width/2,y=Number.isFinite(event.clientY)&&event.clientY>0?event.clientY:box.top+box.height/2;
+  const target=event.target.closest?.('button,#garden-loading');
+  if(!target||target.disabled)return;
+  const box=target.getBoundingClientRect();
+  const pointer=target.id==='garden-loading'||event.detail>0||event.clientX!==0||event.clientY!==0;
+  const x=pointer?event.clientX:box.left+box.width/2;
+  const y=pointer?event.clientY:box.top+box.height/2;
   for(let i=0;i<12;i++){
    const heart=document.createElement('i'),size=8+Math.random()*8,dx=(Math.random()-.5)*140,dy=-35-Math.random()*80;
    heart.style.cssText='position:fixed;pointer-events:none;z-index:10000;left:'+x+'px;top:'+y+'px;width:'+size+'px;height:'+size+'px;background:'+['#e4a0b7','#efb5c7','#d889a8'][i%3]+';clip-path:polygon(0% 20%,20% 0%,40% 0%,50% 20%,60% 0%,80% 0%,100% 20%,100% 50%,50% 100%,0% 50%)';

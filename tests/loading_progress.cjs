@@ -46,6 +46,15 @@ async function check(browser, ios, failVideo = false) {
       await page.evaluate(() => {window.gardenLoadProgress(25,100);window.gardenLoadProgress(10,100);});
       assert.equal(await page.locator('#garden-progress').evaluate(el => el.value), .25);
     }
+    await page.evaluate(() => {
+      document.querySelector('#garden-loading').dispatchEvent(new MouseEvent('click', {
+        bubbles:true, clientX:17, clientY:62,
+      }));
+      const burst=[...document.body.querySelectorAll(':scope > i')].slice(-12);
+      if (burst.length!==12 || burst.some(heart=>heart.style.left!=='17px'||heart.style.top!=='62px')) {
+        throw new Error('The loading screen did not spawn hearts at the click position');
+      }
+    });
     await page.evaluate(() => window.gardenHideLoading());
     assert.equal(await page.locator('#garden-loading').count(), 0);
   } finally {await page.close();}

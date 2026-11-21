@@ -3507,6 +3507,32 @@ func valid_ground(pos: Vector2) -> bool:
 	var c := Vector2i(pos/TILE)
 	return c.x>=0 and c.y>=0 and c.y<grid.size() and c.x<grid[0].length() and grid[c.y][c.x]=="."
 
+func decorate_beam_hall(rng:RandomNumberGenerator)->void:
+	# Small groves along open banks and in the broad turnarounds. Keep the
+	# middle of each turn and the three-cell rail lane free of solid props.
+	var groves := [
+		[Vector2i(2,7),Vector2i(3,7),Vector2i(2,8)],
+		[Vector2i(7,6),Vector2i(8,7),Vector2i(8,6)],
+		[Vector2i(21,7),Vector2i(22,7),Vector2i(22,6)],
+		[Vector2i(28,6),Vector2i(28,7),Vector2i(29,7)],
+		[Vector2i(27,30),Vector2i(28,30),Vector2i(28,29)],
+		[Vector2i(6,31),Vector2i(7,31),Vector2i(7,32)],
+	]
+	for cluster in groves:
+		var cell:Vector2i=cluster[rng.randi_range(0,cluster.size()-1)]
+		put_object("tree_apples" if rng.randf()<.25 else "tree",cell,"beam_tree_%d"%objects.size(),true)
+	var flowers := [
+		Vector2i(4,7),Vector2i(5,6),Vector2i(6,8),Vector2i(9,8),
+		Vector2i(12,11),Vector2i(15,10),Vector2i(18,11),
+		Vector2i(16,27),Vector2i(19,28),Vector2i(18,28),Vector2i(21,27),
+		Vector2i(29,29),Vector2i(27,32),Vector2i(23,31),Vector2i(22,30),
+		Vector2i(25,7),Vector2i(27,6),Vector2i(3,31),Vector2i(4,32),Vector2i(8,32),
+	]
+	for cell in flowers:
+		var point:=(Vector2(cell)+Vector2(.5,.5))*TILE
+		if valid_ground(point) and not blocked(point):
+			put_object("blueflowers" if rng.randf()<.35 else "flowers",cell)
+
 func finish_room_layout(rng: RandomNumberGenerator) -> void:
 	if level==0:
 		for x in range(15,30):set_cell(x,6,".")
@@ -3523,6 +3549,8 @@ func finish_room_layout(rng: RandomNumberGenerator) -> void:
 		objects.assign(objects.filter(func(o):return o.kind=="doorway"))
 		# The letter waits on the dry bank after the lily crossing.
 		put_object("note",Vector2i(18,26),"crossing")
+		beam_traps.place_crates(rng)
+		decorate_beam_hall(rng)
 		return
 	objects.assign(objects.filter(func(o):return o.kind=="doorway" or valid_ground(o.pos)))
 	if level==1:
