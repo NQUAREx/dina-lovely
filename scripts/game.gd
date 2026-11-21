@@ -1644,7 +1644,7 @@ func available(obj: Dictionary) -> bool:
 	if obj.has("flight_start") and time<float(obj.flight_start)+float(obj.flight_duration):return false
 	if dig_quest.owns(obj):return dig_quest.available(obj)
 	if obj.kind=="fallen_tree":return false
-	if obj.kind=="weapon_crate":return false
+	if obj.kind in ["crate","weapon_crate"]:return false
 	if obj.has("flight_start") and time<float(obj.flight_start)+float(obj.flight_duration):return false
 	if obj.kind.begins_with("weapon_") and level==4 and not weapon_crates.unlocked(str(obj.weapon)):return false
 	if obj.kind=="letter_box":return true
@@ -3533,6 +3533,12 @@ func decorate_beam_hall(rng:RandomNumberGenerator)->void:
 		[Vector2i(28,6),Vector2i(28,7),Vector2i(29,7)],
 		[Vector2i(27,30),Vector2i(28,30),Vector2i(28,29)],
 		[Vector2i(6,31),Vector2i(7,31),Vector2i(7,32)],
+		[Vector2i(4,9),Vector2i(5,9)],
+		[Vector2i(2,29),Vector2i(3,30)],
+		[Vector2i(2,32),Vector2i(3,32)],
+		[Vector2i(24,8),Vector2i(25,9)],
+		[Vector2i(23,29),Vector2i(24,30)],
+		[Vector2i(25,32),Vector2i(26,32)],
 	]
 	for cluster in groves:
 		var cell:Vector2i=cluster[rng.randi_range(0,cluster.size()-1)]

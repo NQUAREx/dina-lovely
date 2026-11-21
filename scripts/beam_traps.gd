@@ -36,19 +36,27 @@ func reset(rng:RandomNumberGenerator)->void:
 			"threshold":rng.randf_range(.03,.31)})
 
 func place_crates(rng:RandomNumberGenerator)->void:
-	# Reserve the open middle of each gap for crossing. Stagger the inner
-	# crates, and block the continuous wall-hugging line on the right.
+	# Spaced slots keep routes open between crates even at maximum jitter.
 	for index in range(spikes.size()):
 		var spike:Rect2=spikes[index].rect
 		var before:float=(float(beams[index].y)+spike.get_center().y)*.5
 		var after:float=(float(beams[index+1].y)+spike.get_center().y)*.5
-		var right:=before if rng.randf()<.5 else after
-		var inner:=after if right==before else before
-		game.objects.append({"kind":"crate","id":"beam_edge_crate_%d"%index,
-			"pos":Vector2(LEFT+WIDTH-24,right+rng.randf_range(-7,7)),"solid":true})
-		var x:=LEFT+rng.randf_range(120,337) if index%2==0 else LEFT+rng.randf_range(82,253)
-		game.objects.append({"kind":"crate","id":"beam_inner_crate_%d"%index,
-			"pos":Vector2(x,inner+rng.randf_range(-7,7)),"solid":true})
+		var block_right_gap:=rng.randi_range(0,1)
+		for side in range(2):
+			var slots:Array[int]=[0,1,2,3,4,5]
+			var count:=rng.randi_range(3,4)
+			var selected:Array[int]=[]
+			if side==block_right_gap:
+				selected.append(slots.pop_back())
+			while selected.size()<count:
+				var pick:=rng.randi_range(0,slots.size()-1)
+				selected.append(slots[pick])
+				slots.remove_at(pick)
+			var y:=before if side==0 else after
+			for slot in selected:
+				var x:=LEFT+28.0+slot*75.2+rng.randf_range(-6,6)
+				game.objects.append({"kind":"crate","id":"beam_crate_%d_%d_%d"%[index,side,slot],
+					"pos":Vector2(x,y+rng.randf_range(-3,3)),"solid":true})
 
 func phase(trap:Dictionary)->float:
 	var t:=clock*TAU/float(trap.period)+float(trap.phase)
