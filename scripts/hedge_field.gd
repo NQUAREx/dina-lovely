@@ -387,7 +387,8 @@ func visible_ids(bounds: Rect2) -> PackedInt32Array:
 		visible_candidates.sort_custom(func(a,b):return crowns[a].rank<crowns[b].rank)
 	var result:=PackedInt32Array()
 	for index in visible_candidates:
-		if not crowns[index].get("hidden",false) and bounds.has_point(crowns[index].base):result.append(index)
+		var node:Dictionary=crowns[index]
+		if not node.get("hidden",false) and bounds.has_point(node.base):result.append(index)
 	return result
 
 func build_body(material: Image, checkpoint: Callable) -> void:
@@ -469,12 +470,14 @@ func prepare_draw(indices:PackedInt32Array,player:Vector2)->void:
 	# Preserve painter order across the hero split: a later overlapping crown follows
 	# an earlier foreground crown into the same pass. No leaf can jump above its neighbour.
 	var foreground_bins:Dictionary={}
+	var front_line:=player.y+13
 	for index in indices:
 		var moving:bool=active.has(index)
-		var pose:Vector3=crown_pose(index,player) if moving else crowns[index].rest_pose
+		var node:Dictionary=crowns[index]
+		var pose:Vector3=crown_pose(index,player) if moving else node.rest_pose
 		draw_poses[index]=pose
 		var centre:=Vector2(pose.x,pose.y);var bin:=Vector2i((centre/48).floor())
-		var front:bool=not crown_behind_hero(index,player) if moving else crowns[index].base.y>player.y+13
+		var front:bool=not crown_behind_hero(index,player) if moving else node.base.y>front_line
 		if not front and not foreground_bins.is_empty():
 			for y in range(bin.y-1,bin.y+2):
 				if front:break

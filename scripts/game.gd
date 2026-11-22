@@ -2782,6 +2782,7 @@ func _draw_world() -> void:
 	if grid.is_empty(): return
 	var viewport := get_viewport_rect()
 	var viewport_120:=viewport.grow(120)
+	var viewport_160:=viewport.grow(160)
 	var viewport_40:=viewport.grow(40)
 	var viewport_60:=viewport.grow(60)
 	var view := viewport.size
@@ -2857,6 +2858,11 @@ func _draw_world() -> void:
 		if object_kind in FLOWER_KINDS or object_kind=="sprout":flower_shadow_objects.append(obj)
 		elif object_kind=="quest_tree":quest_tree_objects.append(obj)
 		elif object_kind=="dug":dug_objects.append(obj)
+		# Every visibility test below (doorway, regular and integrated hedge
+		# bounds) lies inside the viewport grown by 160 px: skip the filters
+		# for objects that are off screen anyway.
+		var p := screen(obj.pos)
+		if not viewport_160.has_point(p):continue
 		if level==5 and obj.kind in garden_quest.KINDS and not garden_quest.visible(obj):continue
 		if level==5 and obj.kind=="gate_key" and not garden_mission_ready():continue
 		if obj.kind in QUEST_TOOL_KINDS and obj.id==held_item:continue
@@ -2869,11 +2875,10 @@ func _draw_world() -> void:
 		if drawing_neighbor and corridor_row(floori(obj.pos.y/TILE)):continue
 		if obj.kind=="accessory" and not available(obj):continue
 		if obj.get("integrated_hedge",false):
-			if viewport_120.has_point(screen(obj.pos)):
+			if viewport_120.has_point(p):
 				var tree:Dictionary=obj.duplicate();tree.kind="hedge_tree_apples" if obj.kind=="tree_apples" and obj.id not in save_data.eaten else "hedge_tree";tree.integrated_tree=true
 				renderables.append(tree)
 			continue
-		var p := screen(obj.pos)
 		var bounds:=Rect2(p-Vector2(144,160),Vector2(288,224)) if obj.kind=="doorway" else Rect2(p-Vector2(100,150),Vector2(200,250))
 		if not bounds.intersects(viewport):continue
 		if obj.kind in GROUND_ONLY_KINDS:continue
@@ -4772,12 +4777,29 @@ func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 	# A single fixed Y-order is split around the heroine. Each crown is drawn whole,
 	# once. The margin includes maximum bend and radius, keeping front crowns below waist.
 	# The shears target is the same for every crown of this pass.
-	var shears_cell:=Vector2i(-99999,-99999)
-	if not drawing_neighbor and held_item=="shears" and nearest>=0 and objects[nearest].kind=="hedge_target":shears_cell=objects[nearest].cell
+	var shears_active:bool=not drawing_neighbor and held_item=="shears" and nearest>=0 and objects[nearest].kind=="hedge_target"
+	var shears_cell:Vector2i=objects[nearest].cell if shears_active else Vector2i.ZERO
+	# Hundreds of crowns per frame: read shared state once, not per crown.
+	var front_crowns:Dictionary=hedge_field.front_crowns
+	var crowns:Array[Dictionary]=hedge_field.crowns
+	var poses:Dictionary=hedge_field.draw_poses
+	var eaten:Array=save_data.eaten
 	for index in indices:
-		var behind:bool=not hedge_field.front_crowns.has(index)
-		if (side<0 and not behind) or (side>0 and behind):continue
-		draw_leaf_crown(index,shears_cell)
+		if side!=0 and front_crowns.has(index)!=(side>0):continue
+		var node:Dictionary=crowns[index]
+		var pose:Vector3=poses.get(index,Vector3.ZERO)
+		var radius:float=pose.z
+		var centre:=Vector2(pose.x,pose.y)
+		var berry_id:String=str(node.berry)
+		var berry:bool=not berry_id.is_empty() and node.berry not in eaten
+		var id_key:int=int(node.variant)*2+(1 if berry else 0)
+		if not crown_sprite_ids.has(id_key):
+			var id:int=int(sprites[("crown_berry_" if berry else "crown_leaf_")+str(node.variant)])
+			crown_sprite_ids[id_key]=Rect2(Vector2(id%16*32+8,id/16*48+24),Vector2(17,17))
+		var source:Rect2=crown_sprite_ids[id_key]
+		if (berry and node.base.distance_to(player)<79) or (shears_active and Vector2i(node.base/TILE)==shears_cell):
+			draw_crown_outline(node,centre,radius,berry,source)
+		draw_texture_rect_region(atlas,Rect2(centre-Vector2.ONE*radius,Vector2.ONE*radius*2),source)
 	# The stone lip sits on the hedge surface, after neighbouring leaf crowns.
 	# A single stored index avoids another full canopy scan every frame.
 	var marker:int=hedge_field.stone_marker_index
@@ -4788,27 +4810,16 @@ func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 			draw_texture_rect(stone_peek,Rect2(Vector2(pose.x,pose.y)-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2),false)
 	draw_set_transform(Vector2.ZERO)
 
-# Atlas ids of crown_leaf_N / crown_berry_N, resolved once per variant.
+# Atlas source rectangles of crown_leaf_N / crown_berry_N, resolved once per variant.
 var crown_sprite_ids:Dictionary={}
 
-func draw_leaf_crown(index: int, shears_cell: Vector2i = Vector2i(-99999,-99999)) -> void:
-	var node:Dictionary=hedge_field.crowns[index]
-	var pose:Vector3=hedge_field.draw_poses.get(index,Vector3.ZERO)
-	var radius:float=pose.z
-	var centre:=Vector2(pose.x,pose.y)
-	var berry:bool=not str(node.berry).is_empty() and node.berry not in save_data.eaten
-	var variant:int=node.variant
-	var id_key:=variant*2+(1 if berry else 0)
-	if not crown_sprite_ids.has(id_key):crown_sprite_ids[id_key]=int(sprites[("crown_berry_" if berry else "crown_leaf_")+str(variant)])
-	var id:int=crown_sprite_ids[id_key]
-	if (berry and node.base.distance_to(player)<79) or Vector2i(node.base/TILE)==shears_cell:
-		var texture_name:="crown_berry_" if berry else "crown_leaf_"
-		texture_name+=str(variant)
-		if not outlines.has(texture_name):
-			var source:=atlas.get_image().get_region(Rect2i(id%16*32+8,id/16*48+24,17,17))
-			outlines[texture_name]=outline_texture(source,17,17,1,128,Color("ffe7a6"),false,Vector2i(19,19))
-		draw_texture_rect(outlines[texture_name],Rect2(centre-Vector2.ONE*radius*19/17,Vector2.ONE*radius*2*19/17),false)
-	draw_texture_rect_region(atlas,Rect2(centre-Vector2.ONE*radius,Vector2.ONE*radius*2),Rect2(Vector2(id%16*32+8,id/16*48+24),Vector2(17,17)))
+func draw_crown_outline(node:Dictionary,centre:Vector2,radius:float,berry:bool,source:Rect2) -> void:
+	var texture_name:="crown_berry_" if berry else "crown_leaf_"
+	texture_name+=str(node.variant)
+	if not outlines.has(texture_name):
+		var image:=atlas.get_image().get_region(Rect2i(source))
+		outlines[texture_name]=outline_texture(image,17,17,1,128,Color("ffe7a6"),false,Vector2i(19,19))
+	draw_texture_rect(outlines[texture_name],Rect2(centre-Vector2.ONE*radius*19/17,Vector2.ONE*radius*2*19/17),false)
 
 func draw_hedge_body(bounds: Rect2) -> void:
 	if hedge_field==null or hedge_field.body_texture==null:return
