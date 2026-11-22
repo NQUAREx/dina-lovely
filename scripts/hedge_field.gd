@@ -475,12 +475,15 @@ func prepare_draw(indices:PackedInt32Array,player:Vector2)->void:
 		draw_poses[index]=pose
 		var centre:=Vector2(pose.x,pose.y);var bin:=Vector2i((centre/48).floor())
 		var front:bool=not crown_behind_hero(index,player) if moving else crowns[index].base.y>player.y+13
-		if not front:
+		if not front and not foreground_bins.is_empty():
 			for y in range(bin.y-1,bin.y+2):
 				if front:break
 				for x in range(bin.x-1,bin.x+2):
 					if front:break
-					for other in foreground_bins.get(Vector2i(x,y),[]):
+					var neighbour:=Vector2i(x,y)
+					# has() first: get(key,[]) allocated an empty array for every miss.
+					if not foreground_bins.has(neighbour):continue
+					for other in foreground_bins[neighbour]:
 						var earlier:Vector3=draw_poses[other]
 						var radii:=pose.z+earlier.z
 						if centre.distance_squared_to(Vector2(earlier.x,earlier.y))<radii*radii:front=true;break

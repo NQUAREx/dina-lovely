@@ -34,7 +34,10 @@ func run():
  var top=Vector2(13.5*48,6.85*48)
  assert(not g.projectile_blocked(top))
  var bottom=Vector2(13.5*48,(g.grid.size()-6.85)*48)
- assert(g.blocked(bottom) and not g.projectile_blocked(bottom))
+ # Since b6ad0a0 the sealed barrier stops the heroine at arena_barrier_limit(),
+ # lower than this point; shots still pass here and the heroine is held below.
+ assert(not g.projectile_blocked(bottom))
+ assert(g.blocked(Vector2(13.5*48,g.arena_barrier_limit()+3)))
  g.objects.clear();g.enemies.clear();g.shots.clear()
  for point in [top,bottom]:
   g.shots.append({"pos":point,"vel":Vector2.RIGHT*570,"life":1.4,"kind":"rifle","age":0.0})
