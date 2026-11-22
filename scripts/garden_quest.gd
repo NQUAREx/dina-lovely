@@ -412,6 +412,10 @@ func sprite_index(obj:Dictionary)->int:
 		"garden_table":return 48+mini(state().delivered_baskets.size(),BASKETS_REQUIRED)
 	return 0
 
+func warm_up()->void:
+	if atlas_image==null:atlas_image=texture().get_image()
+	for kind in ["basket","shears"]:icon(kind)
+
 func texture()->Texture2D:
 	if art==null:art=load("res://assets/garden_quest.png")
 	return art

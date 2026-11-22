@@ -37,6 +37,14 @@ func draw_shared_corridors()->void:
   # The room's first wall row and gate posts are drawn in the world depth pass.
  g.level=old_level;g.grid=old_grid;g.camera=old_camera
 
+func warm_up()->void:
+ # Loaded behind the loading screen instead of on the first corridor frame.
+ for owner in range(1,7):
+  for variant in range(16 if owner==1 else 4):
+   var key:="wall_room%d_exposed"%owner
+   if variant>0:key+=str(variant)
+   if not textures.has(key):textures[key]=load("res://assets/"+key+".png")
+ prepare_tree_shadows()
 func prepare_tree_shadows()->void:
  if not tree_shadow_textures.is_empty():return
  # One continuous soft penumbra, sampled at world-pixel resolution so the

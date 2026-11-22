@@ -37,12 +37,18 @@ func spawn(medkits:bool=true,announce:bool=true)->void:
  for y in range(7,g.grid.size()-5):
   for x in range(3,g.grid[0].length()-3):
    var point:=Vector2(x+.5,y+.5)*48+Vector2(randf_range(-9,9),randf_range(-9,9))
-   if point.distance_to(g.player)<190 or not spawn_clear(point):continue
+   if point.distance_to(g.player)<190:continue
    points.append(point)
+ # Same choice rule as before (shuffled order, first point with an 88 px gap,
+ # else the widest gap), but clearance is tested lazily: checking every arena
+ # cell up front cost ~6000 collision queries at the start of each wave.
  points.shuffle()
+ var clear:={}
  for kind in plan:
   var chosen:Vector2=Vector2.ZERO;var best:=-1.0
   for point in points:
+   if not clear.has(point):clear[point]=spawn_clear(point)
+   if not clear[point]:continue
    var gap:=INF
    for existing in reserved:gap=minf(gap,point.distance_to(existing))
    if gap>best:best=gap;chosen=point

@@ -115,6 +115,10 @@ func draw_log_shadows()->void:
 			tint.a=layer.y
 			game.draw_colored_polygon(points,tint)
 
+func warm_up()->void:
+	if spike_art==null:spike_art=load("res://assets/beam_spikes.png")
+	if log_art==null:log_art=load("res://assets/beam_logs.png")
+
 func draw_spikes()->void:
 	if spike_art==null:spike_art=load("res://assets/beam_spikes.png")
 	for spike in spikes:

@@ -1,6 +1,10 @@
 extends RefCounted
 
 const EXCAVATION_LETTER := "secret_excavation"
+# One hidden note per room with diggable soil, found with the drill after the
+# finale (room 3 also with the shovel). Room 3 keeps its original letter id;
+# a spot, once chosen, is stored in the save (world_edits) and never moves.
+const SECRET_DIG_LETTERS := {0:"secret_dig_maze",1:"secret_dig_dark",2:"secret_dig_hall",3:EXCAVATION_LETTER,5:"secret_dig_garden"}
 const DRILL_SAMPLE_INTERVAL := .05
 const PIT_WALL := [Color("76543c"),Color("674832"),Color("5c3f2e"),Color("51382b"),Color("473229"),Color("402e28"),Color("382b27"),Color("332925"),Color("2e2724"),Color("2b2523")]
 ## Optional world editing. Only the current room runs; other rooms keep saved data.
@@ -18,6 +22,7 @@ var textures:Dictionary={}
 var sample_indices:Dictionary={}
 var seed_value:=-1
 var drill_clock:=0.0
+var dirty_textures:Dictionary={}
 var drill_voice:AudioStreamPlayer
 var drilling:=false
 var drill_held:=false
@@ -268,28 +273,41 @@ func has_sample(pos:Vector2)->bool:
 func secret_dig_target(data:Dictionary)->Vector2:
  if not data.has("secret_dig_target"):
   var candidates:Array[Vector2]=[]
-  var main_target:=Vector2(g.save_data.dig_target[0],g.save_data.dig_target[1])
+  # Room 3 keeps clear of the buried letter of the excavation quest.
+  var main_target:=Vector2.INF
+  if g.level==3 and g.save_data.dig_target.size()==2:main_target=Vector2(g.save_data.dig_target[0],g.save_data.dig_target[1])
   for y in range(8,g.grid.size()-8):
    for x in range(3,g.grid[y].length()-3):
     var point:Vector2=Vector2(x+.5,y+.5)*g.TILE
-    if point.distance_to(main_target)>320 and soil(point):candidates.append(point)
-  if candidates.is_empty():return Vector2.INF
+    if main_target==Vector2.INF or point.distance_to(main_target)>320:candidates.append(point)
   var rng:=RandomNumberGenerator.new()
-  rng.seed=int(g.save_data.seed)^0x53454352
-  var target:=candidates[rng.randi_range(0,candidates.size()-1)]
+  rng.seed=int(g.save_data.seed)^0x53454352 if g.level==3 else int(g.save_data.seed)^(0x53454352+g.level*7919)
+  # Uniform choice among diggable cells: seeded shuffle, then the first cell
+  # that is soil. Testing every cell up front stalled the first dig.
+  for i in range(candidates.size()-1,0,-1):
+   var j:=rng.randi_range(0,i);var swap:=candidates[i];candidates[i]=candidates[j];candidates[j]=swap
+  var target:=Vector2.INF
+  for point in candidates:
+   if soil(point):target=point;break
+  if target==Vector2.INF:return Vector2.INF
   data.secret_dig_target=[target.x,target.y]
  return Vector2(data.secret_dig_target[0],data.secret_dig_target[1])
 
+func secret_letter() -> String:
+ return SECRET_DIG_LETTERS.get(g.level,"")
+
 func restore_secret_excavation_letter()->void:
- if g.level!=3 or EXCAVATION_LETTER in g.save_data.letters:return
+ var letter:=secret_letter()
+ if letter.is_empty() or letter in g.save_data.letters:return
  var point:Array=state().get("secret_dig_exposed",[])
- if point.size()!=2 or g.objects.any(func(obj):return obj.id==EXCAVATION_LETTER):return
- g.objects.append({"kind":"note","id":EXCAVATION_LETTER,"solid":false,"pos":Vector2(point[0],point[1])})
+ if point.size()!=2 or g.objects.any(func(obj):return obj.id==letter):return
+ g.objects.append({"kind":"note","id":letter,"solid":false,"pos":Vector2(point[0],point[1])})
 
 func excavate(pos:Vector2)->void:
  pos=pos.snapped(Vector2(12,12))
  if not soil(pos):return
- if g.level==3 and EXCAVATION_LETTER not in g.save_data.letters:
+ var letter:=secret_letter()
+ if not letter.is_empty() and letter not in g.save_data.letters:
   var data:=state()
   if not data.has("secret_dig_exposed") and pos.distance_to(secret_dig_target(data))<=36:
    data.secret_dig_exposed=[pos.x,pos.y]
@@ -302,6 +320,7 @@ func excavate(pos:Vector2)->void:
    g.persist()
    return
  if has_sample(pos):return
+ var found_before:=[g.save_data.buried_exposed,g.save_data.riddle_stone_exposed]
  g.stats.add(g,"digs")
  record_excavation(pos)
  if g.level==3:
@@ -313,9 +332,12 @@ func excavate(pos:Vector2)->void:
   elif not g.save_data.buried_exposed:g.notify(g.tx("buried_note_near") if pos.distance_to(hidden)<260 else g.tx("digging_empty"))
  g.rune_stones.excavate(pos)
  g.scene_fx.soil(pos,10)
- g.persist()
+ # Discoveries are written at once; ordinary pits (several per second while
+ # drilling) are merged into one write.
+ if found_before!=[g.save_data.buried_exposed,g.save_data.riddle_stone_exposed]:g.persist()
+ else:g.persist_soon()
 func record_excavation(pos:Vector2)->void:
- ensure_dirt();state().excavations.append([pos.x,pos.y]);sample_indices[str(g.level)]["%d:%d"%[pos.x,pos.y]]=true;stamp(pos);textures[str(g.level)].update(images[str(g.level)])
+ ensure_dirt();state().excavations.append([pos.x,pos.y]);sample_indices[str(g.level)]["%d:%d"%[pos.x,pos.y]]=true;stamp(pos);dirty_textures[str(g.level)]=true
 
 func update(delta:float)->void:
  if g.held_item!="drill" or g.paused or g.transition or not g.playing:drill_held=false
@@ -344,6 +366,10 @@ func draw_ground()->void:
   if not g.get_viewport_rect().grow(48).has_point(g.screen(point)):continue
   var variant:=posmod(cell.x*13+cell.y*7,3)
   g.draw_texture_rect_region(stubble,Rect2(g.screen(point),Vector2(48,48)),Rect2(variant*24,0,24,24))
+ # Continuous drilling stamps several pits per second; upload the room-size
+ # dirt texture once per frame, right before it is drawn, not per pit.
+ if dirty_textures.has(str(g.level)) and textures.has(str(g.level)):
+  dirty_textures.erase(str(g.level));textures[str(g.level)].update(images[str(g.level)])
  if textures.has(str(g.level)):g.draw_texture_rect(textures[str(g.level)],Rect2(g.screen(Vector2.ZERO),Vector2(g.grid[0].length(),g.grid.size())*48),false)
 func draw_falling()->void:
  for item in falling:

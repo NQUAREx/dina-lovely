@@ -381,10 +381,18 @@ func visible_ids(bounds: Rect2) -> PackedInt32Array:
 	var last:=Vector2i((bounds.end/BIN).floor())
 	if first!=visible_first or last!=visible_last:
 		visible_first=first;visible_last=last;visible_candidates.clear()
+		# Ranks are unique (0..N-1, see build), so sorting the ranks natively and
+		# mapping back through draw_order gives the same painter order as a
+		# rank comparator, without a GDScript lambda per comparison. The bins
+		# are only 24 px, so this ran several times per second while walking.
+		var ranks:=PackedInt32Array()
 		for y in range(first.y,last.y+1):
 			for x in range(first.x,last.x+1):
-				for index in bins.get(Vector2i(x,y),[]):visible_candidates.append(index)
-		visible_candidates.sort_custom(func(a,b):return crowns[a].rank<crowns[b].rank)
+				var key:=Vector2i(x,y)
+				if not bins.has(key):continue
+				for index in bins[key]:ranks.append(crowns[index].rank)
+		ranks.sort()
+		for rank in ranks:visible_candidates.append(draw_order[rank])
 	var result:=PackedInt32Array()
 	for index in visible_candidates:
 		var node:Dictionary=crowns[index]

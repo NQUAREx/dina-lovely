@@ -8,11 +8,20 @@ var masks:Dictionary={}
 var atlas_image:Image
 func _ready()->void:
  g=get_parent();z_index=101
+func warm_up()->void:
+ # Gate posts and the heroine's walk masks are ready before play starts.
+ for side in ["left","right"]:
+  var key:String="junction_stone_stone_top_"+side
+  if not textures.has(key):textures[key]=load("res://assets/"+key+".png")
+ for face in range(8):
+  for frame in range(12):
+   if g.sprites.has("hero%d_%d"%[face,frame]):player_mask_for(face,frame)
 func player_mask()->Texture2D:
- var face:int=g.visual_facing();var frame:int=g.player_walk_frame()
+ return player_mask_for(g.visual_facing(),g.player_walk_frame())
+func player_mask_for(face:int,frame:int)->Texture2D:
  var key:=str(face)+":"+str(frame)+":"+str(g.save_data.wearing)
  if not masks.has(key):
-  if atlas_image==null:atlas_image=g.atlas.get_image()
+  if atlas_image==null:atlas_image=g.label_atlas_pixels
   var image:=Image.create(32,48,false,Image.FORMAT_RGBA8)
   var layers:Array=["hero%d_%d"%[face,frame]]
   for item in g.OUTFIT_ORDER:

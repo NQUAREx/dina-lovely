@@ -17,7 +17,7 @@ func install(animate:bool=false)->void:
  if not g.save_data.has("weapon_crates_opened"):g.save_data.weapon_crates_opened=[]
  for obj in g.objects:
   if obj.kind.begins_with("rack_"):
-   obj.weapon=str(obj.id);obj.id="crate_"+str(obj.weapon);obj.kind="weapon_crate";obj.solid=true
+   obj.weapon=str(obj.id);obj.id="crate_"+str(obj.weapon);obj.kind="weapon_crate";obj.solid=true;g.invalidate_collision_objects()
  for w in WEAPONS:
   var crates:Array=g.objects.filter(func(o):return o.kind=="weapon_crate" and o.weapon==w)
   if crates.is_empty():

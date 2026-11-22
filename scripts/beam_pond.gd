@@ -107,6 +107,12 @@ func step(delta:float)->bool:
 func lift()->float:
 	return sin(hop*PI/.24)*14.0
 
+func warm_up()->void:
+	if water==null:
+		water=load("res://assets/beam_pond.png")
+		lilies=load("res://assets/beam_lilies.png")
+	if lily_pixels==null:lily_pixels=lilies.get_image()
+
 func record_print(position:Vector2,rotation:float)->void:
 	var index:=support(game.player)
 	if index<0:return

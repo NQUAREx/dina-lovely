@@ -351,6 +351,16 @@ func load_save() -> void:
 	repair_accessory_save(legacy_accessories)
 	sound_on = save_data.sound
 
+# Frequent background writes (each drill excavation, ...) are merged: at most
+# one write per PERSIST_COALESCE_SEC, and never more than that stale.
+const PERSIST_COALESCE_SEC := .75
+var persist_pending:=false
+var persist_soon_at:=0.0
+func persist_soon() -> void:
+	if not persist_pending:
+		persist_pending=true
+		persist_soon_at=time+PERSIST_COALESCE_SEC
+
 func persist() -> void:
 	companion.save()
 	arena_save.capture()
@@ -362,9 +372,12 @@ func persist() -> void:
 	save_data.sound = sound_on
 	save_data.held_item = held_item
 	if level==6:save_data.riddle_input=puzzle.duplicate()
+	persist_pending=false
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:
-		file.store_string(JSON.stringify(save_data, "\t"))
+		# Compact JSON: the save is rewritten on every checkpoint, and an
+		# indented dump of the whole state took several ms per write.
+		file.store_string(JSON.stringify(save_data))
 		file.flush()
 	else:
 		if is_instance_valid(toast): notify(tx("storage_unavailable"))
@@ -487,12 +500,36 @@ func button(text: String, callback: Callable, width: float = 250) -> Button:
 	b.pressed.connect(callback)
 	return b
 
+const ACTION_ICON_GROUPS := {
+	"dig":["dig_action","digging_progress","pickup_shovel"],
+	"axe":["chop_tree","pickup_axe"],"pickaxe":["mine_rock"],
+	"craft":["craft_shovel","craft_pickaxe"],"repair":["repair_shovel"],
+	"water":["water_action","pickup_can"],"fill":["fill_water"],
+	"rake":["clean_bed","uproot_flower","pickup_rake"],
+	"fertilizer":["fertilize_bed","pickup_fertilizer"],"grow":["plant_growing"],
+	"seed":["new_bed_action"],"shears":["snip_plant","pickup_shears"],
+	"drill":["drill_action","pickup_drill"],"letter":["read_letter"],
+	"book":["read_book"],"stats":["read_statistics"],
+	"key":["pickup_gate_key","gate_key_action"],"gate":["open_gate","open_house_door"],
+	"chest":["open_chest"],"rune":["pickup_rune","press_rune","insert_rune"],
+	"reset":["puzzle_reset_action"],"wear":["wear_accessory"],
+	"sit":["sit_action"],"stand":["stand_action"],"swing":["swing_action"],
+	"apple":["eat_apple"],"berries":["eat_berries"],"fish":["take_fish"],
+	"feed":["feed_cat"],"cat":["meet_cat"],"pet":["pet_cat_action"],
+	"skull":["take_skull"],"insert_skull":["insert_skull"],"write":["write_reply"],
+	"medkit":["use_medkit"],"material":["pickup_material"],"flashlight":["pickup_flashlight"]}
+
 var action_icon_cache:Dictionary={}
 var action_icon_text:=""
+var action_icon_styled:=false
 func update_action_icon()->void:
-	action_button.expand_icon=true
-	action_button.add_theme_constant_override("icon_max_width",32)
-	action_button.add_theme_constant_override("h_separation",6)
+	# Theme overrides re-layout the button every time they are set, even to the
+	# same value; update_hud runs this every 70 ms, so apply them once.
+	if not action_icon_styled:
+		action_icon_styled=true
+		action_button.expand_icon=true
+		action_button.add_theme_constant_override("icon_max_width",32)
+		action_button.add_theme_constant_override("h_separation",6)
 	var pickup:=""
 	if nearest>=0 and nearest<objects.size():
 		var obj:Dictionary=objects[nearest]
@@ -511,40 +548,19 @@ func update_action_icon()->void:
 		if not action_icon_cache.has(cache_key):
 			var id:int=sprites[pickup]
 			var source:=Rect2i(id%16*32,id/16*48,32,48)
-			var used:=atlas.get_image().get_region(source).get_used_rect()
+			var used:=label_atlas_pixels.get_region(source).get_used_rect()
 			var icon:=AtlasTexture.new();icon.atlas=atlas;icon.region=Rect2(Vector2(source.position+used.position),Vector2(used.size))
 			action_icon_cache[cache_key]=icon
 		action_button.icon=action_icon_cache[cache_key];action_icon_text=""
 		return
 	if action_button.text==action_icon_text and action_button.icon!=null:return
 	action_icon_text=action_button.text
-	var groups:={
-		"dig":["dig_action","digging_progress","pickup_shovel"],
-		"axe":["chop_tree","pickup_axe"],"pickaxe":["mine_rock"],
-		"craft":["craft_shovel","craft_pickaxe"],"repair":["repair_shovel"],
-		"water":["water_action","pickup_can"],"fill":["fill_water"],
-		"rake":["clean_bed","uproot_flower","pickup_rake"],
-		"fertilizer":["fertilize_bed","pickup_fertilizer"],"grow":["plant_growing"],
-		"seed":["new_bed_action"],"shears":["snip_plant","pickup_shears"],
-		"drill":["drill_action","pickup_drill"],"letter":["read_letter"],
-		"book":["read_book"],"stats":["read_statistics"],
-		"key":["pickup_gate_key","gate_key_action"],"gate":["open_gate","open_house_door"],
-		"chest":["open_chest"],"rune":["pickup_rune","press_rune","insert_rune"],
-		"reset":["puzzle_reset_action"],"wear":["wear_accessory"],
-		"sit":["sit_action"],"stand":["stand_action"],"swing":["swing_action"],
-		"apple":["eat_apple"],"berries":["eat_berries"],"fish":["take_fish"],
-		"feed":["feed_cat"],"cat":["meet_cat"],"pet":["pet_cat_action"],
-		"skull":["take_skull"],"insert_skull":["insert_skull"],"write":["write_reply"],
-		"medkit":["use_medkit"],"material":["pickup_material"],"flashlight":["pickup_flashlight"]}
 	var name:="take"
-	for icon_name in groups:
-		for key in groups[icon_name]:
+	for icon_name in ACTION_ICON_GROUPS:
+		for key in ACTION_ICON_GROUPS[icon_name]:
 			if content.ui.has(key) and action_button.text==tx(key):name=icon_name;break
 	if not action_icon_cache.has(name):action_icon_cache[name]=load("res://assets/ui/action_"+name+".png")
 	action_button.icon=action_icon_cache[name]
-	action_button.expand_icon=true
-	action_button.add_theme_constant_override("icon_max_width",32)
-	action_button.add_theme_constant_override("h_separation",6)
 
 func ui_button_hearts(control:Button)->void:
 	if control==action_button or not is_instance_valid(ui_hearts):return
@@ -832,8 +848,6 @@ func sync_room_theme() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenSetRoom?.("+str(level)+")")
 
 func cache_current_room() -> void:
-	# A web build may draw a half-generated room between slices.
-	invalidate_wall_caches()
 	var state:Dictionary={"saved_at":time}
 	for field in ROOM_FIELDS:
 		var value:Variant=get(field)
@@ -842,7 +856,6 @@ func cache_current_room() -> void:
 
 func activate_cached_room(index: int) -> void:
 	royal_cloth.reset()
-	invalidate_wall_caches()
 	var state:Dictionary=room_cache[index]
 	level=index
 	if index!=1 and held_item=="flashlight":held_item="";sync_hands()
@@ -876,6 +889,7 @@ func prepare_room_cache(target: int) -> void:
 		for room in range(7):build_level(room);cache_current_room()
 		room_cache_seed=int(save_data.seed)
 	activate_cached_room(target)
+	warm_up_runtime()
 
 # Web exports run the engine and DOM on one thread. Return to the browser
 # between batches even while a single room is still being generated.
@@ -908,11 +922,84 @@ func prepare_rooms_web(target: int, hide_after: bool = true) -> void:
 		await get_tree().process_frame
 	room_cache_seed=int(save_data.seed)
 	activate_cached_room(target)
+	warm_up_runtime()
 	web_building_rooms = false
 	visible = was_visible
 	RenderingServer.render_loop_enabled = rendered_before
 	process_mode = old_process_mode
+	warm_up_gpu()
 	if hide_after:JavaScriptBridge.eval("window.gardenHideLoading?.()")
+
+# Everything below used to be created the first time it came into view, which
+# made the game hitch while walking (texture loads and GPU uploads, GPU
+# read-backs, outline bitmaps, shader compilation, first audio playback on
+# the web). It now happens once behind the loading screen.
+var runtime_resources_warm:=false
+func warm_up_runtime() -> void:
+	if not runtime_resources_warm:
+		runtime_resources_warm=true
+		for room in range(1,7):
+			for variant in range(16 if room==1 else 4):wall_block_texture(room,variant)
+		for kind in HEDGE_TREE_KINDS:
+			for variant in range(6):
+				var key:String=kind+str(variant)
+				if not hedge_tree_textures.has(key):hedge_tree_textures[key]=load("res://assets/"+kind+"_variant"+str(variant)+".png")
+				hedge_tree_outline(kind,variant)
+		for name in ACTION_ICON_GROUPS.keys()+["take"]:
+			if not action_icon_cache.has(name):action_icon_cache[name]=load("res://assets/ui/action_"+name+".png")
+		boundary_backdrop.warm_up()
+		beam_pond.warm_up()
+		beam_traps.warm_up()
+		garden_quest.warm_up()
+		royal_cloth.atlas()
+		for node in get_children():
+			if node.has_method("warm_up"):node.warm_up()
+		if OS.has_feature("web") and AudioServer.has_method("register_stream_as_sample"):
+			for stream in preload("res://scripts/audio_bank.gd").STREAMS.values():
+				if stream!=null and not AudioServer.is_stream_registered_as_sample(stream):AudioServer.register_stream_as_sample(stream)
+	# Pickup rings of every sprite the rooms can highlight.
+	var names:={}
+	for state in room_cache.values():
+		for obj in state.objects:names[str(obj.kind)]=true
+	for name in ACCESSORIES:names["accessory_"+name]=true
+	for kind in TREE_KINDS:
+		for variant in range(6):names[kind+"_variant"+str(variant)]=true
+	for name in ["axe","shovel","shovel_broken","pickaxe","can","rake","fertilizer","flashlight","flashlight_rest","shears","drill","house_door","dug"]:names[name]=true
+	for name in names:
+		if sprites.has(name) and name not in HEDGE_TREE_KINDS:sprite_outline(name)
+	for name in ["quest_tree"]+range(1,7).map(func(n):return "quest_tree_damage%d"%n):
+		if ResourceLoader.exists("res://assets/"+name+"_trunk.png"):sprite_outline(name+"_outline")
+	# Static wall geometry of every cached room (walls only change in
+	# build_level/set_cell, which clear these caches again).
+	var old_level:=level
+	var old_grid:=grid
+	for room in room_cache:
+		# The maze draws its hedge instead of wall blocks.
+		if room==0:continue
+		var state:Dictionary=room_cache[room]
+		if not wall_render_cache.has(room):wall_render_cache[room]=build_wall_rows(room,state.grid,state.objects)
+		level=room;grid=state.grid
+		for row in wall_render_cache[room]:
+			for wall in row:stone_layout(wall.cell)
+	level=old_level;grid=old_grid
+
+# Compile the two custom canvas shaders while the loading screen still covers
+# the canvas; WebGL compiles a shader on its first draw.
+func warm_up_gpu() -> void:
+	if not OS.has_feature("web"):return
+	if DisplayServer.get_name()=="headless":return
+	var probe:=Sprite2D.new()
+	probe.texture=atlas;probe.region_enabled=true;probe.region_rect=Rect2(0,0,2,2)
+	probe.position=Vector2(4,4);probe.modulate.a=.01
+	var material:=ShaderMaterial.new();material.shader=preload("res://shaders/pillar_occlusion.gdshader")
+	probe.material=material
+	add_child(probe)
+	var fog_was_visible:=false
+	if is_instance_valid(fog):fog_was_visible=fog.visible;fog.visible=true
+	# One synchronous, unpresented frame: _process cannot hide the fog first.
+	RenderingServer.force_draw(false)
+	if is_instance_valid(fog):fog.visible=fog_was_visible
+	probe.queue_free()
 
 func show_intro() -> void:
 	var box:=modal_box(650,0)
@@ -1096,21 +1183,32 @@ func invalidate_wall_caches(room:int=-1) -> void:
 	stone_layout_cache.clear()
 
 func wall_render_row(y:int,first_x:int,last_x:int) -> Array[Dictionary]:
-	if not wall_render_cache.has(level):
-		var rows:Array=[]
-		for row in range(grid.size()):
-			var walls:Array[Dictionary]=[]
-			if not corridor_row(row):
-				for x in range(grid[row].length()):
-					if grid[row][x]=="#" and not gate_junctions.skip_wall(Vector2i(x,row)):
-						walls.append({"kind":corridor_wall_kind(row),"pos":Vector2(x+.5,row+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,row)})
-			rows.append(walls)
-		wall_render_cache[level]=rows
+	if not wall_render_cache.has(level):wall_render_cache[level]=build_wall_rows(level,grid,objects)
 	var result:Array[Dictionary]=[]
 	for wall in wall_render_cache[level][y]:
 		var column:int=wall.cell.x
 		if column>=first_x and column<last_x:result.append(wall)
 	return result
+
+# Static wall renderables of one room, row by row. Uses only the given room
+# data, so every cached room can be prepared during loading.
+func build_wall_rows(room:int,map:Array,room_objects:Array) -> Array:
+	var pillars:={}
+	for door in room_objects:
+		if door.kind!="doorway":continue
+		var centre:=Vector2i(door.pos/48)
+		pillars[Vector2i(centre.x-2,centre.y)]=true;pillars[Vector2i(centre.x+2,centre.y)]=true
+	var rows:Array=[]
+	for row in range(map.size()):
+		var walls:Array[Dictionary]=[]
+		var hall:bool=(room<6 and row<5) or (room>0 and row>=map.size()-5)
+		if not hall:
+			var line:String=map[row]
+			for x in range(line.length()):
+				if line[x]=="#" and not pillars.has(Vector2i(x,row)):
+					walls.append({"kind":corridor_wall_kind(row),"pos":Vector2(x+.5,row+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,row)})
+		rows.append(walls)
+	return rows
 
 func set_cell(x: int, y: int, value: String) -> void:
 	wall_shadow_rows.clear()
@@ -1406,6 +1504,30 @@ func arena_barrier_floor() -> Rect2:
 func projectile_blocked(pos:Vector2)->bool:
 	return blocked(pos+Vector2(0,26),true)
 
+const BODY_PROBE := [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]
+const PROJECTILE_PROBE := [Vector2.ZERO]
+const GATE_POST_SIDES := [-96.0,96.0]
+const GATE_JAMB_X := [-110.0,82.0]
+# Combat AI calls blocked() thousands of times per frame; only doorways and
+# solid objects can block, so they are gathered once per frame (again if the
+# object list changes size, or after invalidate_collision_objects()). `solid`
+# is still read on every call, so objects that stop being solid are seen at once.
+var collision_list:Array[Dictionary]=[]
+var collision_list_frame:=-1
+var collision_list_size:=-1
+var collision_list_source:Array=[]
+func collision_objects() -> Array[Dictionary]:
+	var frame:=Engine.get_process_frames()
+	if frame!=collision_list_frame or objects.size()!=collision_list_size or not is_same(collision_list_source,objects):
+		collision_list_frame=frame;collision_list_size=objects.size();collision_list_source=objects
+		collision_list.clear()
+		for obj in objects:
+			if obj.kind=="doorway" or obj.get("solid",false):collision_list.append(obj)
+	return collision_list
+
+func invalidate_collision_objects() -> void:
+	collision_list_frame=-1
+
 func blocked(pos: Vector2,projectile:bool=false) -> bool:
 	if dig_quest.blocks(pos):return true
 	if arena_exit_sealed():
@@ -1414,7 +1536,7 @@ func blocked(pos: Vector2,projectile:bool=false) -> bool:
 		if not projectile and pos.y>arena_barrier_limit() and absf(pos.x-barrier.get_center().x)<barrier.size.x/2+10:return true
 	if level==6 and save_data.finished and Rect2(Vector2(21.75*48,12.9*48),Vector2(1.5*48,4.0*48)).grow(8).has_point(pos):return true
 	if pos.y<0 or pos.y>=grid.size()*TILE:
-		for offset in ([Vector2.ZERO] if projectile else [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]):
+		for offset in (PROJECTILE_PROBE if projectile else BODY_PROBE):
 			var point:Vector2=pos+offset
 			if point.y>=0 and point.y<grid.size()*TILE:continue
 			if not corridor_floor_point(point):return true
@@ -1424,7 +1546,7 @@ func blocked(pos: Vector2,projectile:bool=false) -> bool:
 		if level<6 and pos.y<5.5*TILE+16 and absf(pos.x-north_x)>62:return true
 		if level>0 and pos.y>(grid.size()-5.5)*TILE-16 and absf(pos.x-13.5*TILE)>62:return true
 		if pos.x<.75*TILE or pos.x>(grid[0].length()-.75)*TILE:return true
-	for offset in ([Vector2.ZERO] if projectile else [Vector2(-10,-7),Vector2(10,-7),Vector2(-10,7),Vector2(10,7)]):
+	for offset in (PROJECTILE_PROBE if projectile else BODY_PROBE):
 		var c := Vector2i((pos+offset)/TILE)
 		if c.y<0 or c.y>=grid.size():
 			if corridor_floor_point(pos+offset):continue
@@ -1432,7 +1554,7 @@ func blocked(pos: Vector2,projectile:bool=false) -> bool:
 		if c.x<0 or c.x>=grid[0].length() or grid[c.y][c.x]==" ": return true
 		if grid[c.y][c.x]=="#" and (hedge_field==null or corridor_row(c.y) or gate_junctions.pillar_cell(c)):return true
 	if hedge_field!=null and hedge_field.blocks(pos):return true
-	for obj in objects:
+	for obj in collision_objects():
 		if obj.kind=="doorway" and gate_blocks(obj,pos,projectile):return true
 		if obj.solid:
 			if obj.kind=="pond":
@@ -1448,9 +1570,9 @@ func blocked(pos: Vector2,projectile:bool=false) -> bool:
 func gate_blocks(door:Dictionary,point:Vector2,projectile:bool=false)->bool:
 	var local:Vector2=point-door.pos
 	var pad:=Vector2.ZERO if projectile else Vector2(10,7)
-	for side in [-96.0,96.0]:
+	for side in GATE_POST_SIDES:
 		if Rect2(Vector2(side-32,-4)-pad,Vector2(64,10)+pad*2).has_point(local):return true
-	for x in [-110.0,82.0]:
+	for x in GATE_JAMB_X:
 		if Rect2(Vector2(x,-10)-pad,Vector2(32,16)+pad*2).has_point(local):return true
 	if door.id!="exit":return false
 	var opened:bool=door_is_open("exit") and float(door.get("gate_amount",0))>.25
@@ -1529,6 +1651,7 @@ func _physics_process(delta: float) -> void:
 		royal_cloth.update(player-previous_position,heading,delta,"gold_brocade" in save_data.wearing,"gold_mantle" in save_data.wearing)
 
 func _process(delta: float) -> void:
+	if persist_pending and time>=persist_soon_at:persist()
 	if playing and not paused and not transition and not rotate_overlay.visible and not save_data.finished:
 		stats.track_time(self,delta)
 	dig_quest.update(delta)
@@ -2511,25 +2634,35 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 		# one-source-pixel ring is therefore two world pixels. Native-size
 		# canopies use the same ring width, not a one-native-pixel outline.
 		var radius:=64/32
-		if not outlines.has(key):
-			var crown:Texture2D=load("res://assets/"+name+"_variant"+str(variant)+"_crown.png")
-			var source:Image=crown.get_image().get_region(Rect2i(0,0,64,80))
-			outlines[key]=outline_texture(source,64,80,radius,51,Color("fff3a6"),true,Vector2i(64+radius*2,80+radius*2))
 		var box:=Rect2(pos-Vector2(32+radius,96+radius)*scale_factor,Vector2(64+radius*2,80+radius*2)*scale_factor)
-		draw_pickup_outline_border(outlines[key],box)
+		draw_pickup_outline_border(hedge_tree_outline(name,variant),box)
 		return
+	var box := Rect2(pos-Vector2(25.5,33.5),Vector2(51,51)) if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else Rect2(pos-Vector2(34,88)*scale_factor,Vector2(68,100)*scale_factor)
+	draw_pickup_outline_border(sprite_outline(name),box)
+
+func hedge_tree_outline(name:String,variant:int) -> Texture2D:
+	var key:=name+str(variant)
+	if not outlines.has(key):
+		var radius:=64/32
+		var crown:Texture2D=load("res://assets/"+name+"_variant"+str(variant)+"_crown.png")
+		var source:Image=crown.get_image().get_region(Rect2i(0,0,64,80))
+		outlines[key]=outline_texture(source,64,80,radius,51,Color("fff3a6"),true,Vector2i(64+radius*2,80+radius*2))
+	return outlines[key]
+
+func sprite_outline(name:String) -> Texture2D:
 	if not outlines.has(name):
 		var id := int(sprites.get(name,0))
-		var source := atlas.get_image().get_region(Rect2i(id%16*32,id/16*48+(16 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 0),32,32 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 48))
+		var source := label_atlas_pixels.get_region(Rect2i(id%16*32,id/16*48+(16 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 0),32,32 if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else 48))
 		if name.begins_with("quest_tree"):
 			var trunk:Texture2D=load("res://assets/"+name.replace("_outline","")+"_trunk.png")
 			source=trunk.get_image()
 		elif name.begins_with("tree"):
-			var crown_atlas:Texture2D=load("res://assets/tree_crowns.png")
-			source=crown_atlas.get_image().get_region(Rect2i(id%16*32,id/16*48,32,48))
+			if tree_crown_pixels==null:tree_crown_pixels=load("res://assets/tree_crowns.png").get_image()
+			source=tree_crown_pixels.get_region(Rect2i(id%16*32,id/16*48,32,48))
 		outlines[name] = outline_texture(source,32,source.get_height(),1,51,Color("fff3a6"),true,Vector2i(34,source.get_height()+2))
-	var box := Rect2(pos-Vector2(25.5,33.5),Vector2(51,51)) if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else Rect2(pos-Vector2(34,88)*scale_factor,Vector2(68,100)*scale_factor)
-	draw_pickup_outline_border(outlines[name],box)
+	return outlines[name]
+
+var tree_crown_pixels:Image
 
 # Pickup ring of a sprite: every pixel within `radius` (4-neighbourhood) of an
 # opaque source pixel becomes `ring`; with clear_inside the opaque pixels
@@ -3213,7 +3346,9 @@ func travel(destination: int) -> void:
 	var north:float=(15.5 if level==0 else 13.5)*TILE
 	var old_center:float=north if destination>level else 13.5*TILE
 	if held_item not in ["axe","shears","drill"] and not (save_data.finished and held_item in ["sword","rifle","rpg"]):return_held_tool(false,room_drop_point(destination>level))
-	persist()
+	# State that must be captured in the room being left (the cat, the arena
+	# checkpoint); the file itself is written once at the end of the travel.
+	companion.save();arena_save.capture()
 	var carried_prints:Array=footprints.filter(func(item):return item.pos.distance_to(old_player)<650).duplicate(true)
 	var carried_particles:Array=particles.filter(func(item):return item.pos.distance_to(old_player)<650).duplicate(true)
 	footprints.assign(footprints.filter(func(item):return item.pos.distance_to(old_player)>=650));particles.assign(particles.filter(func(item):return item.pos.distance_to(old_player)>=650))
@@ -4128,7 +4263,7 @@ var buried_paper_cache: Dictionary = {}
 func draw_buried_paper(pos: Vector2, opened: bool) -> void:
 	var name := "note_open" if opened else "note"
 	if not buried_paper_cache.has(name):
-		var source := atlas.get_image()
+		var source := label_atlas_pixels
 		var id: int = sprites[name]
 		var image := Image.create(32,48,false,Image.FORMAT_RGBA8)
 		for y in range(16 if opened else 26,43):
@@ -4570,6 +4705,9 @@ func draw_floor_shadow(polygon: PackedVector2Array, color: Color, projection: Tr
 					var centre:=Vector2.ZERO
 					for point in clipped:centre+=point
 					if use_player_ray and not shadow_ray_clear(centre/clipped.size()+origin):continue
+					# Sliver pieces (collinear points) cannot be triangulated: drawing
+					# them rendered nothing and logged an error every frame.
+					if Geometry2D.triangulate_polygon(clipped).is_empty():continue
 					if sprite_id<0:pieces.append([clipped,null])
 					else:
 						var uv:=PackedVector2Array()
@@ -4817,7 +4955,7 @@ func draw_crown_outline(node:Dictionary,centre:Vector2,radius:float,berry:bool,s
 	var texture_name:="crown_berry_" if berry else "crown_leaf_"
 	texture_name+=str(node.variant)
 	if not outlines.has(texture_name):
-		var image:=atlas.get_image().get_region(Rect2i(source))
+		var image:=label_atlas_pixels.get_region(Rect2i(source))
 		outlines[texture_name]=outline_texture(image,17,17,1,128,Color("ffe7a6"),false,Vector2i(19,19))
 	draw_texture_rect(outlines[texture_name],Rect2(centre-Vector2.ONE*radius*19/17,Vector2.ONE*radius*2*19/17),false)
 
