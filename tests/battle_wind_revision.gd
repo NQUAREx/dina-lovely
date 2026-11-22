@@ -18,7 +18,7 @@ func run():
   g.enemies.clear();g.spawn_wave();assert(g.wave==wave)
   var shooters=g.enemies.filter(func(e):return e.type in [5,6,7]);assert(shooters.is_empty() if wave<=5 else shooters.size()>=1)
   for shooter in shooters:
-   shooter.pos=Vector2(650,700);shooter.home=shooter.pos;shooter.state="chase";shooter.cooldown=0;g.player=Vector2(750,850);var count=g.shots.size();g.update_gunner(shooter,.016);assert(g.shots.size()==count+1 and shooter.state=="chase" and g.shots.back().vel.length()>=235)
+   shooter.pos=Vector2(650,700);shooter.home=shooter.pos;shooter.state="chase";shooter.cooldown=0;g.player=Vector2(750,850);var count=g.shots.size();g.battle.gunner(shooter,.016);assert(g.shots.size()==count+1 and shooter.state=="chase" and g.shots.back().vel.length()>=235)
   if wave==10:
    assert(shooters.filter(func(e):return e.type==5).size()==0 and shooters.filter(func(e):return e.type==6).size()==2 and shooters.filter(func(e):return e.type==7).size()==2)
    var boss=g.enemies.filter(func(e):return e.boss)[0];assert(boss.hp>100);boss.state="chase";boss.slime_cd=0;g.battle.boss(boss,.016);assert(g.poison_zones.size()==1)

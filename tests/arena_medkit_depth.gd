@@ -16,7 +16,7 @@ func run():
  for kind in [5,6,7]:
   g.objects.assign(g.objects.filter(func(o):return not o.solid));g.enemies.clear();g.battle.enemy(kind,Vector2(650,700),40);var e=g.enemies[0];e.state="chase";g.player=Vector2(750,850);var values={}
   for n in range(12):
-   e.cooldown=0;e.reload_left=0;e.ammo=g.battle.GUNS[kind].clip;g.update_gunner(e,.01);values[e.cooldown]=true
+   e.cooldown=0;e.reload_left=0;e.ammo=g.battle.GUNS[kind].clip;g.battle.gunner(e,.01);values[e.cooldown]=true
    assert(e.cooldown>=g.battle.GUNS[kind].interval.x and e.cooldown<=g.battle.GUNS[kind].interval.y)
   assert(values.size()>8)
  g.held_item="rpg";g.weapon="rpg";g.rpg_reload=0;g.attack_cd=0;g.reload_time=0;g.attack();g.attack(true);assert(is_equal_approx(g.rpg_reload,3.24) and is_equal_approx(g.attack_cd,3.24))

@@ -7,7 +7,7 @@ func stamp(owner:int,point:Vector2)->void:
  if not g.get_viewport_rect().grow(110).has_point(point):return
  var cell:=Vector2i(floori((point+g.camera-g.get_viewport_rect().size/2).x/48),floori((point+g.camera-g.get_viewport_rect().size/2).y/48))
  var layout:Dictionary=g.boundary_layout(cell,owner)
- var key:="wall_room%d_%s"%[owner,"exposed" if owner in [0,1] else "stacked"]
+ var key:="wall_room%d_exposed"%owner
  if layout.variant>0:key+=str(layout.variant)
  if owner==1:point+=Vector2(layout.jitter)
  if layout.mirror and owner==1:g.draw_set_transform(point,0,Vector2(-1,1));point=Vector2.ZERO

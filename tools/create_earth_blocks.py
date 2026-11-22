@@ -93,7 +93,7 @@ def generate():
     for variant in range(4):
         tile=earth_block(variant)
         suffix='' if variant==0 else str(variant)
-        for kind in ['exposed','stacked']:
+        for kind in ['exposed']:  # stacked blocks reuse the exposed artwork
             tile.save(A/f'wall_room3_{kind}{suffix}.png')
     print('Generated four detailed earth cubes in standard wall perspective')
 

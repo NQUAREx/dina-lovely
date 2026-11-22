@@ -75,7 +75,7 @@ def fence(variant):
 for room in range(1, 7):
     for variant in range(16 if room==1 else 4):
         suffix='' if variant==0 else str(variant)
-        for kind in ['exposed','stacked']:
+        for kind in ['exposed']:  # stacked blocks reuse the exposed artwork
             if room==1:im=thicket(variant)
             elif room==3:im=earth(variant)
             elif room==5:im=fence(variant)

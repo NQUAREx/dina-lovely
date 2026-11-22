@@ -13,6 +13,41 @@ var hedge_shadow_settings := {"opacity":.31,"fade_start":-7.0,"fade_end":5.0,"of
 var hedge_shadow_base:Image
 var shadow_debug_overlay:CanvasLayer
 
+# Constant lookup lists for per-frame checks (array literals are rebuilt on every evaluation).
+const ROOMS_0_1 := [0,1]
+const TREE_KINDS := ["tree","tree_apples"]
+const FLOWER_KINDS := ["flowers","blueflowers"]
+const ROOMS_1_2_4 := [1,2,4]
+const HEDGE_TREE_KINDS := ["hedge_tree","hedge_tree_apples"]
+const ROOMS_4_6 := [4,6]
+const DIG_TOOL_KINDS := ["quest_axe","pickaxe","shovel"]
+const LARGE_SPRITE_KINDS := ["house","pond"]
+const CRATE_KINDS := ["crate","weapon_crate"]
+const FINAL_TOOL_KINDS := ["axe","shears","drill"]
+const SEAT_KINDS := ["seat","swing"]
+const FRUIT_KINDS := ["berries","tree_apples"]
+const EMBEDDED_KINDS := ["berries","tree_apples","hedge_tree_apples","hedge_target"]
+const LIFTED_DISPLAY_KINDS := ["accessory","cat_fish","riddle_stone"]
+const QUEST_TOOL_KINDS := ["quest_axe","pickaxe"]
+const FINAL_KIT_KINDS := ["axe","shears","drill","tool_table"]
+const UNDRAWN_KINDS := ["hedge_target","tool_table","pet_cat"]
+const GROUND_ONLY_KINDS := ["berries","dug"]
+const ROOMS_5_6 := [5,6]
+const GUNNER_TYPES := [5,6,7]
+const SELF_SHADOWED_KINDS := ["flowers","blueflowers","quest_tree"]
+const DOOR_KINDS := ["arch","doorway"]
+const GLOW_KINDS := ["lamp","candle","candle_heart","heart_stand","note"]
+const HAND_TOOL_KINDS := ["can","rake","fertilizer","shovel","flashlight","axe","shears","drill","quest_axe","pickaxe"]
+const ROOMS_0_1_2 := [0,1,2]
+const SIDES := [-1,1]
+const FACES_0_4_5 := [0,4,5]
+const ALL_TREE_KINDS := ["tree","tree_apples","hedge_tree","hedge_tree_apples"]
+const WIDE_SHADOW_KINDS := ["house","pond","quest_rock","weapon_crate"]
+const SMALL_SHADOW_KINDS := ["quest_axe","pickaxe","shovel","quest_pebble","gate_key","accessory"]
+const FACES_HAND_BEHIND := [0,1,4,6]
+const QUEST_TASKS := ["quest_chop","quest_mine"]
+const FACES_1_3 := [1,3]
+const NO_PICKUP_OUTLINE_KINDS := ["doorway","arch"]
 const HedgeField := preload("res://scripts/hedge_field.gd")
 const TILE := 48.0
 const LARGE_ROOM_ROWS := 25
@@ -797,6 +832,8 @@ func sync_room_theme() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenSetRoom?.("+str(level)+")")
 
 func cache_current_room() -> void:
+	# A web build may draw a half-generated room between slices.
+	invalidate_wall_caches()
 	var state:Dictionary={"saved_at":time}
 	for field in ROOM_FIELDS:
 		var value:Variant=get(field)
@@ -805,6 +842,7 @@ func cache_current_room() -> void:
 
 func activate_cached_room(index: int) -> void:
 	royal_cloth.reset()
+	invalidate_wall_caches()
 	var state:Dictionary=room_cache[index]
 	level=index
 	if index!=1 and held_item=="flashlight":held_item="";sync_hands()
@@ -1046,12 +1084,42 @@ func put_object(kind: String, cell: Vector2i, id: String = "", solid: bool = fal
 var wall_shadow_rows:Array[Array]=[]
 const WALL_SHADOW_COLORS := [Color(.045,.055,.085,.28),Color(.045,.055,.085,.28),Color(.045,.055,.085,0),Color(.045,.055,.085,0)]
 
+# Per-room caches of static wall geometry. Walls and gate posts only change
+# while a room is generated (or through set_cell), never during drawing.
+var wall_render_cache:Dictionary={}
+var stone_layout_cache:Dictionary={}
+
+func invalidate_wall_caches(room:int=-1) -> void:
+	floor_shadow_cache.clear()
+	if room<0:wall_render_cache.clear()
+	else:wall_render_cache.erase(room)
+	stone_layout_cache.clear()
+
+func wall_render_row(y:int,first_x:int,last_x:int) -> Array[Dictionary]:
+	if not wall_render_cache.has(level):
+		var rows:Array=[]
+		for row in range(grid.size()):
+			var walls:Array[Dictionary]=[]
+			if not corridor_row(row):
+				for x in range(grid[row].length()):
+					if grid[row][x]=="#" and not gate_junctions.skip_wall(Vector2i(x,row)):
+						walls.append({"kind":corridor_wall_kind(row),"pos":Vector2(x+.5,row+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,row)})
+			rows.append(walls)
+		wall_render_cache[level]=rows
+	var result:Array[Dictionary]=[]
+	for wall in wall_render_cache[level][y]:
+		var column:int=wall.cell.x
+		if column>=first_x and column<last_x:result.append(wall)
+	return result
+
 func set_cell(x: int, y: int, value: String) -> void:
 	wall_shadow_rows.clear()
+	invalidate_wall_caches(level)
 	grid[y] = grid[y].substr(0,x) + value + grid[y].substr(x+1)
 
 func build_level(index: int) -> void:
 	wall_shadow_rows.clear()
+	invalidate_wall_caches(index)
 	poison_zones=[]
 	room_build_count+=1
 	level = index
@@ -1433,13 +1501,6 @@ func move_player(delta: float, input: Vector2) -> void:
 	if abs(input.x)>abs(input.y): direction = 1 if input.x<0 else 3
 	else: direction = 0 if input.y<0 else 2
 
-func touching_hedge(pos: Vector2) -> bool:
-	if level!=0: return false
-	for offset in [Vector2(-20,-16),Vector2(20,-16),Vector2(-20,16),Vector2(20,16)]:
-		var c := Vector2i((pos+offset)/TILE)
-		if c.y>=0 and c.y<grid.size() and c.x>=0 and c.x<grid[0].length() and grid[c.y][c.x]=="#": return true
-	return false
-
 func _physics_process(delta: float) -> void:
 	var previous_position:=player
 	if playing and not transition and level!=1 and held_item=="flashlight":torch.drop_at_exit()
@@ -1507,7 +1568,7 @@ func _process(delta: float) -> void:
 	ambience_clock -= delta
 	if ambience_clock<=0 and playing and not paused:
 		sfx("birds" if level==0 else "crickets" if level==1 else "ambient")
-		ambience_clock = 10.0 if level in [0,1] else randf_range(7,13)
+		ambience_clock = 10.0 if level in ROOMS_0_1 else randf_range(7,13)
 	if not paused and not transition and playing and not rotate_overlay.visible:
 		update_food_hearts(delta)
 		update_new_rooms(delta)
@@ -1639,8 +1700,7 @@ func available(obj: Dictionary) -> bool:
 	if obj.has("flight_start") and time<float(obj.flight_start)+float(obj.flight_duration):return false
 	if dig_quest.owns(obj):return dig_quest.available(obj)
 	if obj.kind=="fallen_tree":return false
-	if obj.kind in ["crate","weapon_crate"]:return false
-	if obj.has("flight_start") and time<float(obj.flight_start)+float(obj.flight_duration):return false
+	if obj.kind in CRATE_KINDS:return false
 	if obj.kind.begins_with("weapon_") and level==4 and not weapon_crates.unlocked(str(obj.weapon)):return false
 	if obj.kind=="letter_box":return true
 	if obj.kind=="riddle_stone":return obj.id not in save_data.riddle_stones and (not obj.get("hidden_hedge",false) or obj.pos.distance_to(player)<=HIDDEN_REACH)
@@ -1655,16 +1715,16 @@ func available(obj: Dictionary) -> bool:
 	if obj.kind=="skull_relic":return save_data.get("house_open",false) and not save_data.get("skull_taken",false) and not save_data.get("skull_inserted",false)
 	if obj.kind=="skull_stand":return true
 	if obj.kind=="house_door":return not obj.get("opened",false)
-	if obj.kind in ["axe","shears","drill"]:return save_data.finished and obj.kind not in save_data.get("world_kit",[]) and held_item!=obj.kind
+	if obj.kind in FINAL_TOOL_KINDS:return save_data.finished and obj.kind not in save_data.get("world_kit",[]) and held_item!=obj.kind
 	if obj.kind=="secret_book":return true
 	if world_tools.tree_target(obj) or world_tools.flower_target(obj) or obj.kind=="hedge_target":return true
 	if obj.kind=="gate_key":return int(obj.room) not in save_data.gate_keys and int(obj.room) not in save_data.open_gates and (level!=5 or garden_mission_ready())
 	if obj.kind=="accessory":return obj.accessory not in save_data.wearing and (obj.get("dropped_accessory",false) or obj.accessory not in save_data.accessories)
 	if obj.kind=="doorway":return obj.id=="exit" and not door_is_open("exit")
-	if obj.id in ["seat","swing"]:return true
+	if obj.id in SEAT_KINDS:return true
 	if obj.id=="rake": return held_item!="rake"
 	if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>HIDDEN_REACH:return false
-	if obj.kind in ["berries","tree_apples"]: return obj.id not in save_data.eaten
+	if obj.kind in FRUIT_KINDS: return obj.id not in save_data.eaten
 	if obj.id=="flashlight": return level==1 and held_item!="flashlight"
 	if obj.id=="shovel": return held_item!="shovel"
 	var id: String = obj.id
@@ -1698,7 +1758,7 @@ func interaction_reachable(obj: Dictionary) -> bool:
 	if obj.kind=="cat_hut":return companion.can_feed(obj)
 	var target:Vector2=obj.pos
 	var length:=player.distance_to(target)
-	var embedded:bool=obj.get("hidden_hedge",false) or obj.kind in ["berries","tree_apples","hedge_tree_apples","hedge_target"] or (world_tools.tree_target(obj) and obj.get("integrated_hedge",false))
+	var embedded:bool=obj.get("hidden_hedge",false) or obj.kind in EMBEDDED_KINDS or (world_tools.tree_target(obj) and obj.get("integrated_hedge",false))
 	for step in range(1,ceili(length/2)):
 		var point:=player.lerp(target,float(step)*2/maxf(length,1))
 		var cell:=Vector2i(point/TILE)
@@ -1776,7 +1836,7 @@ func item_display_position(obj: Dictionary) -> Vector2:
 	if obj.kind=="gate_key" and obj.has("key_origin"):
 		var t:=clampf((time-float(obj.get("rise_start",time-1)))/.55,0,1)
 		pos=Vector2(obj.key_origin).lerp(pos,smoothstep(0,1,t))+Vector2(0,-sin(t*PI)*30)
-	elif obj.kind in ["accessory","cat_fish","riddle_stone"] and not obj.get("buried_stone",false):pos.y+=sin(time*2)*2
+	elif obj.kind in LIFTED_DISPLAY_KINDS and not obj.get("buried_stone",false):pos.y+=sin(time*2)*2
 	elif obj.kind=="note" and obj.id!="buried":pos.y+=sin(time*2+pos.x)*4+25*(1-clampf((time-float(obj.get("rise_start",time-1)))/.45,0,1))
 	return pos
 
@@ -2353,11 +2413,30 @@ func hurt(amount:float=1.0) -> void:
 
 	persist()
 
+# _draw() calls screen() hundreds of times; the viewport size cannot change
+# inside one draw callback, so it is read once there. Camera and shake are
+# still read on every call (the neighbour pass temporarily moves the camera).
+var draw_half_view:=Vector2.ZERO
+var draw_view_cached:=false
+
 func screen(pos: Vector2) -> Vector2:
+	if draw_view_cached:return pos+(draw_half_view-camera+shake_offset).round()
 	return pos+(get_viewport_rect().size/2-camera+shake_offset).round()
 
-func wall_block_texture(room_id:int,stacked:bool,variant:int) -> Texture2D:
-	var key:="wall_room%d_%s"%[room_id,"stacked" if stacked else "exposed"]
+# [texture, organic, jitter, mirrored] of one wall block, cached per room.
+func stone_layout(cell:Vector2i) -> Array:
+	var key:=Vector3i(cell.x,cell.y,level)
+	if stone_layout_cache.has(key):return stone_layout_cache[key]
+	var wall_room:=boundary_room(cell.y)
+	var organic:=wall_room==1
+	var layout:=boundary_layout(cell,wall_room)
+	var result:=[wall_block_texture(wall_room,layout.variant),organic,Vector2(layout.jitter),organic and bool(layout.mirror)]
+	stone_layout_cache[key]=result
+	return result
+
+# Block tops and stacked blocks use identical artwork; one texture per variant.
+func wall_block_texture(room_id:int,variant:int) -> Texture2D:
+	var key:="wall_room%d_exposed"%room_id
 	if variant>0:key+=str(variant)
 	if not hedge_tree_textures.has(key):
 		hedge_tree_textures[key]=load("res://assets/"+key+".png")
@@ -2373,7 +2452,7 @@ func draw_arena_barrier(pos:Vector2,lift:float) -> void:
 	var edge_trim:=roundf(5.0*(1.0-lift/24.0))
 	for column in range(12,15):
 		var layout:=boundary_layout(Vector2i(column,grid.size()-6),4)
-		var texture:=wall_block_texture(4,false,layout.variant)
+		var texture:=wall_block_texture(4,layout.variant)
 		var anchor:=pos+Vector2((column-13)*TILE,0)
 		var left:=edge_trim if column==12 else 0.0
 		var width:=32.0-edge_trim if column!=13 else 32.0
@@ -2390,18 +2469,15 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 	name=dig_quest.damage_texture(name)
 	var world:=pos-screen(Vector2.ZERO)
 	var variant:=posmod(floori(world.x/48)*17+floori(world.y/48)*7,6) if color.a>.9 else 0
-	if color.a>.9 and name in ["tree","tree_apples"]:name+="_variant"+str(variant)
+	if color.a>.9 and name in TREE_KINDS:name+="_variant"+str(variant)
 	if name=="stone":
 		var cell:=Vector2i(floori(world.x/TILE),floori(world.y/TILE))
-		var stacked:=cell.y>=0 and cell.y+1<grid.size() and cell.x>=0 and cell.x<grid[0].length() and grid[cell.y][cell.x]=="#" and grid[cell.y+1][cell.x]=="#"
-		var wall_room:=boundary_room(floori(world.y/TILE))
-		var organic:=wall_room==1
-		var layout:=boundary_layout(cell,wall_room)
-		if organic:pos+=Vector2(layout.jitter)*scale_factor
+		var stone:Array=stone_layout(cell)
+		var stone_texture:Texture2D=stone[0]
+		if stone[1]:pos+=stone[2]*scale_factor
 		# Keep the roof footprint and original stone pixels, reduce only the
 		# vertical extrusion from 20 to 12 source pixels (base stays fixed).
-		var stone_texture:=wall_block_texture(wall_room,stacked,layout.variant)
-		var mirrored:bool=organic and layout.mirror
+		var mirrored:bool=stone[3]
 		if mirrored:
 			draw_set_transform(pos,0,Vector2(-1,1));pos=Vector2.ZERO
 		draw_texture_rect_region(stone_texture,Rect2(pos+Vector2(-32,-70)*scale_factor,Vector2(64,68)*scale_factor),Rect2(0,0,32,34),color)
@@ -2409,7 +2485,7 @@ func draw_sprite(name: String, pos: Vector2, color: Color = Color.WHITE, scale_f
 		if mirrored:draw_set_transform(Vector2.ZERO)
 		return
 	var id := int(sprites.get(name,0))
-	if name in ["hedge_tree","hedge_tree_apples"]:
+	if name in HEDGE_TREE_KINDS:
 		if not hedge_tree_textures.has(name+str(variant)):hedge_tree_textures[name+str(variant)]=load("res://assets/"+name+"_variant"+str(variant)+".png")
 		draw_texture_rect(hedge_tree_textures[name+str(variant)],Rect2(pos+Vector2(-32,-96)*scale_factor,Vector2(64,96)*scale_factor),false,color)
 		return
@@ -2427,8 +2503,8 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 	if name=="shovel" and level==3 and dig_quest.state().broken:name="shovel_broken"
 	var world:=pos-screen(Vector2.ZERO)
 	var variant:=posmod(floori(world.x/48)*17+floori(world.y/48)*7,6)
-	if name in ["tree","tree_apples"]:name+="_variant"+str(variant)
-	if name in ["hedge_tree","hedge_tree_apples"]:
+	if name in TREE_KINDS:name+="_variant"+str(variant)
+	if name in HEDGE_TREE_KINDS:
 		var key:=name+str(variant)
 		if not hedge_tree_textures.has(key):hedge_tree_textures[key]=load("res://assets/"+name+"_variant"+str(variant)+".png")
 		# Atlas sprites display 32 source pixels in 64 world pixels. Their
@@ -2438,16 +2514,7 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 		if not outlines.has(key):
 			var crown:Texture2D=load("res://assets/"+name+"_variant"+str(variant)+"_crown.png")
 			var source:Image=crown.get_image().get_region(Rect2i(0,0,64,80))
-			var border:=Image.create(64+radius*2,80+radius*2,false,Image.FORMAT_RGBA8)
-			for y in range(80):
-				for x in range(64):
-					if source.get_pixel(x,y).a<.2:continue
-					for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
-						for step in range(1,radius+1):border.set_pixel(x+radius+d.x*step,y+radius+d.y*step,Color("fff3a6"))
-			for y in range(80):
-				for x in range(64):
-					if source.get_pixel(x,y).a>.2:border.set_pixel(x+radius,y+radius,Color.TRANSPARENT)
-			outlines[key]=ImageTexture.create_from_image(border)
+			outlines[key]=outline_texture(source,64,80,radius,51,Color("fff3a6"),true,Vector2i(64+radius*2,80+radius*2))
 		var box:=Rect2(pos-Vector2(32+radius,96+radius)*scale_factor,Vector2(64+radius*2,80+radius*2)*scale_factor)
 		draw_pickup_outline_border(outlines[key],box)
 		return
@@ -2460,18 +2527,38 @@ func draw_pickup_outline(name: String, pos: Vector2, scale_factor: float) -> voi
 		elif name.begins_with("tree"):
 			var crown_atlas:Texture2D=load("res://assets/tree_crowns.png")
 			source=crown_atlas.get_image().get_region(Rect2i(id%16*32,id/16*48,32,48))
-		var border := Image.create(34,source.get_height()+2,false,Image.FORMAT_RGBA8)
-		for y in range(source.get_height()):
-			for x in range(32):
-				if source.get_pixel(x,y).a<.2: continue
-				for d in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
-					border.set_pixel(x+1+d.x,y+1+d.y,Color("fff3a6"))
-		for y in range(source.get_height()):
-			for x in range(32):
-				if source.get_pixel(x,y).a>.2:border.set_pixel(x+1,y+1,Color.TRANSPARENT)
-		outlines[name] = ImageTexture.create_from_image(border)
+		outlines[name] = outline_texture(source,32,source.get_height(),1,51,Color("fff3a6"),true,Vector2i(34,source.get_height()+2))
 	var box := Rect2(pos-Vector2(25.5,33.5),Vector2(51,51)) if (name.begins_with("hedge") and not name.begins_with("hedge_tree")) else Rect2(pos-Vector2(34,88)*scale_factor,Vector2(68,100)*scale_factor)
 	draw_pickup_outline_border(outlines[name],box)
+
+# Pickup ring of a sprite: every pixel within `radius` (4-neighbourhood) of an
+# opaque source pixel becomes `ring`; with clear_inside the opaque pixels
+# themselves stay transparent. Opaque means alpha byte >= threshold, which is
+# exactly get_pixel().a >= .2 (51) or >= .5 (128). Works on raw bytes: the
+# per-pixel Color API made the first highlight of each sprite stutter.
+func outline_texture(source:Image,width:int,height:int,radius:int,threshold:int,ring:Color,clear_inside:bool,size:Vector2i) -> ImageTexture:
+	var image:=source
+	if image.get_format()!=Image.FORMAT_RGBA8:
+		image=source.duplicate();image.convert(Image.FORMAT_RGBA8)
+	var pixels:=image.get_data()
+	var stride:=image.get_width()*4
+	var out:=PackedByteArray();out.resize(size.x*size.y*4)
+	var rgba:=PackedByteArray([ring.r8,ring.g8,ring.b8,ring.a8])
+	for y in range(height):
+		for x in range(width):
+			if pixels[y*stride+x*4+3]<threshold:continue
+			for step in range(1,radius+1):
+				for d in [Vector2i(x+radius-step,y+radius),Vector2i(x+radius+step,y+radius),Vector2i(x+radius,y+radius-step),Vector2i(x+radius,y+radius+step)]:
+					var o:int=(d.y*size.x+d.x)*4
+					out[o]=rgba[0];out[o+1]=rgba[1];out[o+2]=rgba[2];out[o+3]=rgba[3]
+	if clear_inside:
+		for y in range(height):
+			for x in range(width):
+				if pixels[y*stride+x*4+3]<threshold:continue
+				var o:int=((y+radius)*size.x+x+radius)*4
+				# Same bytes as set_pixel(Color.TRANSPARENT), which is white with zero alpha.
+				out[o]=255;out[o+1]=255;out[o+2]=255;out[o+3]=0
+	return ImageTexture.create_from_image(Image.create_from_data(size.x,size.y,false,Image.FORMAT_RGBA8,out))
 
 func draw_pickup_outline_border(texture:Texture2D,box:Rect2)->void:
 	# Shared final pass gives native canopies the same dark two-world-pixel
@@ -2523,6 +2610,7 @@ func draw_heart(pos: Vector2, size: float, color: Color) -> void:
 
 func _draw() -> void:
 	if grid.is_empty():return
+	draw_half_view=get_viewport_rect().size/2;draw_view_cached=true
 	# Only draw the visible edge of one cached neighbour. Its simulation stays frozen.
 	var corridor_pedestal:=Vector2.INF
 	var corridor_torch:=Vector2.INF
@@ -2564,6 +2652,7 @@ func _draw() -> void:
 	for i in range(8):
 		var c:=Color(.06,.07,.13,.025*(8-i))
 		draw_rect(Rect2(Vector2(i*5,i*5),view-Vector2.ONE*i*10),c,false,5)
+	draw_view_cached=false
 	# Shared darkness shader handles the neighbour and current room consistently.
 
 func open_reply_letter() -> void:
@@ -2660,17 +2749,51 @@ func draw_wall_shadows(first:Vector2i,last:Vector2i,origin:Vector2) -> void:
 				draw_polygon(shadow.points,WALL_SHADOW_COLORS)
 	draw_set_transform(Vector2.ZERO)
 
+func renderable_before(a:Dictionary,b:Dictionary) -> bool:
+	# The torch and stand may differ by a fraction of a pixel after loading
+	# their saved coordinates. Match their order in the neighbour overlay.
+	if absf(a.pos.y-b.pos.y)<.5 and absf(a.pos.x-b.pos.x)<.5:
+		if a.kind=="flashlight_pedestal" and b.kind=="stand_flashlight":return true
+		if b.kind=="flashlight_pedestal" and a.kind=="stand_flashlight":return false
+	if a.pos.y==b.pos.y:
+		# Wall blocks support taller gate pillars at the same ground depth.
+		if a.get("wall",false)!=b.get("wall",false):return a.get("wall",false)
+		if a.kind=="dug" and b.kind!="dug":return true
+		if b.kind=="dug" and a.kind!="dug":return false
+		return a.pos.x<b.pos.x
+	return a.pos.y<b.pos.y
+
+# Walls are pre-sorted by (row, column), so only the dynamic items need a
+# full sort. A merge with the same comparator yields the same depth order.
+func merge_renderables(items:Array[Dictionary],walls:Array[Dictionary]) -> Array[Dictionary]:
+	if walls.is_empty():return items
+	var merged:Array[Dictionary]=[]
+	merged.resize(items.size()+walls.size())
+	var i:=0;var j:=0;var n:=0
+	while i<items.size() and j<walls.size():
+		if renderable_before(items[i],walls[j]):merged[n]=items[i];i+=1
+		else:merged[n]=walls[j];j+=1
+		n+=1
+	while i<items.size():merged[n]=items[i];i+=1;n+=1
+	while j<walls.size():merged[n]=walls[j];j+=1;n+=1
+	return merged
+
 func _draw_world() -> void:
 	if grid.is_empty(): return
 	var viewport := get_viewport_rect()
+	var viewport_120:=viewport.grow(120)
+	var viewport_40:=viewport.grow(40)
+	var viewport_60:=viewport.grow(60)
 	var view := viewport.size
 	var world_origin := screen(Vector2.ZERO)
 	var columns := grid[0].length()
 	var rows := grid.size()
-	var baked_floor := grass_texture!=null and level not in [4,6]
+	var baked_floor := grass_texture!=null and level not in ROOMS_4_6
 	var from := Vector2i((camera-view/2)/TILE)-Vector2i(2,3)
 	var to := Vector2i((camera+view/2)/TILE)+Vector2i(3,4)
 	var renderables: Array[Dictionary] = []
+	# Static wall blocks arrive already in draw order (row, then column).
+	var wall_items: Array[Dictionary] = []
 	if not drawing_neighbor:renderables=draw_corridor_extensions()
 	for y in range(maxi(0,from.y),mini(rows,to.y)):
 		var corridor := corridor_row(y)
@@ -2682,6 +2805,25 @@ func _draw_world() -> void:
 		var floor_visible := py<viewport.end.y+2 and py+TILE>viewport.position.y-2
 		var first_x:=maxi(0,from.x)
 		var last_x:=mini(columns,to.x)
+		if not corridor and level!=0:wall_items.append_array(wall_render_row(y,first_x,last_x))
+		if full_floor_row and baked_floor and floor_visible:
+			# Interior grass rows are one contiguous region of the baked texture.
+			# A single stretched region maps every screen pixel to the same texel
+			# as the per-cell draws; only the clipped border cells stay separate.
+			var lo:=first_x
+			while lo<last_x and world_origin.x+lo*TILE+TILE<=viewport.position.x-2:lo+=1
+			var hi:=last_x-1
+			while hi>=lo and world_origin.x+hi*TILE>=viewport.end.x+2:hi-=1
+			var span_start:=maxi(lo,1)
+			var span_end:=mini(hi,columns-2)
+			if span_end>=span_start and row.substr(span_start,span_end-span_start+1).find(" ")<0:
+				for x in [lo,hi]:
+					if (x==0 or x==columns-1) and row[x]!=" ":
+						draw_ground_region(grass_texture,Rect2(Vector2(world_origin.x+x*TILE,py),Vector2.ONE*TILE),Rect2(Vector2(x,y)*24,Vector2(24,24)))
+						if lo==hi:break
+				var count:=span_end-span_start+1
+				draw_texture_rect_region(grass_texture,Rect2(Vector2(world_origin.x+span_start*TILE,py),Vector2(count*TILE,TILE)),Rect2(Vector2(span_start,y)*24,Vector2(count*24,24)))
+				continue
 		for x in range(first_x,last_x):
 			var cell := row[x]
 			if cell==" ":continue
@@ -2692,7 +2834,7 @@ func _draw_world() -> void:
 					draw_ground_region(ground,destination,Rect2(Vector2(24,0),Vector2(24,24)))
 					draw_corridor_edge_shade(p,x,15 if level==0 and y<5 else 13)
 				else:
-					var tile := (2 if (x+y)%3 else 1) if level in [4,6] else 3 if level==0 else 0
+					var tile := (2 if (x+y)%3 else 1) if level in ROOMS_4_6 else 3 if level==0 else 0
 					var floor_texture:Texture2D=grass_texture if baked_floor else romance_ground if level==6 else ground
 					var source := Rect2(Vector2(x,y)*24 if baked_floor else Vector2(tile*24,0),Vector2(24,24))
 					if full_floor_row and x>0 and x<columns-1:
@@ -2702,32 +2844,39 @@ func _draw_world() -> void:
 				if level==6 and x>=10 and x<=16 and y>=5 and y<=15:
 					draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 					if x==10 or x==16:draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
-			if cell=="#" and not corridor and level!=0 and not gate_junctions.skip_wall(Vector2i(x,y)):
-				renderables.append({"kind":corridor_wall_kind(y),"pos":Vector2(x+.5,y+.5)*TILE,"id":"","wall":true,"cell":Vector2i(x,y)})
 
 	if not drawing_neighbor:boundary_backdrop.draw_tree_shadows()
 
+	# One pass over the room objects also gathers the later shadow/hole passes,
+	# in their original order, instead of scanning every object three more times.
+	var flower_shadow_objects:Array[Dictionary]=[]
+	var quest_tree_objects:Array[Dictionary]=[]
+	var dug_objects:Array[Dictionary]=[]
 	for obj in objects:
+		var object_kind:String=obj.kind
+		if object_kind in FLOWER_KINDS or object_kind=="sprout":flower_shadow_objects.append(obj)
+		elif object_kind=="quest_tree":quest_tree_objects.append(obj)
+		elif object_kind=="dug":dug_objects.append(obj)
 		if level==5 and obj.kind in garden_quest.KINDS and not garden_quest.visible(obj):continue
 		if level==5 and obj.kind=="gate_key" and not garden_mission_ready():continue
-		if obj.kind in ["quest_axe","pickaxe"] and obj.id==held_item:continue
+		if obj.kind in QUEST_TOOL_KINDS and obj.id==held_item:continue
 		if obj.has("flight_start") and time<float(obj.flight_start):continue
-		if obj.kind in ["axe","shears","drill","tool_table"] and not save_data.finished:continue
-		if obj.kind in ["hedge_target","tool_table","pet_cat"]:continue
+		if obj.kind in FINAL_KIT_KINDS and not save_data.finished:continue
+		if obj.kind in UNDRAWN_KINDS:continue
 		if obj.kind=="cat_fish" and (save_data.cat_fish or save_data.cat_tamed):continue
 		if obj.kind=="riddle_stone" and obj.id in save_data.riddle_stones:continue
 		if obj.kind=="stand_flashlight" and (held_item=="flashlight" or int(save_data.flashlight_location.get("room",1))!=level):continue
 		if drawing_neighbor and corridor_row(floori(obj.pos.y/TILE)):continue
 		if obj.kind=="accessory" and not available(obj):continue
 		if obj.get("integrated_hedge",false):
-			if get_viewport_rect().grow(120).has_point(screen(obj.pos)):
+			if viewport_120.has_point(screen(obj.pos)):
 				var tree:Dictionary=obj.duplicate();tree.kind="hedge_tree_apples" if obj.kind=="tree_apples" and obj.id not in save_data.eaten else "hedge_tree";tree.integrated_tree=true
 				renderables.append(tree)
 			continue
 		var p := screen(obj.pos)
 		var bounds:=Rect2(p-Vector2(144,160),Vector2(288,224)) if obj.kind=="doorway" else Rect2(p-Vector2(100,150),Vector2(200,250))
 		if not bounds.intersects(viewport):continue
-		if obj.kind in ["berries","dug"]:continue
+		if obj.kind in GROUND_ONLY_KINDS:continue
 		if obj.kind=="skull_relic" and (not save_data.get("house_open",false) or save_data.get("skull_taken",false) or save_data.get("skull_inserted",false)):continue
 		if obj.get("hidden_hedge",false) and obj.pos.distance_to(player)>HIDDEN_REACH:continue
 		if obj.id=="courage" and not combat_done: continue
@@ -2740,7 +2889,7 @@ func _draw_world() -> void:
 		if obj.id=="fertilizer" and has_fertilizer: continue
 		if obj.id=="shovel" and save_data.shovel: continue
 		renderables.append(obj)
-	for enemy in enemies: renderables.append({"kind":"enemy_rocketeer" if enemy.type==7 else "enemy_gunner" if enemy.type in [5,6] else "enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
+	for enemy in enemies: renderables.append({"kind":"enemy_rocketeer" if enemy.type==7 else "enemy_gunner" if enemy.type in ROOMS_5_6 else "enemy"+str(int(enemy.type)%3),"pos":enemy.pos,"id":"","enemy":enemy})
 	renderables.append({"kind":"player","pos":player,"id":""})
 	if not drawing_neighbor and playing and save_data.cat_tamed:renderables.append({"kind":"pet_cat","pos":companion.position,"id":"pet_cat"})
 	draw_paths()
@@ -2756,22 +2905,22 @@ func _draw_world() -> void:
 	if level==4:
 		var entrance:=arena_barrier_position()
 		var entrance_screen:=screen(entrance)
-		if get_viewport_rect().grow(96).has_point(entrance_screen):
+		if viewport.grow(96).has_point(entrance_screen):
 			var slot := arena_barrier_floor()
 			draw_rect(Rect2(screen(slot.position)+Vector2(2,0),slot.size-Vector2(4,0)),Color("322d3d"))
 			if barrier_rise==0.0:draw_arena_barrier(entrance_screen,0.0)
 	world_tools.draw_ground()
-	if level not in [0,1]:
+	if level not in ROOMS_0_1:
 		draw_wall_shadows(from,to,world_origin)
-	for flower in objects:
-		if flower.kind in ["flowers","blueflowers"] and get_viewport_rect().grow(40).has_point(screen(flower.pos)):
+	for flower in flower_shadow_objects:
+		if flower.kind in FLOWER_KINDS and viewport_40.has_point(screen(flower.pos)):
 			draw_shadow(screen(flower.pos),14)
 		elif flower.kind=="sprout" and int(plants.get(flower.id,{}).get("stage",0))>=FLOWER_STAGE_FULL:
 			var point:=screen(flower.pos)
-			if get_viewport_rect().grow(60).has_point(point):
+			if viewport_60.has_point(point):
 				draw_cast_shadow(world_tools.bed_plant(flower.id),point,.9+float(world_tools.variant(flower.id))*.035)
 	if level==6 and save_data.finished:draw_tool_table()
-	for tree in objects:
+	for tree in quest_tree_objects:
 		if tree.kind=="quest_tree":
 			draw_cast_shadow("quest_tree",screen(tree.pos),2.0)
 			draw_shadow(screen(tree.pos),24)
@@ -2790,9 +2939,9 @@ func _draw_world() -> void:
 		var scale_factor:=float(remains.get("scale",1.0))
 		if viewport.grow(96*scale_factor).has_point(point):
 			draw_sprite(remains.kind,point,Color.WHITE,scale_factor)
-	for hole in objects:
+	for hole in dug_objects:
 		if hole.kind=="dug":draw_sprite("dug",screen(hole.pos))
-	if not drawing_neighbor and (level not in [1,2,4] or not inside_main_room()):
+	if not drawing_neighbor and (level not in ROOMS_1_2_4 or not inside_main_room()):
 		draw_cast_shadow("hero"+str(visual_facing())+"_0",screen(player),1.0)
 		draw_shadow(screen(player),18)
 	var visible_crowns:=PackedInt32Array()
@@ -2812,19 +2961,8 @@ func _draw_world() -> void:
 
 	draw_leaf_debris()
 	scene_fx.draw(true)
-	renderables.sort_custom(func(a,b):
-		# The torch and stand may differ by a fraction of a pixel after loading
-		# their saved coordinates. Match their order in the neighbour overlay.
-		if absf(a.pos.y-b.pos.y)<.5 and absf(a.pos.x-b.pos.x)<.5:
-			if a.kind=="flashlight_pedestal" and b.kind=="stand_flashlight":return true
-			if b.kind=="flashlight_pedestal" and a.kind=="stand_flashlight":return false
-		if a.pos.y==b.pos.y:
-			# Wall blocks support taller gate pillars at the same ground depth.
-			if a.get("wall",false)!=b.get("wall",false):return a.get("wall",false)
-			if a.kind=="dug" and b.kind!="dug":return true
-			if b.kind=="dug" and a.kind!="dug":return false
-			return a.pos.x<b.pos.x
-		return a.pos.y<b.pos.y)
+	renderables.sort_custom(renderable_before)
+	renderables=merge_renderables(renderables,wall_items)
 	for item in renderables:
 		var p := screen(item.pos)
 		var kind: String = "tree" if item.kind=="tree_apples" and item.id in save_data.eaten else item.kind
@@ -2832,7 +2970,7 @@ func _draw_world() -> void:
 			if drawing_neighbor:
 				if hedge_field!=null:draw_hedge_canopy(visible_crowns,1)
 				continue
-			if level in [1,2,4] and inside_main_room():
+			if level in ROOMS_1_2_4 and inside_main_room():
 				draw_cast_shadow("hero"+str(visual_facing())+"_0",p,1.0)
 				draw_shadow(p,19)
 			var frame := player_walk_frame()
@@ -2862,7 +3000,7 @@ func _draw_world() -> void:
 			garden_quest.draw_object(item,p,highlighted)
 		elif kind=="pet_cat":companion.draw_cat()
 		elif item.get("integrated_tree",false):
-			if not drawing_neighbor and task_time<=0 and available(item) and item.pos.distance_squared_to(player)<9025 and interaction_reachable(item):
+			if not drawing_neighbor and task_time<=0 and item.pos.distance_squared_to(player)<9025 and available(item) and interaction_reachable(item):
 				draw_pickup_outline(item.kind,p,1.0)
 			draw_hedge_tree_top(item.kind,item.pos)
 		elif item.has("enemy"):
@@ -2874,25 +3012,26 @@ func _draw_world() -> void:
 			draw_cast_shadow(kind,p,1.8 if enemy.get("boss",false) else 1.0)
 			draw_shadow(p,20)
 			draw_sprite(kind,p+Vector2(0,sin(time*5+item.pos.x)*3),Color(1,.2,.25) if time<float(enemy.get("hit_until",0)) else Color(1,.65,.75,.45 if enemy.state=="spawn" else 1) if enemy.get("boss",false) else (Color(.65,1,.85) if enemy.type==3 else Color(.75,.8,1) if enemy.type==4 else Color.WHITE),1.8 if enemy.get("boss",false) else 1.2 if enemy.type==4 else .72 if enemy.type==5 else .85 if enemy.type==3 else 1.0)
-			if enemy.type in [5,6,7]:battle.draw_gun(enemy,p)
+			if enemy.type in GUNNER_TYPES:battle.draw_gun(enemy,p)
 			if enemy.get("boss",false): draw_string(body_font,p+Vector2(-62,-115),tx("boss_name"),HORIZONTAL_ALIGNMENT_LEFT,-1,16,CREAM)
 			var bar_width := 100.0 if enemy.get("boss",false) else 36.0
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width,5)),INK)
 			draw_rect(Rect2(p+Vector2(-bar_width/2,-100 if enemy.get("boss",false) else -57),Vector2(bar_width*float(enemy.hp)/float(enemy.get("max_hp",enemy.hp)),5)),PINK)
 		else:
-			if not drawing_neighbor and available(item) and task_time<=0 and not item.has("wall") and item.pos.distance_squared_to(player)<9025 and available(item) and interaction_reachable(item) and kind not in ["doorway","arch"]:
+			# Cheap distance and wall checks first: available() is pure but costly.
+			if not drawing_neighbor and task_time<=0 and not item.has("wall") and item.pos.distance_squared_to(player)<9025 and kind not in NO_PICKUP_OUTLINE_KINDS and available(item) and interaction_reachable(item):
 				var highlight := "quest_pebble"+str(item.get("stone_variant",0)) if kind=="quest_pebble" else rune_stones.texture(item) if kind=="riddle_stone" or (level==6 and kind=="stone") else "house_door" if kind=="house_door" else "accessory_"+str(item.accessory) if kind=="accessory" else "dug" if item.id=="buried" else ("flashlight" if item.get("ground_tool",false) else "flashlight_rest") if kind=="stand_flashlight" else kind
 				if kind=="sprout":draw_pickup_outline("bed_border"+str(world_tools.variant(item.id)),p,.9+float(world_tools.variant(item.id))*.035)
 				elif item.get("ground_tool",false):
 					draw_set_transform(p,float(item.get("ground_angle",PI/2)));draw_pickup_outline(highlight,Vector2(0,20),.65);draw_set_transform(Vector2.ZERO)
 				elif item.get("integrated_tree",false):draw_pickup_outline(highlight,p,1.0)
-				else:draw_pickup_outline(highlight,screen(item_display_position(item)),.65 if item.get("on_table",false) or kind in ["quest_axe","pickaxe","shovel"] else 3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
-			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false) and kind not in ["flowers","blueflowers","quest_tree"]:
+				else:draw_pickup_outline(highlight,screen(item_display_position(item)),.65 if item.get("on_table",false) or kind in DIG_TOOL_KINDS else 3.0 if kind=="chest" and item.id=="final" else .5 if kind=="gate_key" else .7 if kind=="skull_relic" else 2.0 if kind=="house_door" else 1.0)
+			if not item.has("wall") and item.id!="buried" and not item.get("integrated_tree",false) and kind not in SELF_SHADOWED_KINDS:
 				draw_object_shadows(item,kind,p)
 			if item.get("ground_tool",false):
 				draw_set_transform(p,float(item.get("ground_angle",PI/2)));draw_sprite("flashlight" if kind=="stand_flashlight" else kind,Vector2(0,20),Color.WHITE,.65);draw_set_transform(Vector2.ZERO)
 			elif item.get("on_table",false):draw_sprite(kind,p,Color.WHITE,.65)
-			elif kind in ["quest_axe","pickaxe","shovel"]:draw_sprite(kind,screen(item_display_position(item)),Color.WHITE,.65)
+			elif kind in DIG_TOOL_KINDS:draw_sprite(kind,screen(item_display_position(item)),Color.WHITE,.65)
 			elif kind=="quest_pebble":draw_sprite("quest_pebble"+str(item.get("stone_variant",0)),p)
 			elif kind=="quest_falling":dig_quest.draw_falling(item,p)
 			elif kind=="cat_hut":
@@ -2920,7 +3059,7 @@ func _draw_world() -> void:
 				draw_line(p+Vector2(-10,-66),p+Vector2(-10,-18+swing_offset),CREAM,2)
 				draw_line(p+Vector2(12,-66),p+Vector2(12,-18+swing_offset),CREAM,2)
 				draw_rect(Rect2(p+Vector2(-17,-20+swing_offset),Vector2(36,7)),Color("aa8066"))
-			elif kind in ["house","pond"]: draw_sprite(kind,p,Color.WHITE,2.0)
+			elif kind in LARGE_SPRITE_KINDS: draw_sprite(kind,p,Color.WHITE,2.0)
 			elif kind=="house_door":draw_sprite("house_door_empty" if save_data.get("skull_taken",false) or save_data.get("skull_inserted",false) else "house_door_open" if item.get("opened",false) else "house_door",p,Color.WHITE,2.0)
 			elif kind=="skull_relic":draw_sprite(kind,screen(item_display_position(item)),Color.WHITE,.7)
 			elif kind=="letter_box":draw_sprite("letter_box_open" if item.get("archive_open",false) else "letter_box",p)
@@ -2941,13 +3080,13 @@ func _draw_world() -> void:
 			elif level==6 and kind=="stone" and not item.get("wall",false):draw_sprite(rune_stones.texture(item),p)
 			elif kind=="note" and item.id=="buried":draw_buried_paper(p,item.id in save_data.letters)
 			elif kind=="note_open" and item.id=="buried":draw_buried_paper(p,true)
-			elif kind in ["flowers","blueflowers"]:
+			elif kind in FLOWER_KINDS:
 				draw_sprite(kind+"_pressed_"+str(clampi(roundi(float(item.get("press",0))*2),0,2)),p)
 			elif kind=="gate_key":draw_sprite(kind,screen(item_display_position(item)),Color.WHITE,.5)
 			elif kind=="accessory":draw_sprite("accessory_"+str(item.accessory),screen(item_display_position(item)))
 			elif kind=="note": draw_sprite(kind,screen(item_display_position(item)))
 			else: draw_sprite(kind,p)
-			if kind in ["arch","doorway"]:
+			if kind in DOOR_KINDS:
 				var open: bool = door_is_open(str(item.id))
 				draw_texture_rect(glow,Rect2(p-Vector2(65,110),Vector2(130,150)),false,Color(.9,1,.9,1 if open else .2))
 				if not open and kind!="doorway": draw_line(p+Vector2(-18,-36),p+Vector2(18,-36),Color("ab839a"),4)
@@ -2960,7 +3099,7 @@ func _draw_world() -> void:
 			var breathing:=1.0+sin(time*2.2+item.pos.x*.01)*.055
 			draw_texture_rect(glow,Rect2(center-Vector2.ONE*58*breathing,Vector2.ONE*116*breathing),false,Color(1,.88,.72,.9))
 			draw_texture_rect(glow,Rect2(center-Vector2.ONE*29,Vector2.ONE*58),false,Color(1,.92,.8,1))
-		if item.kind in ["lamp","candle","candle_heart","heart_stand","note"] or (item.kind=="chest" and chest_open):
+		if item.kind in GLOW_KINDS or (item.kind=="chest" and chest_open):
 			var p := screen(item.pos)-Vector2(0,42)
 			var size := 150.0+sin(time*3+item.pos.x)*5
 			draw_texture_rect(glow,Rect2(p-Vector2.ONE*size/2,Vector2.ONE*size),false)
@@ -3283,7 +3422,7 @@ func draw_hand_items() -> void:
 		if reload_time>0:
 			var bar := screen(player)+Vector2(-28,-102)
 			draw_rect(Rect2(bar,Vector2(56,6)),INK);draw_rect(Rect2(bar,Vector2(56*(1-reload_time/1.8),6)),CREAM)
-	if held_item in ["can","rake","fertilizer","shovel","flashlight","axe","shears","drill","quest_axe","pickaxe"]:
+	if held_item in HAND_TOOL_KINDS:
 		var pose:=held_tool_pose()
 		var texture:String="fertilizer_open" if task_time>0 and task_kind.begins_with("fertilize:") else "shears_closed" if held_item=="shears" and task_time>0 and task_time<task_duration*.55 else "drill_spin"+str(int(time*22)%2) if held_item=="drill" and world_tools.drilling else held_item
 		draw_set_transform(screen(pose.hand),pose.angle,pose.flip)
@@ -3361,7 +3500,7 @@ func setup_fog() -> void:
 func update_fog() -> void:
 	gate_junctions.update_lights()
 	if not is_instance_valid(fog):return
-	if level not in [0,1,2] or not room_cache.has(1):fog.visible=false;return
+	if level not in ROOMS_0_1_2 or not room_cache.has(1):fog.visible=false;return
 	var material:ShaderMaterial=fog.material
 	var dark_grid:Array=grid if level==1 else room_cache[1].grid
 	var dark_height:float=dark_grid.size()*TILE
@@ -3375,7 +3514,7 @@ func update_fog() -> void:
 	var gate_lights:=PackedVector2Array()
 	for door in dark_objects:
 		if door.kind=="doorway":
-			for side in [-1,1]:gate_lights.append(screen(door.pos+origin)+Vector2(side*99,-47))
+			for side in SIDES:gate_lights.append(screen(door.pos+origin)+Vector2(side*99,-47))
 	material.set_shader_parameter("gate_lights",gate_lights)
 	material.set_shader_parameter("gate_light_count",gate_lights.size())
 	material.set_shader_parameter("room_band",Vector2(screen(origin+Vector2(0,3*TILE)).y,screen(origin+Vector2(0,dark_height-3*TILE)).y))
@@ -3386,7 +3525,7 @@ func update_fog() -> void:
 	material.set_shader_parameter("hero_pos",screen(player)+Vector2(0,-35))
 	material.set_shader_parameter("view_size",get_viewport_rect().size)
 	var facing_id:=visual_facing()
-	var occlude_hero:=held_item=="flashlight" and level==1 and facing_id in [0,4,5] and resting.is_empty()
+	var occlude_hero:=held_item=="flashlight" and level==1 and facing_id in FACES_0_4_5 and resting.is_empty()
 	material.set_shader_parameter("hero_occludes_light",occlude_hero)
 	if occlude_hero:
 		var frame:=player_walk_frame()
@@ -3496,7 +3635,7 @@ func draw_corridor_extensions() -> Array[Dictionary]:
 	var walls:Array[Dictionary]=[]
 	var north := 15 if level==0 else 13
 	var south := 13
-	for end in [0,1]:
+	for end in ROOMS_0_1:
 		if (level==0 and end==1) or (level==6 and end==0):continue
 		var center:int=north if end==0 else south
 		for j in range(1,6):
@@ -3908,7 +4047,7 @@ func update_vegetation(delta: float) -> void:
 	if hedge_field!=null:hedge_field.update(delta,player)
 	var contact := false
 	for obj in objects:
-		if obj.kind not in ["flowers","blueflowers"]:continue
+		if obj.kind not in FLOWER_KINDS:continue
 		var away: Vector2 = obj.pos-player
 		var distance := away.length()
 		var target := clampf((25-distance)/15,0,1)
@@ -3993,7 +4132,6 @@ func draw_buried_paper(pos: Vector2, opened: bool) -> void:
 				image.set_pixel(x,y,source.get_pixel(id%16*32+x,id/16*48+y))
 		buried_paper_cache[name]=ImageTexture.create_from_image(image)
 	draw_texture_rect(buried_paper_cache[name],Rect2(pos-Vector2(32,86),Vector2(64,96)),false)
-
 
 func build_path_meshes() -> void:
 	# Rasterise the whole network once. Shared junctions become one surface,
@@ -4117,11 +4255,6 @@ func nearest_path_node(pos: Vector2) -> Vector2i:
 				if d<distance:distance=d;best=id
 		if best.x>=0:return best
 	return Vector2i(-1,-1)
-
-func pushing_hedge(pos: Vector2, input: Vector2) -> bool:
-	if level!=0 or input.length()<.35:return false
-	return touching_hedge(pos) and blocked(pos+input.normalized()*7)
-
 
 func prepare_grass_details() -> void:
 	var rng := RandomNumberGenerator.new();rng.seed=int(save_data.seed)+level*3763+9181
@@ -4257,7 +4390,6 @@ func draw_gate_leaf(name: String, pos: Vector2) -> void:
 	var id: int = sprites[name]
 	draw_texture_rect_region(atlas,Rect2(pos,Vector2(72,68)),Rect2(Vector2(id%16*32,id/16*48+16),Vector2(32,32)))
 
-
 func sfx_at(name: String, pos: Vector2) -> void:
 	if name in ["rpg_launch","rpg_explosion"]:
 		rocket_audio.event(name, pos)
@@ -4269,32 +4401,25 @@ func sfx_at(name: String, pos: Vector2) -> void:
 	var voice := audio_pool[(audio_cursor-1)%audio_pool.size()]
 	voice.volume_db-=linear_to_db(1.0+distance/180.0)
 
-func bed_beside_path(pos: Vector2, bed: Dictionary) -> bool:
-	if not valid_ground(pos) or not path_pads.any(func(p):return p.pos.distance_to(pos)<1 and p.radius>=40):return false
-	for path in paths:
-		for point in path:
-			if point.distance_to(pos)<42:return true
-	return false
-
 func door_is_open(id: String) -> bool:
 	return id=="back" or level in save_data.get("open_gates",[])
 
 func draw_cast_shadow(name: String, pos: Vector2, scale_factor: float) -> void:
 	if shadow_hidden_in_dark_room(pos):return
-	var origin := pos-(get_viewport_rect().size/2-camera+shake_offset).round()
+	var origin := pos-screen(Vector2.ZERO)
 	# Fixed upper-left light: silhouettes always fall down-right, including
 	# rooms with lamps or the handheld flashlight.
 	for layer in SHADOW_CAST_LAYERS:
 		var offset:float=layer.x
 		var alpha:float=layer.y
 		var projection:=Transform2D(Vector2(1,0),Vector2(-SHADOW_DIRECTION.x*.5,-SHADOW_DIRECTION.y*.52),pos+SHADOW_DIRECTION*(4.0+offset))
-		if (level not in [1,2,4] and name.begins_with("hero")) or name.begins_with("cat_"):
+		if (level not in ROOMS_1_2_4 and name.begins_with("hero")) or name.begins_with("cat_"):
 			if absf(projection.determinant())<.01:continue
 			var quad:=PackedVector2Array()
 			for vertex in [Vector2(-32,-86),Vector2(32,-86),Vector2(32,10),Vector2(-32,10)]:quad.append(projection*(vertex*scale_factor))
 			draw_floor_shadow(quad,Color(SHADOW_TINT.r,SHADOW_TINT.g,SHADOW_TINT.b,alpha),projection,sprites[name],scale_factor,name.begins_with("hero"))
 			continue
-		if name in ["tree","tree_apples","hedge_tree","hedge_tree_apples"]:
+		if name in ALL_TREE_KINDS:
 			var world_projection:=projection;world_projection.origin=origin+SHADOW_DIRECTION*(4.0+offset)
 			if draw_tree_shadow_clipped(name,world_projection,scale_factor,alpha):continue
 		draw_set_transform_matrix(projection)
@@ -4319,15 +4444,15 @@ func draw_object_shadows(item:Dictionary,kind:String,pos:Vector2)->void:
 	elif kind=="riddle_stone":shadow_name=rune_stones.texture(item)
 	elif kind=="stone" and level==6:shadow_name=rune_stones.texture(item)
 	elif kind=="chest" and item.id=="final":shadow_scale=3.0
-	elif kind in ["house","pond"]:shadow_scale=2.0
+	elif kind in LARGE_SPRITE_KINDS:shadow_scale=2.0
 	if kind=="weapon_crate":weapon_crates.draw_shadow(item,pos)
 	elif should_cast and sprites.has(shadow_name):draw_cast_shadow(shadow_name,pos,shadow_scale)
 	var width:=20.0
-	if kind in ["tree","tree_apples"]:width=30.0
-	elif kind in ["house","pond","quest_rock","weapon_crate"]:width=28.0
+	if kind in TREE_KINDS:width=30.0
+	elif kind in WIDE_SHADOW_KINDS:width=28.0
 	elif kind=="chest" and item.id=="final":width=38.0
 	elif kind=="cat_hut":width=24.0
-	elif item.get("on_table",false) or item.get("ground_tool",false) or kind in ["quest_axe","pickaxe","shovel","quest_pebble","gate_key","accessory"]:width=13.0
+	elif item.get("on_table",false) or item.get("ground_tool",false) or kind in SMALL_SHADOW_KINDS:width=13.0
 	draw_shadow(pos,width)
 
 func draw_tree_shadow_clipped(name: String, projection: Transform2D, scale_factor: float, alpha:float) -> bool:
@@ -4345,7 +4470,7 @@ func draw_tree_shadow_clipped(name: String, projection: Transform2D, scale_facto
 	var map_polygon:=PackedVector2Array([Vector2.ZERO,Vector2(map_rect.end.x,0),map_rect.end,Vector2(0,map_rect.end.y)])
 	var texture:Texture2D=hedge_tree_textures[name] if integrated else atlas
 	var id:int=sprites[name];var inverse:=projection.affine_inverse()
-	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
+	draw_set_transform(screen(Vector2.ZERO))
 	for clipped in Geometry2D.intersect_polygons(quad,map_polygon):
 		var uv:=PackedVector2Array()
 		for point in clipped:
@@ -4417,29 +4542,41 @@ func shadow_ray_clear(destination: Vector2) -> bool:
 		if not shadow_floor_cell(Vector2i(player.lerp(destination,minf(1,step*4/distance))/TILE)):return false
 	return true
 
+# Clipped shadow pieces depend only on the inputs below and on the room grid
+# (cleared with the wall caches), so an unchanged pose reuses the geometry.
+var floor_shadow_cache:Dictionary={}
+
 func draw_floor_shadow(polygon: PackedVector2Array, color: Color, projection: Transform2D = Transform2D.IDENTITY, sprite_id: int = -1, scale_factor: float = 1.0, use_player_ray:bool=true) -> void:
-	var bounds:=Rect2(polygon[0],Vector2.ZERO)
-	for point in polygon:bounds=bounds.expand(point)
-	var origin:=-(get_viewport_rect().size/2-camera+shake_offset).round()
-	var first:=Vector2i((bounds.position+origin)/TILE)-Vector2i.ONE
-	var last:=Vector2i((bounds.end+origin)/TILE)+Vector2i.ONE
-	for y in range(first.y,last.y+1):
-		for x in range(first.x,last.x+1):
-			if not shadow_floor_cell(Vector2i(x,y)):continue
-			var corner:=screen(Vector2(x,y)*TILE)
-			var tile:=PackedVector2Array([corner,corner+Vector2(TILE,0),corner+Vector2(TILE,TILE),corner+Vector2(0,TILE)])
-			for clipped in Geometry2D.intersect_polygons(polygon,tile):
-				if clipped.size()<3:continue
-				var centre:=Vector2.ZERO
-				for point in clipped:centre+=point
-				if use_player_ray and not shadow_ray_clear(centre/clipped.size()+origin):continue
-				if sprite_id<0:draw_colored_polygon(clipped,color)
-				else:
-					var uv:=PackedVector2Array()
-					for point in clipped:
-						var local:Vector2=projection.affine_inverse()*point/scale_factor+Vector2(32,86)
-						uv.append((Vector2(sprite_id%16*32,sprite_id/16*48)+local/2)/Vector2(atlas.get_size()))
-					draw_polygon(clipped,PackedColorArray([color]),uv,atlas)
+	var origin:=-screen(Vector2.ZERO)
+	var key:=[polygon,color,projection,sprite_id,scale_factor,use_player_ray,player,level,origin,grid.size()]
+	var pieces:Array=floor_shadow_cache.get(key,[])
+	if not floor_shadow_cache.has(key):
+		var bounds:=Rect2(polygon[0],Vector2.ZERO)
+		for point in polygon:bounds=bounds.expand(point)
+		var first:=Vector2i((bounds.position+origin)/TILE)-Vector2i.ONE
+		var last:=Vector2i((bounds.end+origin)/TILE)+Vector2i.ONE
+		for y in range(first.y,last.y+1):
+			for x in range(first.x,last.x+1):
+				if not shadow_floor_cell(Vector2i(x,y)):continue
+				var corner:=screen(Vector2(x,y)*TILE)
+				var tile:=PackedVector2Array([corner,corner+Vector2(TILE,0),corner+Vector2(TILE,TILE),corner+Vector2(0,TILE)])
+				for clipped in Geometry2D.intersect_polygons(polygon,tile):
+					if clipped.size()<3:continue
+					var centre:=Vector2.ZERO
+					for point in clipped:centre+=point
+					if use_player_ray and not shadow_ray_clear(centre/clipped.size()+origin):continue
+					if sprite_id<0:pieces.append([clipped,null])
+					else:
+						var uv:=PackedVector2Array()
+						for point in clipped:
+							var local:Vector2=projection.affine_inverse()*point/scale_factor+Vector2(32,86)
+							uv.append((Vector2(sprite_id%16*32,sprite_id/16*48)+local/2)/Vector2(atlas.get_size()))
+						pieces.append([clipped,uv])
+		if floor_shadow_cache.size()>=12:floor_shadow_cache.clear()
+		floor_shadow_cache[key]=pieces
+	for piece in pieces:
+		if piece[1]==null:draw_colored_polygon(piece[0],color)
+		else:draw_polygon(piece[0],PackedColorArray([color]),piece[1],atlas)
 
 func resolve_gate_overlap(door: Dictionary) -> void:
 	var relative:Vector2=player-door.pos
@@ -4453,7 +4590,7 @@ func body_motion()->Vector2:
 	return -rifle_kick_dir*rifle_kick+Vector2(sin(time*9)*1.2 if moving else 0,sin(time*3)*1.4 if not moving else -absf(sin(time*12))*3)
 
 func hand_is_behind()->bool:
-	return visual_facing() in [0,1,4,6]
+	return visual_facing() in FACES_HAND_BEHIND
 
 func right_hand_position()->Vector2:
 	var face:=visual_facing();var frame:=player_walk_frame()
@@ -4477,7 +4614,7 @@ func held_tool_pose() -> Dictionary:
 	if using and task_kind.begins_with("fertilize:"):angle+=sin(time*16)*.07
 	if using and (task_kind.begins_with("rake:") or task_kind=="new_bed" or task_kind.begins_with("uproot:") or task_kind.begins_with("garden_rake:")):hand+=toward*sin(time*13)*9
 	if using and task_kind.begins_with("dig:"):angle+=sin((task_duration-task_time)/task_duration*PI)*.6
-	if using and (task_kind in ["quest_chop","quest_mine"] or task_kind.begins_with("axe:") or task_kind.begins_with("snip")):angle+=sin((task_duration-task_time)/task_duration*PI)*1.1
+	if using and (task_kind in QUEST_TASKS or task_kind.begins_with("axe:") or task_kind.begins_with("snip")):angle+=sin((task_duration-task_time)/task_duration*PI)*1.1
 	if held_item=="drill" and world_tools.drilling:hand+=Vector2(sin(time*70),cos(time*60))*1.2
 	return {"hand":hand,"angle":angle,"flip":flip,"anchor":anchor,"scale":scale_factor,"tip":hand+(local_tip*flip).rotated(angle)}
 
@@ -4590,7 +4727,7 @@ func visual_facing() -> int:
 
 func player_walk_frame() -> int:
 	if not moving or not resting.is_empty() or (paused and not reply_deposit_active):return 0
-	return int(time*16)%8 if visual_facing() in [1,3] else int(time*12)%4
+	return int(time*16)%8 if visual_facing() in FACES_1_3 else int(time*12)%4
 
 func draw_player_outfit(pos: Vector2, frame: int, color: Color) -> void:
 	var facing:=visual_facing()
@@ -4631,13 +4768,16 @@ func draw_hedge_tree_top(kind: String, position: Vector2) -> void:
 func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 	# Quantize the camera once, not each overlapping crown independently.
 	# Relative crown positions remain constant while the camera moves.
-	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
+	draw_set_transform(screen(Vector2.ZERO))
 	# A single fixed Y-order is split around the heroine. Each crown is drawn whole,
 	# once. The margin includes maximum bend and radius, keeping front crowns below waist.
+	# The shears target is the same for every crown of this pass.
+	var shears_cell:=Vector2i(-99999,-99999)
+	if not drawing_neighbor and held_item=="shears" and nearest>=0 and objects[nearest].kind=="hedge_target":shears_cell=objects[nearest].cell
 	for index in indices:
 		var behind:bool=not hedge_field.front_crowns.has(index)
 		if (side<0 and not behind) or (side>0 and behind):continue
-		draw_leaf_crown(index)
+		draw_leaf_crown(index,shears_cell)
 	# The stone lip sits on the hedge surface, after neighbouring leaf crowns.
 	# A single stored index avoids another full canopy scan every frame.
 	var marker:int=hedge_field.stone_marker_index
@@ -4648,24 +4788,25 @@ func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 			draw_texture_rect(stone_peek,Rect2(Vector2(pose.x,pose.y)-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2),false)
 	draw_set_transform(Vector2.ZERO)
 
-func draw_leaf_crown(index: int) -> void:
+# Atlas ids of crown_leaf_N / crown_berry_N, resolved once per variant.
+var crown_sprite_ids:Dictionary={}
+
+func draw_leaf_crown(index: int, shears_cell: Vector2i = Vector2i(-99999,-99999)) -> void:
 	var node:Dictionary=hedge_field.crowns[index]
 	var pose:Vector3=hedge_field.draw_poses.get(index,Vector3.ZERO)
 	var radius:float=pose.z
 	var centre:=Vector2(pose.x,pose.y)
 	var berry:bool=not str(node.berry).is_empty() and node.berry not in save_data.eaten
-	var texture_name:="crown_berry_" if berry else "crown_leaf_"
-	texture_name+=str(node.variant)
-	var id:int=sprites[texture_name]
-	if (berry and node.base.distance_to(player)<79) or (not drawing_neighbor and held_item=="shears" and nearest>=0 and objects[nearest].kind=="hedge_target" and Vector2i(node.base/TILE)==objects[nearest].cell):
+	var variant:int=node.variant
+	var id_key:=variant*2+(1 if berry else 0)
+	if not crown_sprite_ids.has(id_key):crown_sprite_ids[id_key]=int(sprites[("crown_berry_" if berry else "crown_leaf_")+str(variant)])
+	var id:int=crown_sprite_ids[id_key]
+	if (berry and node.base.distance_to(player)<79) or Vector2i(node.base/TILE)==shears_cell:
+		var texture_name:="crown_berry_" if berry else "crown_leaf_"
+		texture_name+=str(variant)
 		if not outlines.has(texture_name):
 			var source:=atlas.get_image().get_region(Rect2i(id%16*32+8,id/16*48+24,17,17))
-			var border:=Image.create(19,19,false,Image.FORMAT_RGBA8)
-			for y in range(17):
-				for x in range(17):
-					if source.get_pixel(x,y).a<.5:continue
-					for offset in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:border.set_pixel(x+1+offset.x,y+1+offset.y,Color("ffe7a6"))
-			outlines[texture_name]=ImageTexture.create_from_image(border)
+			outlines[texture_name]=outline_texture(source,17,17,1,128,Color("ffe7a6"),false,Vector2i(19,19))
 		draw_texture_rect(outlines[texture_name],Rect2(centre-Vector2.ONE*radius*19/17,Vector2.ONE*radius*2*19/17),false)
 	draw_texture_rect_region(atlas,Rect2(centre-Vector2.ONE*radius,Vector2.ONE*radius*2),Rect2(Vector2(id%16*32+8,id/16*48+24),Vector2(17,17)))
 
@@ -4674,7 +4815,7 @@ func draw_hedge_body(bounds: Rect2) -> void:
 	var texture:Texture2D=hedge_field.body_texture
 	var region:=bounds.intersection(Rect2(Vector2.ZERO,Vector2(texture.get_size())*2))
 	if not region.has_area():return
-	draw_set_transform((get_viewport_rect().size/2-camera+shake_offset).round())
+	draw_set_transform(screen(Vector2.ZERO))
 	# Most of the wall never deforms. Draw it as texture regions, not hundreds of meshes.
 	var patch:=Rect2()
 	for index in hedge_field.active:
@@ -4742,9 +4883,6 @@ func rpg_muzzle() -> Vector2:
 	var left:=aim.x<0
 	var angle:=atan2(-aim.y,-aim.x) if left else aim.angle()
 	return right_hand_position()+Vector2(-44 if left else 44,-5.6).rotated(angle)
-
-func update_gunner(enemy: Dictionary, delta: float) -> void:
-	battle.gunner(enemy,delta)
 
 # The seeded beds keep a wider gap so the garden paths have room to branch.
 func garden_layout_clear(point:Vector2) -> bool:

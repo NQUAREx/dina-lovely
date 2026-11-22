@@ -13,12 +13,12 @@ func run():
  for kind in [5,6,7]:
   g.enemies.clear();g.battle.enemy(kind,Vector2(600,700),40);var e=g.enemies[0];e.state="patrol";e.cooldown=0;e.sense=0;g.player=Vector2(800 if kind==7 else 750,700);g.shots.clear()
   var clip:int=g.battle.GUNS[kind].clip
-  for n in range(clip):e.cooldown=0;g.update_gunner(e,.001)
+  for n in range(clip):e.cooldown=0;g.battle.gunner(e,.001)
   assert(g.shots.size()==clip and e.reload_left>2 and e.ammo==0)
-  var count=g.shots.size();e.cooldown=0;g.update_gunner(e,.2);assert(g.shots.size()==count)
+  var count=g.shots.size();e.cooldown=0;g.battle.gunner(e,.2);assert(g.shots.size()==count)
   assert(g.shots[0].damage==(1.0 if kind==5 else 1.5 if kind==6 else 2.0))
-  e.reload_left=.01;e.cooldown=0;g.update_gunner(e,.02);assert(g.shots.size()==count+1)
-  e.reload_left=1;e.pos=Vector2(700,700);g.player=Vector2(710,700);var before:float=e.pos.distance_to(g.player);g.update_gunner(e,.1);assert(e.pos.distance_to(g.player)>before)
+  e.reload_left=.01;e.cooldown=0;g.battle.gunner(e,.02);assert(g.shots.size()==count+1)
+  e.reload_left=1;e.pos=Vector2(700,700);g.player=Vector2(710,700);var before:float=e.pos.distance_to(g.player);g.battle.gunner(e,.1);assert(e.pos.distance_to(g.player)>before)
  g.enemies.clear();g.battle.enemy(0,Vector2(500,650),20);var idle=g.enemies[0];idle.state="patrol";g.player=Vector2(1000,1000);var origin:Vector2=idle.pos
  for n in range(120):g.time+=.016;g.battle.tick(.016)
  assert(not idle.aggro and idle.pos.distance_to(g.player)>400 and idle.pos.distance_to(origin)>1)
