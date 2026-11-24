@@ -19,27 +19,15 @@ var rest_retry:=0.0
 var leaf_masks:Dictionary={}
 var cat_bounds:Dictionary={}
 func _init(game:Node2D):g=game
-func place(rng:RandomNumberGenerator)->void:
- if g.level!=0:return
- var choices:Array[Vector2i]=[]
- for y in range(8,g.grid.size()-8):
-  for x in range(2,g.grid[0].length()-2):
-   if g.grid[y][x]!="." or g.grid[y+1][x]!=".":continue
-   if g.grid[y-1][x]=="." or g.grid[y][x-1]=="." or g.grid[y][x+1]==".":continue
-   var p:Vector2=(Vector2(x,y)+Vector2(.5,.5))*48
-   if not g.objects.any(func(o):return o.pos.distance_to(p)<100):choices.append(Vector2i(x,y))
- if choices.is_empty():
-  for y in range(8,g.grid.size()-8):
-   for x in range(2,g.grid[0].length()-2):
-    if g.grid[y][x]=="#" and g.grid[y+1][x]=="." and g.grid[y-1][x]=="#" and g.grid[y][x-1]=="#" and g.grid[y][x+1]=="#":choices.append(Vector2i(x,y))
- if choices.is_empty():return
- var cell:Vector2i=choices[rng.randi_range(0,choices.size()-1)];g.set_cell(cell.x,cell.y,".")
- g.put_object("cat_hut",cell,"cat_hut",true)
+func place_fish(rng:RandomNumberGenerator)->void:
+ var hut_index:int=g.objects.find_custom(func(obj):return obj.kind=="cat_hut")
+ if hut_index<0:return
+ var hut_position:Vector2=g.objects[hut_index].pos
  var fish:Array[Vector2i]=[]
  for y in range(8,g.grid.size()-7):
   for x in range(2,g.grid[0].length()-2):
    var p:Vector2=(Vector2(x,y)+Vector2(.5,.5))*48
-   if g.grid[y][x]=="." and p.distance_to((Vector2(cell)+Vector2(.5,.5))*48)>180 and not g.objects.any(func(o):return o.pos.distance_to(p)<65):fish.append(Vector2i(x,y))
+   if g.grid[y][x]=="." and p.distance_to(hut_position)>180 and not g.objects.any(func(o):return o.pos.distance_to(p)<65):fish.append(Vector2i(x,y))
  if not fish.is_empty():g.put_object("cat_fish",fish[rng.randi_range(0,fish.size()-1)],"cat_fish")
 func install()->void:
  g.objects.assign(g.objects.filter(func(o):return o.kind!="pet_cat"));target_ref={};rest_goal=Vector2.INF

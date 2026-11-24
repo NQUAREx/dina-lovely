@@ -50,6 +50,8 @@ const FACES_1_3 := [1,3]
 const NO_PICKUP_OUTLINE_KINDS := ["doorway","arch"]
 const HedgeField := preload("res://scripts/hedge_field.gd")
 const TILE := 48.0
+const MAZE_GATE_COLUMN := 15
+const MAZE_HUT_OFFSET := Vector2i(3,-4)
 const LARGE_ROOM_ROWS := 25
 const GARDEN_BEDS := 12
 const FLOWER_STAGE_FULL := 3
@@ -1255,6 +1257,10 @@ func build_level(index: int) -> void:
 	if level == 0:
 		# Perfect maze: every corridor is connected; letters occupy distinct far branches.
 		for y in range(23): grid.append("#".repeat(31))
+		# Reserve a sheltered pocket before carving. Its even/even cell is
+		# outside the maze traversal graph. Padding later flips the rows.
+		var hut_cell:=Vector2i(MAZE_GATE_COLUMN,grid.size()-1)+MAZE_HUT_OFFSET
+		put_object("cat_hut",hut_cell,"cat_hut",true)
 		var stack: Array[Vector2i] = [Vector2i(1,1)]
 		set_cell(1,1,".")
 		while not stack.is_empty():
@@ -1269,6 +1275,12 @@ func build_level(index: int) -> void:
 				set_cell((p.x+q.x)/2,(p.y+q.y)/2,".")
 				set_cell(q.x,q.y,".")
 				stack.append(q)
+		# The front faces down in the finished room. Open the front and
+		# side approach without placing the hut on a maze passage.
+		set_cell(hut_cell.x,hut_cell.y,".")
+		set_cell(hut_cell.x,hut_cell.y-1,".")
+		set_cell(hut_cell.x,hut_cell.y-2,".")
+		set_cell(hut_cell.x-1,hut_cell.y,".")
 		# A few loops reduce backtracking while preserving the labyrinth.
 		for p in [Vector2i(8,5),Vector2i(16,11),Vector2i(22,17),Vector2i(10,19)]: set_cell(p.x,p.y,".")
 		put_object("note",Vector2i(13,3),"dawn")
@@ -1365,7 +1377,7 @@ func build_level(index: int) -> void:
 			if grid[y][x]==".": put_object("lamp",Vector2i(x,y))
 	add_corridors()
 	await finish_room_layout(rng)
-	companion.place(rng)
+	if level==0:companion.place_fish(rng)
 	for obj in objects:
 		var key := str(level)+":"+str(obj.id)
 		if save_data.tool_positions.has(key):
@@ -3307,7 +3319,7 @@ func add_corridors() -> void:
 		grid.append("#".repeat(width))
 	for obj in objects: obj.pos.y += 5*TILE
 	player.y += 5*TILE
-	var north := 15 if level==0 else 13
+	var north := MAZE_GATE_COLUMN if level==0 else 13
 	var south := 1 if level==0 else 13
 	for y in range(5):
 		grid[y]=" ".repeat(width)

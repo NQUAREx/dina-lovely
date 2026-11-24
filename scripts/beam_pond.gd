@@ -4,6 +4,9 @@ extends RefCounted
 const BOUNDS := Rect2(528,624,432,624)
 const PLATFORM_COUNT := 10
 const LEAF_SCALE := Vector2(72.0/52.0,60.0/52.0)
+const SUPPORT_MARGIN := 3.0
+const MAX_PHASE_SPEED := 1.10
+const PHASE_ACCELERATION := 2.10
 const SWIMMING_AREA := Rect2(528,637,432,598)
 # The retaining stones occupy eight pixels at each bank. Keep a strip of
 # water visible beyond them, with an extra pixel for sprite rounding.
@@ -38,7 +41,7 @@ func reset(rng:RandomNumberGenerator)->void:
 		var y:=lerpf(BOUNDS.position.y+bank_offset,BOUNDS.end.y-bank_offset,float(index)/(PLATFORM_COUNT-1))
 		var artwork:=Vector2.ONE*diameter*LEAF_SCALE
 		var sweep:=BOUNDS.size.x*.5-ceilf(artwork.x*.5)-LEAF_INSET
-		var velocity:=motion_rng.randf_range(.64,1.48)
+		var velocity:=motion_rng.randf_range(.64,MAX_PHASE_SPEED)
 		pads.append({
 			"center": Vector2(BOUNDS.get_center().x,y),
 			"diameter": diameter,
@@ -58,7 +61,7 @@ func leaf_size(index:int)->Vector2:
 	return Vector2.ONE*float(pads[index].diameter)*LEAF_SCALE
 
 func support_box(index:int)->Rect2:
-	var square:=Vector2.ONE*float(pads[index].diameter)
+	var square:=Vector2.ONE*(float(pads[index].diameter)+2.0*SUPPORT_MARGIN)
 	return Rect2(pad_position(index)-square*.5,square)
 
 func advance_pads(delta:float)->void:
@@ -67,8 +70,8 @@ func advance_pads(delta:float)->void:
 		if pad.change_in<=0:
 			pad.change_in=motion_rng.randf_range(.40,1.85)
 			var sign_change:float=-1.0 if motion_rng.randf()<.19 else 1.0
-			pad.target_velocity=signf(pad.target_velocity)*sign_change*motion_rng.randf_range(.35,1.72)
-		pad.velocity=move_toward(pad.velocity,pad.target_velocity,delta*4.0)
+			pad.target_velocity=signf(pad.target_velocity)*sign_change*motion_rng.randf_range(.35,MAX_PHASE_SPEED)
+		pad.velocity=move_toward(pad.velocity,pad.target_velocity,delta*PHASE_ACCELERATION)
 		pad.phase=fposmod(pad.phase+pad.velocity*delta,TAU)
 
 func support(foot:Vector2)->int:

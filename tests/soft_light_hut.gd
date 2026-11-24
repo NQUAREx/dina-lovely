@@ -2,7 +2,12 @@ extends SceneTree
 func _initialize():call_deferred("run")
 func run():
  var g=load("res://main.tscn").instantiate();root.add_child(g);await process_frame;g.new_game();g.clear_modal();g.set_process(false);g.set_physics_process(false);g.sound_on=false;g.save_data.seed=723;g.build_level(0)
- var hut=g.objects.filter(func(o):return o.kind=="cat_hut")[0];g.objects.assign([hut]);var tested:=0
+ var hut=g.objects.filter(func(o):return o.kind=="cat_hut")[0]
+ var gate=g.objects.filter(func(o):return o.kind=="doorway" and o.id=="exit")[0]
+ assert(hut.pos-gate.pos==Vector2(144,192))
+ g.player=hut.pos+Vector2(0,48)
+ assert(g.companion.can_feed(hut))
+ g.objects.assign([hut]);var tested:=0
  for x in [-28,-20,0,20,28]:
   for y in [30,48,72,88]:
    g.player=hut.pos+Vector2(x,y)

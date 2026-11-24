@@ -19,7 +19,8 @@ func _initialize()->void:
 				var middle:Vector2=pond.pad_position(index)
 				var square:Rect2=pond.support_box(index)
 				assert(square.get_center().is_equal_approx(middle))
-				assert(square.size.is_equal_approx(pond.leaf_size(index)/pond.LEAF_SCALE))
+				var leaf_diameter:Vector2=pond.leaf_size(index)/pond.LEAF_SCALE
+				assert(square.size.is_equal_approx(leaf_diameter+Vector2.ONE*6.0))
 				assert(pond.BOUNDS.grow(-6).encloses(square))
 			var top:Vector2=pond.pad_position(0)
 			var last:int=pond.pads.size()-1
@@ -30,7 +31,10 @@ func _initialize()->void:
 		for tick in range(600):
 			var before:float=pond.pads[0].velocity
 			pond.advance_pads(.05)
-			if signf(before)!=signf(pond.pads[0].velocity):reversals+=1
+			var after:float=pond.pads[0].velocity
+			assert(absf(after)<=1.10+.00001)
+			assert(absf(after-before)<=2.10*.05+.00001)
+			if signf(before)!=signf(after):reversals+=1
 		assert(reversals>0)
 	rng.seed=17
 	pond.reset(rng)
