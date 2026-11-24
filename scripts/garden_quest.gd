@@ -416,6 +416,28 @@ func warm_up()->void:
 	if atlas_image==null:atlas_image=texture().get_image()
 	for kind in ["basket","shears"]:icon(kind)
 
+func warm_up_outlines()->void:
+	# Highlight rings of every garden sprite (grass, bush phases, shears,
+	# baskets, table, overgrown trees), built before play instead of on the
+	# first highlight.
+	var indices:={40:true,45:true,47:true}
+	for count in range(BASKETS_REQUIRED+1):indices[48+count]=true
+	if g.room_cache.has(5):
+		for obj in g.room_cache[5].objects:
+			if obj.has("garden_tree_sprite"):indices[int(obj.garden_tree_sprite)]=true
+			if obj.kind=="garden_grass":indices[int(obj.variant)]=true
+			elif obj.kind=="garden_bush":
+				for phase in [8,16,24,32,36]:indices[phase+int(obj.variant)]=true
+	for index in indices:outline(index)
+
+# 1-pixel ring around opaque pixels (alpha >= .2) of one 64x64 tile.
+func outline(index:int)->Texture2D:
+	if not outlines.has(index):
+		if atlas_image==null:atlas_image=texture().get_image()
+		var tile:=atlas_image.get_region(Rect2i(region(index)))
+		outlines[index]=g.outline_texture(tile,64,64,1,51,Color("fff3a6"),false,Vector2i(66,66))
+	return outlines[index]
+
 func texture()->Texture2D:
 	if art==null:art=load("res://assets/garden_quest.png")
 	return art
@@ -463,18 +485,7 @@ func draw_object(obj:Dictionary,pos:Vector2,highlighted:bool)->void:
 	var index:int=obj.garden_tree_sprite if tree_needs_trim(obj) else sprite_index(obj)
 	var box:=Rect2(pos-ANCHOR*2.0,TILE_SIZE*2.0)
 	var source:=region(index)
-	if highlighted:
-		if not outlines.has(index):
-			if atlas_image==null:atlas_image=texture().get_image()
-			var tile:=atlas_image.get_region(Rect2i(source))
-			var border:=Image.create(66,66,false,Image.FORMAT_RGBA8)
-			for y in range(64):
-				for x in range(64):
-					if tile.get_pixel(x,y).a<.2:continue
-					for offset in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
-						border.set_pixelv(Vector2i(x+1,y+1)+offset,Color("fff3a6"))
-			outlines[index]=ImageTexture.create_from_image(border)
-		g.draw_pickup_outline_border(outlines[index],box.grow(2))
+	if highlighted:g.draw_pickup_outline_border(outline(index),box.grow(2))
 	g.draw_texture_rect_region(texture(),box,source)
 
 func draw_hints()->void:

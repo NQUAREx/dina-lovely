@@ -10,7 +10,7 @@ var clock:=0.0
 func _init(game:Node2D):g=game
 func update(delta:float)->void:
  if g.save_data.is_empty() or g.grid.is_empty():return
- if seed_value!=int(g.save_data.seed):plots.clear();grounds.clear();seed_value=int(g.save_data.seed)
+ sync_seed()
  if g.level in [4,6]:return
  clock+=delta
  if clock<.05:return
@@ -26,6 +26,26 @@ func update(delta:float)->void:
   var plot:Dictionary=plots[key]
   plot.age=minf(3,float(plot.age)+elapsed) if g.playing else plot.age
   if plot.age>=3 and key not in g.save_data.flower_notes:g.save_data.flower_notes.append(key);g.persist()
+ bake()
+func sync_seed()->void:
+ if seed_value!=int(g.save_data.seed):plots.clear();grounds.clear();seed_value=int(g.save_data.seed)
+# Called by build_level with the image the room's ground texture was just
+# made from. Reading the texture back from the GPU on the first visit of each
+# room (ImageTexture.get_image) cost ~50 ms in WebGL.
+func ground_built(texture:Texture2D,image:Image)->void:
+ if g.save_data.is_empty() or g.level in [4,5,6]:return
+ sync_seed()
+ grounds[str(g.level)]={"texture":texture,"image":image,"counts":{}}
+# Called right after a room is built (behind the loading screen): flowers of
+# notes read in earlier sessions are baked now, not on the first visit.
+func prebake()->void:
+ if g.save_data.is_empty() or g.grid.is_empty() or g.level in [4,6]:return
+ sync_seed()
+ for obj in g.objects:
+  if obj.kind!="note" or obj.id not in g.save_data.letters:continue
+  var key:=str(g.level)+":"+str(obj.id)
+  if key not in g.save_data.flower_notes or plots.has(key):continue
+  plots[key]=make_plot(obj);plots[key].age=3.0
  bake()
 func make_plot(note:Dictionary)->Dictionary:
  var rng:=RandomNumberGenerator.new();rng.seed=seed_value^hash(str(note.id))
@@ -43,14 +63,18 @@ func bake()->void:
  if g.grass_texture==null:return
  if g.level==5 and not g.garden_lawn.complete():return
  var room:=str(g.level)
- if not grounds.has(room) or grounds[room].texture!=g.grass_texture:
-  grounds[room]={"texture":g.grass_texture,"image":g.grass_texture.get_image(),"counts":{}}
- var ground:Dictionary=grounds[room]
+ var ground:Dictionary=grounds.get(room,{})
+ if not ground.is_empty() and ground.texture!=g.grass_texture:ground={}
  var changed:=false
  for key in plots:
   var plot:Dictionary=plots[key]
   if plot.room!=g.level:continue
   var count:=mini(plot.points.size(),ceili(float(plot.age)/3*plot.points.size()))
+  if count<=int(ground.get("counts",{}).get(key,0)):continue
+  # Only the garden (whose lawn replaces its texture) still reads the
+  # texture back, and only once a flower actually has to be baked.
+  if ground.is_empty():
+   ground={"texture":g.grass_texture,"image":g.grass_texture.get_image(),"counts":{}};grounds[room]=ground
   for n in range(int(ground.counts.get(key,0)),count):
    var flower:Dictionary=plot.points[n]
    var variant:int=flower.variant

@@ -204,6 +204,14 @@ func bridge(start:Vector2,goal:Vector2)->Array[Vector2]:
   finish=parents[finish]
  return result
 
+# Outline polygons of one leaf crown variant (built at loading, see warm_up_runtime).
+func leaf_mask(variant:int)->Array:
+ if not leaf_masks.has(variant):
+  var tile:int=g.sprites["crown_leaf_"+str(variant)]
+  var bitmap:=BitMap.new();bitmap.create_from_image_alpha(g.label_atlas_pixels.get_region(Rect2i(tile%16*32+8,tile/16*48+24,17,17)))
+  leaf_masks[variant]=bitmap.opaque_to_polygons(Rect2i(0,0,17,17),.1)
+ return leaf_masks[variant]
+
 func polygon_bounds(points:PackedVector2Array)->Rect2:
  var bounds:=Rect2(points[0],Vector2.ZERO)
  for point in points:bounds=bounds.expand(point)
@@ -222,11 +230,7 @@ func ground_regions(name:String,p:Vector2)->Array[PackedVector2Array]:
   var centre:=Vector2(pose.x,pose.y)+shift
   if not box.intersects(Rect2(centre-Vector2.ONE*pose.z,Vector2.ONE*pose.z*2)):continue
   var variant:int=node.variant
-  if not leaf_masks.has(variant):
-   var tile:int=g.sprites["crown_leaf_"+str(variant)]
-   var bitmap:=BitMap.new();bitmap.create_from_image_alpha(g.label_atlas_pixels.get_region(Rect2i(tile%16*32+8,tile/16*48+24,17,17)))
-   leaf_masks[variant]=bitmap.opaque_to_polygons(Rect2i(0,0,17,17),.1)
-  for source_mask in leaf_masks[variant]:
+  for source_mask in leaf_mask(variant):
    var mask:=PackedVector2Array()
    for point in source_mask:mask.append(centre-Vector2.ONE*pose.z+point*(pose.z*2/17))
    var bounds:=polygon_bounds(mask);var next:Array[PackedVector2Array]=[]

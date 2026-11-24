@@ -849,21 +849,25 @@ func resume_game() -> void:
 func sync_room_theme() -> void:
 	if OS.has_feature("web"):JavaScriptBridge.eval("window.gardenSetRoom?.("+str(level)+")")
 
-func cache_current_room() -> void:
+# Walking through a corridor hands the room containers over by reference
+# (copy=false): deep-copying every room field of both rooms in that one frame
+# was the largest single hitch of a crossing. Only one room is live at a time,
+# and build_level() detaches the live containers before reusing them.
+func cache_current_room(copy:bool=true) -> void:
 	var state:Dictionary={"saved_at":time}
 	for field in ROOM_FIELDS:
 		var value:Variant=get(field)
-		state[field]=value.duplicate(true) if value is Array or value is Dictionary else value
+		state[field]=value.duplicate(true) if copy and (value is Array or value is Dictionary) else value
 	room_cache[level]=state
 
-func activate_cached_room(index: int) -> void:
+func activate_cached_room(index: int, copy:bool=true) -> void:
 	royal_cloth.reset()
 	var state:Dictionary=room_cache[index]
 	level=index
 	if index!=1 and held_item=="flashlight":held_item="";sync_hands()
 	for field in ROOM_FIELDS:
 		var value:Variant=state[field]
-		set(field,value.duplicate(true) if value is Array or value is Dictionary else value)
+		set(field,value.duplicate(true) if copy and (value is Array or value is Dictionary) else value)
 	var elapsed:float=maxf(0,time-float(state.saved_at))
 	for list in [particles,footprints,damage_numbers,skulls]:
 		for item in list:item.life-=elapsed
@@ -888,7 +892,7 @@ func activate_cached_room(index: int) -> void:
 func prepare_room_cache(target: int) -> void:
 	if room_cache_seed!=int(save_data.seed) or room_cache.size()!=7:
 		room_cache.clear()
-		for room in range(7):build_level(room);cache_current_room()
+		for room in range(7):build_level(room);note_flowers.prebake();cache_current_room()
 		room_cache_seed=int(save_data.seed)
 	activate_cached_room(target)
 	warm_up_runtime()
@@ -919,6 +923,7 @@ func prepare_rooms_web(target: int, hide_after: bool = true) -> void:
 	for room in range(7):
 		build_deadline_usec = Time.get_ticks_usec() + WEB_BUILD_SLICE_USEC
 		await build_level(room)
+		note_flowers.prebake()
 		cache_current_room()
 		JavaScriptBridge.eval("window.gardenRoomProgress?.("+str(float(room+1)/7)+")")
 		await get_tree().process_frame
@@ -957,8 +962,16 @@ func warm_up_runtime() -> void:
 		for node in get_children():
 			if node.has_method("warm_up"):node.warm_up()
 		if OS.has_feature("web") and AudioServer.has_method("register_stream_as_sample"):
-			for stream in preload("res://scripts/audio_bank.gd").STREAMS.values():
+			for stream in preload("res://scripts/audio_bank.gd").STREAMS.values()+[foliage_voice.stream,rocket_voice.stream]:
 				if stream!=null and not AudioServer.is_stream_registered_as_sample(stream):AudioServer.register_stream_as_sample(stream)
+			# The first sample playback of each player set up its WebAudio
+			# nodes in the middle of play (the first footstep took ~50 ms).
+			for voice in audio_pool+[foliage_voice,rocket_voice]:
+				var stream:AudioStream=voice.stream
+				if stream==null:voice.stream=preload("res://scripts/audio_bank.gd").STREAMS.ui
+				var volume:float=voice.volume_db
+				voice.volume_db=-80;voice.play();voice.stop()
+				voice.volume_db=volume;voice.stream=stream
 	# Pickup rings of every sprite the rooms can highlight.
 	var names:={}
 	for state in room_cache.values():
@@ -971,6 +984,18 @@ func warm_up_runtime() -> void:
 		if sprites.has(name) and name not in HEDGE_TREE_KINDS:sprite_outline(name)
 	for name in ["quest_tree"]+range(1,7).map(func(n):return "quest_tree_damage%d"%n):
 		if ResourceLoader.exists("res://assets/"+name+"_trunk.png"):sprite_outline(name+"_outline")
+	# Art that used to be built on its first appearance: gate lamps, garden
+	# highlight rings and need badges, berry/leaf crown rings, the cat's leaf
+	# masks, buried notes.
+	gate_junctions.warm_up()
+	garden_quest.warm_up_outlines()
+	for kind in ["rake","fertilizer","water","shears","basket"]:garden_need_badge(kind)
+	for variant in range(12):
+		for berry in [false,true]:
+			var crown_id:int=int(sprites[("crown_berry_" if berry else "crown_leaf_")+str(variant)])
+			crown_outline(("crown_berry_" if berry else "crown_leaf_")+str(variant),Rect2(Vector2(crown_id%16*32+8,crown_id/16*48+24),Vector2(17,17)))
+		companion.leaf_mask(variant)
+	for name in ["note","note_open"]:buried_paper(name)
 	# Static wall geometry of every cached room (walls only change in
 	# build_level/set_cell, which clear these caches again).
 	var old_level:=level
@@ -998,11 +1023,38 @@ func warm_up_gpu() -> void:
 	add_child(probe)
 	var fog_was_visible:=false
 	if is_instance_valid(fog):fog_was_visible=fog.visible;fog.visible=true
+	# A visible gate lamp: the first lit canvas frame compiles the lighting
+	# shader variants, which used to happen when the first gate came into view.
+	var lamp:PointLight2D=gate_junctions.lamp("warm_up")
+	lamp.position=get_viewport_rect().size/2;lamp.energy=.01;lamp.visible=true
+	warm_up_glyphs()
 	# One synchronous, unpresented frame: _process cannot hide the fog first.
 	RenderingServer.force_draw(false)
+	lamp.visible=false
 	if is_instance_valid(fog):fog.visible=fog_was_visible
 	probe.queue_free()
+	if glyph_canvas.is_valid():RenderingServer.free_rid(glyph_canvas);glyph_canvas=RID()
 
+# Rasterise the glyphs of every in-play text size (toast, objective, wave
+# counter, floating labels) before play; a glyph is otherwise rasterised and
+# uploaded the first time it is drawn at that size.
+func warm_up_glyphs() -> void:
+	var chars:={}
+	for entry in content.get("ui",{}).values():
+		if entry is Dictionary:
+			for c in str(entry.get("text","")):chars[c]=true
+	for c in "0123456789/:×%+-.,!?":chars[c]=true
+	var text:="".join(chars.keys())
+	var canvas:=RenderingServer.canvas_item_create()
+	RenderingServer.canvas_item_set_parent(canvas,get_canvas_item())
+	RenderingServer.canvas_item_set_modulate(canvas,Color(1,1,1,.01))
+	for size in [13,16,19,24]:body_font.draw_string(canvas,Vector2(0,40),text,HORIZONTAL_ALIGNMENT_LEFT,-1,size)
+	title_font.draw_string(canvas,Vector2(0,40),text,HORIZONTAL_ALIGNMENT_LEFT,-1,31)
+	body_font.draw_string_outline(canvas,Vector2(0,40),text,HORIZONTAL_ALIGNMENT_LEFT,-1,17,3)
+	body_font.draw_string(canvas,Vector2(0,40),text,HORIZONTAL_ALIGNMENT_LEFT,-1,17)
+	glyph_canvas=canvas
+
+var glyph_canvas:RID
 func show_intro() -> void:
 	var box:=modal_box(650,0)
 	box.add_child(label(str(content.game_title),30,CREAM,true))
@@ -1218,6 +1270,11 @@ func set_cell(x: int, y: int, value: String) -> void:
 	grid[y] = grid[y].substr(0,x) + value + grid[y].substr(x+1)
 
 func build_level(index: int) -> void:
+	# The live containers may be a cached room's own (see cache_current_room):
+	# clear fresh shallow copies instead, never that room's data.
+	for field in ROOM_FIELDS:
+		var value:Variant=get(field)
+		if value is Array or value is Dictionary:set(field,value.duplicate())
 	wall_shadow_rows.clear()
 	invalidate_wall_caches(index)
 	poison_zones=[]
@@ -1662,8 +1719,12 @@ func _physics_process(delta: float) -> void:
 		var heading:=aim if not weapon.is_empty() and (attack_flash>0 or rpg_windup>=0) else walk_facing
 		royal_cloth.update(player-previous_position,heading,delta,"gold_brocade" in save_data.wearing,"gold_mantle" in save_data.wearing)
 
+var room_theme_frames:=-1
 func _process(delta: float) -> void:
 	if persist_pending and time>=persist_soon_at:persist()
+	if room_theme_frames>=0:
+		room_theme_frames-=1
+		if room_theme_frames<0:sync_room_theme()
 	if playing and not paused and not transition and not rotate_overlay.visible and not save_data.finished:
 		stats.track_time(self,delta)
 	dig_quest.update(delta)
@@ -2330,8 +2391,8 @@ func draw_garden_needs() -> void:
 			draw_rect(meter,INK)
 			draw_rect(Rect2(meter.position+Vector2.ONE,Vector2(roundf(28*dry_fraction),3)),Color("e7ad84"))
 
-func draw_garden_need(kind:String,pos:Vector2)->void:
-	if not get_viewport_rect().grow(45).has_point(pos):return
+# Badge art of one garden need (made once, at loading by warm_up_runtime).
+func garden_need_badge(kind:String)->Dictionary:
 	if not garden_need_art.has(kind):
 		var name:="need_"+kind
 		var source:Image
@@ -2346,7 +2407,11 @@ func draw_garden_need(kind:String,pos:Vector2)->void:
 				for offset in [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]:
 					border.set_pixelv(Vector2i(x+1,y+1)+offset,Color("fff3a6"))
 		garden_need_art[kind]={"texture":ImageTexture.create_from_image(source),"outline":ImageTexture.create_from_image(border)}
-	var art:Dictionary=garden_need_art[kind]
+	return garden_need_art[kind]
+
+func draw_garden_need(kind:String,pos:Vector2)->void:
+	if not get_viewport_rect().grow(45).has_point(pos):return
+	var art:Dictionary=garden_need_badge(kind)
 	var box:=Rect2(pos-Vector2(19.5,1.5),Vector2(39,45))
 	for offset in [Vector2.LEFT,Vector2.RIGHT,Vector2.UP,Vector2.DOWN]:
 		draw_texture_rect(art.outline,Rect2(box.position+offset,box.size),false,Color(.2,.13,.25))
@@ -3365,7 +3430,7 @@ func travel(destination: int) -> void:
 	var carried_particles:Array=particles.filter(func(item):return item.pos.distance_to(old_player)<650).duplicate(true)
 	footprints.assign(footprints.filter(func(item):return item.pos.distance_to(old_player)>=650));particles.assign(particles.filter(func(item):return item.pos.distance_to(old_player)>=650))
 	if destination<previous and destination not in save_data.open_gates:save_data.open_gates.append(destination)
-	cache_current_room();activate_cached_room(destination)
+	cache_current_room(false);activate_cached_room(destination,false)
 	var new_center:float=13.5*TILE if destination>previous else (15.5 if destination==0 else 13.5)*TILE
 	var delta:=Vector2(new_center-old_center,grid.size()*TILE+HALL_SEAM*2 if destination>previous else -old_height-HALL_SEAM*2)
 	player=old_player+delta;camera=old_camera+delta;invincible=old_invincible;health=old_health
@@ -3376,7 +3441,10 @@ func travel(destination: int) -> void:
 	for item in carried_particles:item.pos+=delta;particles.append(item)
 	save_data.level=destination;transition=false
 	if is_instance_valid(fog):fog.visible=level==1
-	update_fog();find_nearest();update_hud();sync_room_theme();persist()
+	# The page frame swap (JavaScript) and the save write each cost several ms
+	# in the browser; they run on later frames, not in the crossing frame.
+	# Leaving the page still flushes the pending save (gardenSaveNow).
+	update_fog();find_nearest();update_hud();room_theme_frames=3;persist_soon()
 
 func begin_task(kind: String, target: Vector2, duration: float) -> void:
 	task_return_direction=direction;task_return_facing=walk_facing;task_return_aim=aim
@@ -4273,7 +4341,10 @@ func update_foliage_audio(delta: float) -> void:
 
 var buried_paper_cache: Dictionary = {}
 func draw_buried_paper(pos: Vector2, opened: bool) -> void:
-	var name := "note_open" if opened else "note"
+	draw_texture_rect(buried_paper("note_open" if opened else "note"),Rect2(pos-Vector2(32,86),Vector2(64,96)),false)
+
+func buried_paper(name:String) -> Texture2D:
+	var opened:=name=="note_open"
 	if not buried_paper_cache.has(name):
 		var source := label_atlas_pixels
 		var id: int = sprites[name]
@@ -4283,7 +4354,7 @@ func draw_buried_paper(pos: Vector2, opened: bool) -> void:
 				if y>=37 and Vector2((x-16)/10.0,(y-37)/5.0).length()>.9:continue
 				image.set_pixel(x,y,source.get_pixel(id%16*32+x,id/16*48+y))
 		buried_paper_cache[name]=ImageTexture.create_from_image(image)
-	draw_texture_rect(buried_paper_cache[name],Rect2(pos-Vector2(32,86),Vector2(64,96)),false)
+	return buried_paper_cache[name]
 
 func build_path_meshes() -> void:
 	# Rasterise the whole network once. Shared junctions become one surface,
@@ -4468,6 +4539,7 @@ func prepare_grass_details() -> void:
 		if DEBUG_MODE:hedge_shadow_base=image.duplicate()
 		await bake_hedge_shadow(image)
 	grass_texture=ImageTexture.create_from_image(image)
+	note_flowers.ground_built(grass_texture,image)
 
 func setup_shadow_debug()->void:
 	var overlay:=CanvasLayer.new()
@@ -4963,13 +5035,16 @@ func draw_hedge_canopy(indices: PackedInt32Array, side: int = 0) -> void:
 # Atlas source rectangles of crown_leaf_N / crown_berry_N, resolved once per variant.
 var crown_sprite_ids:Dictionary={}
 
-func draw_crown_outline(node:Dictionary,centre:Vector2,radius:float,berry:bool,source:Rect2) -> void:
-	var texture_name:="crown_berry_" if berry else "crown_leaf_"
-	texture_name+=str(node.variant)
+func crown_outline(texture_name:String,source:Rect2) -> Texture2D:
 	if not outlines.has(texture_name):
 		var image:=label_atlas_pixels.get_region(Rect2i(source))
 		outlines[texture_name]=outline_texture(image,17,17,1,128,Color("ffe7a6"),false,Vector2i(19,19))
-	draw_texture_rect(outlines[texture_name],Rect2(centre-Vector2.ONE*radius*19/17,Vector2.ONE*radius*2*19/17),false)
+	return outlines[texture_name]
+
+func draw_crown_outline(node:Dictionary,centre:Vector2,radius:float,berry:bool,source:Rect2) -> void:
+	var texture_name:="crown_berry_" if berry else "crown_leaf_"
+	texture_name+=str(node.variant)
+	draw_texture_rect(crown_outline(texture_name,source),Rect2(centre-Vector2.ONE*radius*19/17,Vector2.ONE*radius*2*19/17),false)
 
 func draw_hedge_body(bounds: Rect2) -> void:
 	if hedge_field==null or hedge_field.body_texture==null:return
