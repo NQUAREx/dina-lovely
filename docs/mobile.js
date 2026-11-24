@@ -90,17 +90,22 @@
  // The same room palette also colors browser-owned areas where textures cannot render.
  const roomChromeColors=[[56, 32, 84], [12, 28, 47], [115, 72, 31], [111, 90, 65], [87, 22, 45], [34, 79, 86], [215, 188, 157]];
  let chromeColor=roomChromeColors[0].slice(),chromeAnimation=0;
- const paintChrome=color=>{
+ const paintChrome=(color,page=true)=>{
   const css='#'+color.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
   const pageColor=document.getElementById('garden-loading')?'#242538':css;
-  if(document.documentElement.style.backgroundColor!==pageColor)document.documentElement.style.setProperty('background-color',pageColor,'important');
-  document.body?.style.setProperty('background-color',pageColor,'important');
+  if(page){
+   if(document.documentElement.style.backgroundColor!==pageColor)document.documentElement.style.setProperty('background-color',pageColor,'important');
+   if(document.body&&document.body.style.backgroundColor!==pageColor)document.body.style.setProperty('background-color',pageColor,'important');
+  }
   const theme=document.querySelector('meta[name="theme-color"]');if(theme&&theme.content!==pageColor)theme.content=pageColor;
  };
  const syncChrome=(room,animate=true)=>{
   cancelAnimationFrame(chromeAnimation);const from=chromeColor.slice(),to=roomChromeColors[room],start=performance.now();let painted=-100;
+  // The browser bar colour fades every 80 ms; the page background (hidden
+  // behind the fixed frame layers) is repainted once, at the end: repainting
+  // html/body 14 times during the second after a room change stalled the game.
   const tick=now=>{const t=animate?Math.min(1,(now-start)/1100):1;const eased=t*t*(3-2*t);chromeColor=from.map((v,i)=>v+(to[i]-v)*eased);
-   if(now-painted>=80||t===1){paintChrome(chromeColor);painted=now;}
+   if(now-painted>=80||t===1){paintChrome(chromeColor,t===1);painted=now;}
    if(t<1)chromeAnimation=requestAnimationFrame(tick);
   };tick(start);
  };
