@@ -357,6 +357,7 @@ func load_save() -> void:
 # one write per PERSIST_COALESCE_SEC, and never more than that stale.
 const PERSIST_COALESCE_SEC := .75
 var persist_pending:=false
+var last_saved_text:=""
 var persist_soon_at:=0.0
 func persist_soon() -> void:
 	if not persist_pending:
@@ -375,12 +376,17 @@ func persist() -> void:
 	save_data.held_item = held_item
 	if level==6:save_data.riddle_input=puzzle.duplicate()
 	persist_pending=false
+	# Compact JSON: the save is rewritten on every checkpoint, and an
+	# indented dump of the whole state took several ms per write.
+	var text:=JSON.stringify(save_data)
+	# Periodic autosaves (cat every 8 s, arena every 5 s) usually find nothing
+	# new: skip the file write and the browser storage sync it triggers.
+	if text==last_saved_text and FileAccess.file_exists(SAVE_PATH):return
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:
-		# Compact JSON: the save is rewritten on every checkpoint, and an
-		# indented dump of the whole state took several ms per write.
-		file.store_string(JSON.stringify(save_data))
+		file.store_string(text)
 		file.flush()
+		last_saved_text=text
 	else:
 		if is_instance_valid(toast): notify(tx("storage_unavailable"))
 
@@ -3056,7 +3062,7 @@ func _draw_world() -> void:
 					draw_rect(Rect2(p,Vector2.ONE*TILE),Color(.49,.26,.39,.5))
 					if x==10 or x==16:draw_line(p+Vector2(5,0),p+Vector2(5,48),Color("c5918e"),2)
 
-	if not drawing_neighbor:boundary_backdrop.draw_tree_shadows()
+	if not drawing_neighbor:note_flowers.draw_growing();boundary_backdrop.draw_tree_shadows()
 
 	# One pass over the room objects also gathers the later shadow/hole passes,
 	# in their original order, instead of scanning every object three more times.

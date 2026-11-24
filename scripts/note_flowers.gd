@@ -71,6 +71,10 @@ func bake()->void:
   if plot.room!=g.level:continue
   var count:=mini(plot.points.size(),ceili(float(plot.age)/3*plot.points.size()))
   if count<=int(ground.get("counts",{}).get(key,0)):continue
+  # While a plot grows its new flowers are drawn as sprites (draw_growing);
+  # it is baked once, complete: re-uploading the whole room ground texture
+  # at 20 Hz for three seconds after every letter made the game stutter.
+  if count<plot.points.size():continue
   # Only the garden (whose lawn replaces its texture) still reads the
   # texture back, and only once a flower actually has to be baked.
   if ground.is_empty():
@@ -86,3 +90,21 @@ func bake()->void:
    changed=true
   ground.counts[key]=count
  if changed:ground.texture.update(ground.image)
+# Flowers of plots that are still growing, drawn right after the ground with
+# the same atlas pixels, position and 2x scale as the baked ones (the flower
+# art is fully opaque or fully transparent, so the result is identical).
+func draw_growing()->void:
+ if g.grass_texture==null or (g.level==5 and not g.garden_lawn.complete()):return
+ var ground:Dictionary=grounds.get(str(g.level),{})
+ var counts:Dictionary=ground.get("counts",{}) if not ground.is_empty() and ground.texture==g.grass_texture else {}
+ var origin:Vector2=g.screen(Vector2.ZERO)
+ for key in plots:
+  var plot:Dictionary=plots[key]
+  if plot.room!=g.level:continue
+  var count:=mini(plot.points.size(),ceili(float(plot.age)/3*plot.points.size()))
+  if count>=plot.points.size():continue
+  for n in range(int(counts.get(key,0)),count):
+   var flower:Dictionary=plot.points[n]
+   var id:int=g.sprites["note_flower"+str(flower.variant)]
+   var cell:=Vector2i(flower.pos/2)+Vector2i(-3,-7)
+   g.draw_texture_rect_region(g.atlas,Rect2(origin+Vector2(cell)*2,Vector2(14,18)),Rect2(id%16*32+13,id/16*48+36,7,9))
