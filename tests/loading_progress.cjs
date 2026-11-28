@@ -6,6 +6,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright');
 
 const docs = path.resolve(__dirname, '../docs');
 const content = fs.readFileSync(path.resolve(__dirname, '../content/letters.json'));
+const fullContent = fs.readFileSync(path.resolve(__dirname, '../content/letters.backup.json'));
 const types = { '.js': 'text/javascript', '.mp4': 'video/mp4', '.png': 'image/png', '.ttf': 'font/ttf' };
 const server = http.createServer((req, res) => {
   const name = path.basename(new URL(req.url, 'http://localhost').pathname);
@@ -19,7 +20,7 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(file).pipe(res);
 });
 
-async function check(browser, ios, failVideo = false, stallFrames = false) {
+async function check(browser, ios, failVideo = false, stallFrames = false, full = false) {
   const page = await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true,
     userAgent:ios ? 'Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile Safari/604.1' : 'Mozilla/5.0 (Linux; Android 14) Chrome/153 Mobile'});
   try {
@@ -28,12 +29,24 @@ async function check(browser, ios, failVideo = false, stallFrames = false) {
       HTMLImageElement.prototype.decode = () => new Promise(() => {});
     });
     if (failVideo) await page.route('**/*.mp4*', route => route.abort());
-    await page.route('https://raw.githubusercontent.com/**', route => route.fulfill({contentType:'application/json',body:content}));
+    await page.route('https://raw.githubusercontent.com/**', route => route.fulfill({contentType:'application/json',body:route.request().url().includes('/letters.backup.json') ? fullContent : content}));
     await page.goto('http://127.0.0.1:' + server.address().port);
-    await page.locator('#mobile-gate button').tap();
+    if (full) {
+      const password = page.locator('#garden-edition-password');
+      await password.fill('wrong-password');
+      await password.press('Enter');
+      await page.locator('#garden-password-error').waitFor();
+      assert.equal(await page.locator('#garden-loading').count(), 0);
+      assert.equal(await page.evaluate(() => window.gardenContent.demo_mode), true);
+      await password.fill('love-in-bloom');
+      await password.press('Enter');
+    } else {
+      await page.locator('#garden-play-demo').tap();
+    }
     await page.waitForFunction(() => Promise.race([
       window.gardenLaunch.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 100)),
     ]));
+    assert.equal(Boolean(await page.evaluate(() => window.gardenContent.demo_mode)), !full);
     if (ios) {
       await page.waitForFunction(() => window.gardenLoadingCanBuild === true);
       const movie = page.locator('#garden-loading video');
@@ -73,6 +86,7 @@ async function check(browser, ios, failVideo = false, stallFrames = false) {
     await check(browser,true,true);
     await check(browser,false);
     await check(browser,false,false,true);
-    console.log('PASS iOS playback, second launch, media fallback, Android byte progress and startup with stalled animations');
+    await check(browser,true,false,false,true);
+    console.log('PASS password validation and edition selection, iOS playback, second launch, media fallback, Android byte progress and startup with stalled animations');
   } finally {await browser.close();server.close();}
 })().catch(error => {console.error(error);server.close();process.exitCode=1;});
