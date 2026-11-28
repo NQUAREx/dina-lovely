@@ -2434,6 +2434,8 @@ func use_exit(walking: bool = false) -> void:
 		save_data.gate_keys.erase(level)
 		save_data.gate_key_drops.erase(str(level))
 		save_data.open_gates.append(level);persist();sfx("gate_unlock");gate_creak_delay=.14;haptic(30)
+		if OS.has_feature("web"):
+			JavaScriptBridge.eval("void window.gardenGateOpened?.(%d)" % level)
 		for door in objects:
 			if door.kind=="doorway" and door.id=="exit":door.unlock_time=time
 		return

@@ -15,6 +15,16 @@
       "name": "REPLY_TOTAL",
       "namespace_id": "4170602",
       "simple": { "limit": 12, "period": 60 }
+    },
+    {
+      "name": "GATE_PER_CLIENT",
+      "namespace_id": "4170603",
+      "simple": { "limit": 8, "period": 60 }
+    },
+    {
+      "name": "GATE_TOTAL",
+      "namespace_id": "4170604",
+      "simple": { "limit": 12, "period": 60 }
     }
   ]
 }

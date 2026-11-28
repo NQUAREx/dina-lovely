@@ -3,6 +3,8 @@
 *.log
 .DS_Store
 node_modules/
+.wrangler/
+.dev.vars*
 test-results/
 
 __pycache__/

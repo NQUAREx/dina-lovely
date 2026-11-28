@@ -20,8 +20,8 @@ func _initialize()->void:
 				var square:Rect2=pond.support_box(index)
 				assert(square.get_center().is_equal_approx(middle))
 				var leaf_diameter:Vector2=pond.leaf_size(index)/pond.LEAF_SCALE
-				assert(square.size.is_equal_approx(leaf_diameter+Vector2.ONE*6.0))
-				assert(pond.BOUNDS.grow(-6).encloses(square))
+				assert(square.size.is_equal_approx(leaf_diameter+Vector2.ONE*10.0))
+				assert(pond.BOUNDS.grow(-4).encloses(square))
 			var top:Vector2=pond.pad_position(0)
 			var last:int=pond.pads.size()-1
 			var bottom:Vector2=pond.pad_position(last)

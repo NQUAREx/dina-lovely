@@ -4,7 +4,7 @@ extends RefCounted
 const BOUNDS := Rect2(528,624,432,624)
 const PLATFORM_COUNT := 10
 const LEAF_SCALE := Vector2(72.0/52.0,60.0/52.0)
-const SUPPORT_MARGIN := 3.0
+const SUPPORT_MARGIN := 5.0
 const MAX_PHASE_SPEED := 1.10
 const PHASE_ACCELERATION := 2.10
 const SWIMMING_AREA := Rect2(528,637,432,598)

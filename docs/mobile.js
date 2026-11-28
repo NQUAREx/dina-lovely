@@ -211,6 +211,42 @@
   appleTitle.content=data.game_title;
   return data;
  })().catch(()=>null);
+ function getReplyEndpoint() {
+  try {
+   const endpoint = new URL(window.gardenContent?.reply_delivery?.endpoint);
+   if (endpoint.protocol === 'https:' && endpoint.hostname !== 'api.telegram.org') return endpoint;
+  } catch {}
+  return null;
+ }
+
+ let gateDeviceId;
+ function getGateDeviceId() {
+  if (gateDeviceId) return gateDeviceId;
+  const storageKey = 'love-in-bloom-gate-device';
+  try { gateDeviceId = localStorage.getItem(storageKey); } catch {}
+  if (/^[a-f0-9]{12}$/.test(gateDeviceId || '')) return gateDeviceId;
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  gateDeviceId = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  try { localStorage.setItem(storageKey, gateDeviceId); } catch {}
+  return gateDeviceId;
+ }
+
+ window.gardenGateOpened = async room => {
+  if (!Number.isInteger(room) || room < 0 || room > 5) return;
+  const endpoint = getReplyEndpoint();
+  if (!endpoint) return;
+  const body = new URLSearchParams({
+   room: String(room),
+   device: getGateDeviceId(),
+   mode: window.gardenContent.demo_mode ? 'demo' : 'full',
+  });
+  try {
+   await fetch(new URL('/gate', endpoint), {
+    method: 'POST', body, keepalive: true, credentials: 'omit', redirect: 'error',
+   });
+  } catch {}
+ };
+
  let launch;window.gardenLaunch=new Promise(r=>launch=r);
  const style=document.createElement('style');style.textContent=`@font-face{font-family:GardenLetter;src:url('letter-body.ttf?v=2053bce4ba63') format('truetype');font-display:swap}@font-face{font-family:GardenLetterTitle;src:url('letter-title.ttf?v=2053bce4ba63') format('truetype');font-display:swap}html,body{margin:0;background:#242538;overscroll-behavior:none;height:100%;touch-action:none}#mobile-gate,#portrait-gate{position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:2000;background:radial-gradient(ellipse at top,#55435d,#242538 75%);color:#f5e3cf;display:grid;place-content:center;padding:max(28px,env(safe-area-inset-top)) 28px max(28px,env(safe-area-inset-bottom));text-align:center;font:17px/1.6 GardenLetter,sans-serif}#mobile-gate h1{font-size:28px;line-height:1.3;color:#f5e3cf}#mobile-gate p,#mobile-gate li{font:18px/1.5 GardenLetter,sans-serif;color:#f5e3cf;margin:8px 0}#mobile-gate button{padding:18px 28px;border:1px solid #df9eb9;border-radius:18px;color:#fff0dc;background:#76556f;font:30px GardenLetter,sans-serif;margin-top:24px}#mobile-gate ol{text-align:left;max-width:340px}#portrait-gate{display:none;font-size:24px;z-index:3000}@media(orientation:landscape){#portrait-gate{display:grid}}canvas{touch-action:none}`;document.head.append(style);
  addEventListener('DOMContentLoaded',async()=>{
@@ -266,9 +302,8 @@
     event.preventDefault();if(busy||sent||opening)return;
     if(!text.value.trim()){status.textContent=copy('reply_empty');text.focus();return;}
     if(!vpn.checked){status.textContent=copy('reply_vpn');content.scrollTop=content.scrollHeight;return;}
-    let endpoint;
-    try{endpoint=new URL(window.gardenContent?.reply_delivery?.endpoint)}catch{}
-    if(endpoint?.protocol!=='https:'||endpoint.hostname==='api.telegram.org'){status.textContent=copy('reply_unconfigured');content.scrollTop=content.scrollHeight;return;}
+    const endpoint=getReplyEndpoint();
+    if(!endpoint){status.textContent=copy('reply_unconfigured');content.scrollTop=content.scrollHeight;return;}
     busy=true;send.disabled=true;close.disabled=true;text.disabled=true;status.textContent=copy('reply_sending');content.scrollTop=content.scrollHeight;
     const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),20000);
     try{
