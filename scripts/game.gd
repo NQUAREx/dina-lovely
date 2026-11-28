@@ -684,8 +684,10 @@ func setup_ui() -> void:
 	stick.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stick.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud.add_child(stick)
-	toast = label("", 17, Color("ffe6b3"))
+	toast = label("", 23, Color("ffe6b3"))
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.add_theme_color_override("font_outline_color", Color("201c30"))
+	toast.add_theme_constant_override("outline_size", 3)
 	root.add_child(toast)
 	rotate_overlay = Control.new()
 	rotate_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -768,7 +770,7 @@ func layout_ui() -> void:
 	hint.position = Vector2(36, 914)
 	hint.size = Vector2(468, 32)
 	toast.position = Vector2(32, 146)
-	toast.size = Vector2(476, 76)
+	toast.size = Vector2(476, 112)
 	rotate_overlay.visible = false
 	var orientation_text: Label = rotate_overlay.get_node("OrientationMessage")
 	orientation_text.position = Vector2(-240,-180)
@@ -1058,6 +1060,8 @@ func warm_up_glyphs() -> void:
 	title_font.draw_string(canvas,Vector2(0,40),text,HORIZONTAL_ALIGNMENT_LEFT,-1,31)
 	body_font.draw_string_outline(canvas,Vector2(0,40),text,HORIZONTAL_ALIGNMENT_LEFT,-1,17,3)
 	body_font.draw_string(canvas,Vector2(0,40),text,HORIZONTAL_ALIGNMENT_LEFT,-1,17)
+	body_font.draw_string_outline(canvas,Vector2(0,40),text,HORIZONTAL_ALIGNMENT_LEFT,-1,25,3)
+	body_font.draw_string(canvas,Vector2(0,40),text,HORIZONTAL_ALIGNMENT_LEFT,-1,25)
 	glyph_canvas=canvas
 
 var glyph_canvas:RID
