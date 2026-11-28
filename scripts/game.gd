@@ -2213,6 +2213,9 @@ func interact() -> void:
 			objects.append(dropped)
 			var saved := dropped.duplicate();saved.pos=[dropped.pos.x,dropped.pos.y];save_data.loose_weapons.append(saved)
 		persist()
+		# Weapon pickup hints are optional in the live edition content.
+		var help:=str(content.get("ui",{}).get(weapon+"_help",{}).get("text","")).strip_edges()
+		if not help.is_empty():notify(help)
 	elif id=="well":
 		if not garden_can: notify(tx("can_required"))
 		else: begin_task("fill",obj.pos,2.4)
