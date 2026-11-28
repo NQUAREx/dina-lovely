@@ -18,6 +18,9 @@ var rest_goal:=Vector2.INF
 var rest_retry:=0.0
 var leaf_masks:Dictionary={}
 var cat_bounds:Dictionary={}
+var pond_route:=0
+var pond_pad:=-1
+var pond_center:=Vector2.ZERO
 func _init(game:Node2D):g=game
 func place_fish(rng:RandomNumberGenerator)->void:
  var hut_index:int=g.objects.find_custom(func(obj):return obj.kind=="cat_hut")
@@ -39,15 +42,22 @@ func install()->void:
  if g.save_data.cat_tamed and trail.is_empty():trail.append({"pos":g.player,"time":clock-.55})
 func restore()->void:
  if not g.save_data.cat_tamed:return
+ pond_route=0;pond_pad=-1
  trail.clear();prints.clear();last_player=g.player
  position=g.accessory_drop_position(g.player-g.walk_facing*28)
  if g.blocked(position) or not clear_segment(position,g.player):position=g.player
  if int(g.save_data.cat_room)==g.level and g.save_data.cat_position.size()==2:
   var saved:=Vector2(g.save_data.cat_position[0],g.save_data.cat_position[1])
   if saved.distance_to(g.player)<100 and not g.blocked(saved) and clear_segment(saved,g.player):position=saved
+ if g.level==2 and g.beam_pond.SWIMMING_AREA.has_point(position):
+  recover_pond_position()
  trail.append({"pos":g.player,"time":clock})
 func record()->void:
  if not g.save_data.cat_tamed or not g.resting.is_empty() or g.blocked(g.player):return
+ if pond_route!=0 and g.level==2:
+  var water:Rect2=g.beam_pond.SWIMMING_AREA
+  var exit_y:float=water.end.y if pond_route>0 else water.position.y
+  if (g.player.y-exit_y)*pond_route<=0:return
  if last_player==Vector2.INF or last_player.distance_to(g.player)>3:
   trail.append({"pos":g.player,"time":clock});last_player=g.player
 func resume_after_rest()->void:
@@ -77,6 +87,9 @@ func refresh_target()->void:
 
 func handoff(offset:Vector2)->void:
  if not g.save_data.cat_tamed:return
+ if pond_route!=0:
+  restore()
+  return
  position+=offset
  if rest_goal!=Vector2.INF:rest_goal+=offset
  for point in trail:point.pos+=offset
@@ -94,10 +107,23 @@ func update(delta:float)->void:
   if prints[n].life<=0:prints.remove_at(n)
  if not g.save_data.cat_tamed:return
  record()
- if g.blocked(position):
+ if pond_route==0 and g.blocked(position):
   var safe:=bridge_start(position)
   if safe!=Vector2.INF:position=safe
- var before:=position;var budget:float=g.SPEED*1.18*delta
+ if g.level==2 and pond_route==0 and g.beam_pond.SWIMMING_AREA.has_point(position):
+  recover_pond_position()
+ var before:=position
+ if g.level==2 and pond_route!=0:follow_pond(delta)
+ else:follow_trail(delta)
+ moving=position.distance_to(before)>.05
+ if moving:
+  var v:=position-before;direction=g.facing_octant(v)
+  anim+=delta;stride+=v.length()
+  if stride>=16:
+   stride=fmod(stride,16);prints.append({"pos":position-v.normalized()*9,"angle":v.angle()+PI/2,"life":9.75,"stone":g.stone_surface(position)})
+   if prints.size()>90:prints.pop_front()
+func follow_trail(delta:float)->void:
+ var budget:float=g.SPEED*1.18*delta
  while not trail.is_empty() and trail[0].time<=clock-.55 and budget>0:
   var point:Vector2=trail[0].pos
   if g.blocked(point):trail.pop_front();continue
@@ -119,6 +145,9 @@ func update(delta:float)->void:
     if not detour.is_empty():
      for i in range(detour.size()-1,-1,-1):trail.push_front({"pos":detour[i],"time":clock-.55})
    break
+  if g.level==2 and crosses_pond(position,point if next.distance_to(point)<1 else next):
+   start_pond_route()
+   return
   position=next;budget-=amount
   if position.distance_to(point)<1:position=point;trail.pop_front()
  if g.moving:rest_goal=Vector2.INF
@@ -130,16 +159,111 @@ func update(delta:float)->void:
    if not g.blocked(candidate) and clear_segment(position,candidate) and clear_segment(g.player,candidate):rest_goal=candidate;break
  if rest_goal!=Vector2.INF:
   var rest_step:=position.move_toward(rest_goal,g.SPEED*delta)
-  if clear_segment(position,rest_step):position=rest_step
+  if clear_segment(position,rest_step) and (g.level!=2 or not crosses_pond(position,rest_step)):position=rest_step
   else:rest_goal=Vector2.INF
   if position.distance_to(rest_goal)<1:rest_goal=Vector2.INF
- moving=position.distance_to(before)>.05
- if moving:
-  var v:=position-before;direction=g.facing_octant(v)
-  anim+=delta;stride+=v.length()
-  if stride>=16:
-   stride=fmod(stride,16);prints.append({"pos":position-v.normalized()*9,"angle":v.angle()+PI/2,"life":9.75,"stone":g.stone_surface(position)})
-   if prints.size()>90:prints.pop_front()
+
+func crosses_pond(start:Vector2,end:Vector2)->bool:
+ var water:Rect2=g.beam_pond.SWIMMING_AREA
+ if water.has_point(start) or water.has_point(end):return true
+ if not water.intersects(Rect2(start.min(end),(end-start).abs()).grow(.01)):return false
+ for edge in [
+  [water.position,Vector2(water.end.x,water.position.y)],
+  [Vector2(water.end.x,water.position.y),water.end],
+  [water.end,Vector2(water.position.x,water.end.y)],
+  [Vector2(water.position.x,water.end.y),water.position],
+ ]:
+  if Geometry2D.segment_intersects_segment(start,end,edge[0],edge[1])!=null:return true
+ return false
+
+func start_pond_route()->void:
+ var water:Rect2=g.beam_pond.SWIMMING_AREA
+ pond_route=1 if position.y<water.get_center().y else -1
+ rest_goal=Vector2.INF
+ trail.clear()
+ last_player=Vector2.INF
+
+func recover_pond_position()->void:
+ # A saved position may refer to a platform layout from before a reload.
+ var pond=g.beam_pond
+ pond_pad=pond.support(position)
+ if pond_pad>=0 and position.distance_to(pond.pad_position(pond_pad))>float(pond.pads[pond_pad].diameter)*.5:pond_pad=-1
+ if pond_pad<0:
+  var nearest:=INF
+  for index in range(pond.pads.size()):
+   var center:Vector2=pond.pad_position(index)
+   var distance:=position.distance_squared_to(center)
+   if distance<nearest:
+    nearest=distance
+    pond_pad=index
+  if pond_pad<0:return
+  position=pond.pad_position(pond_pad)
+ start_pond_route()
+ pond_center=pond.pad_position(pond_pad)
+
+func carry_on_pond()->void:
+ if pond_pad<0 or not g.save_data.cat_tamed:return
+ var center:Vector2=g.beam_pond.pad_position(pond_pad)
+ position+=center-pond_center
+ pond_center=center
+
+func follow_pond(delta:float)->void:
+ var pond=g.beam_pond
+ var water:Rect2=pond.SWIMMING_AREA
+ var last:int=pond.pads.size()-1
+ var distance:float=g.SPEED*1.18*delta
+ if pond_pad<0:
+  var first:=0 if pond_route>0 else last
+  var dock:Vector2=pond.pad_position(first)
+  var bank_y:=water.position.y if pond_route>0 else water.end.y
+  var shore:=Vector2(dock.x,bank_y-pond_route)
+  var target:=Vector2(dock.x,bank_y+pond_route*.75)
+  if position.distance_to(shore)>.9:
+   walk_pond(shore,distance)
+  elif pond.support_box(first).has_point(target):
+   walk_pond(target,distance)
+   if water.has_point(position):land_on_pad(first)
+  return
+
+ var player_on_water:=water.has_point(g.player)
+ var target_pad:int=pond.support(g.player) if player_on_water else (-1 if g.player.y<water.position.y else last+1)
+ if target_pad==pond_pad or (player_on_water and target_pad<0):
+  walk_pond(pond_center,distance)
+  return
+ var advance:=1 if target_pad>pond_pad else -1
+ var next_pad:=pond_pad+advance
+ if next_pad<0 or next_pad>last:
+  var exit_y:=water.end.y+1 if advance>0 else water.position.y-1
+  walk_pond(Vector2(pond_center.x,exit_y),distance)
+  if not water.has_point(position):
+   var previous_route:=pond_route
+   pond_pad=-1;pond_route=0
+   if advance!=previous_route:trail.clear()
+   last_player=Vector2.INF
+  return
+
+ var next_center:Vector2=pond.pad_position(next_pad)
+ var current_radius:float=pond.pads[pond_pad].diameter*.5
+ var next_radius:float=pond.pads[next_pad].diameter*.5
+ var separation:=pond_center.distance_to(next_center)
+ # Stand over the leaf, even though the player's landing square is wider.
+ # Transfer along the line joining both leaf centers when their discs meet.
+ if separation<current_radius+next_radius:
+  var shared:=pond_center.lerp(next_center,(separation+current_radius-next_radius)*.5/separation)
+  walk_pond(shared,distance)
+  if position.distance_squared_to(next_center)<next_radius*next_radius:land_on_pad(next_pad)
+ else:
+  var edge:=pond_center.direction_to(next_center)*(current_radius-2.0)
+  walk_pond(pond_center+edge,distance)
+
+func land_on_pad(index:int)->void:
+ pond_pad=index
+ pond_center=g.beam_pond.pad_position(index)
+
+func walk_pond(target:Vector2,distance:float)->void:
+ var next:=position.move_toward(target,distance)
+ if clear_segment(position,next):position=next
+
 func draw_cat()->void:
  var p:Vector2=g.screen(position)
  if not g.get_viewport_rect().grow(130).has_point(p):return

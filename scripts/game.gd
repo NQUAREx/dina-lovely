@@ -1717,6 +1717,7 @@ func _physics_process(delta: float) -> void:
 		var hazard_delta:=delta*BEAM_HAZARD_RATE
 		var beam_hit:=beam_traps.step(hazard_delta)
 		var drowned:=beam_pond.step(hazard_delta)
+		companion.carry_on_pond()
 		var crushed:=beam_crusher.tick(hazard_delta,previous_position)
 		if beam_hit or drowned or crushed:
 			retry_beam_hall()
