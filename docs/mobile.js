@@ -163,50 +163,33 @@
  const suspend=()=>window.gardenSuspended=document.hidden||matchMedia("(orientation: landscape)").matches;
  addEventListener("resize",suspend);document.addEventListener("visibilitychange",()=>{if(document.hidden)window.gardenSaveNow?.();suspend();});addEventListener("pagehide",()=>window.gardenSaveNow?.());suspend();
  let movieURL='',residentMovieURL='';
- // The public password selects the full edition. Existing key links still work.
- const fullGamePassword='love-in-bloom';
- const legacyKey=new URLSearchParams(location.search).get('key');
- async function legacyFullGame() {
-  if (!legacyKey) return false;
-  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(legacyKey));
-  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')==='80a4109778cf5389682009f04031d6624b8298f150397196e4ffd4c1cab4c58d';
- }
-
- function setLoadingMovie(full) {
-  if (!ios||!standalone) return;
-  const url=(full?'ios-loading-play.mp4':'ios-loading.mp4')+'?v='+movieVersion;
-  if (movieURL===url) return;
-  movieURL=url;
-  if(residentMovieURL)URL.revokeObjectURL(residentMovieURL);
-  residentMovieURL='';
-  fetch(url,{signal:AbortSignal.timeout(12000)}).then(async response=>{
-   if(!response.ok)return;
-   const blob=await response.blob();
-   if(movieURL===url)residentMovieURL=URL.createObjectURL(blob);
-  }).catch(()=>{});
- }
-
- async function loadContent(file) {
+ const liveContent=(async()=>{
+  const value=new URLSearchParams(location.search).get('key');
+  let selected=false;
+  if(value){
+   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));
+   selected=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')==='80a4109778cf5389682009f04031d6624b8298f150397196e4ffd4c1cab4c58d';
+  }
+  const ipad=/iPad/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(ipad)selected=false;
+  if(ipad&&location.pathname.endsWith('/play.html')){location.replace(new URL('./'+location.search,location.href));await new Promise(()=>{});}
+  const file=selected?'letters.backup.json':'letters.json';
+  if(selected&&!location.pathname.endsWith('/play.html')){location.replace(new URL('play.html'+location.search,location.href));await new Promise(()=>{});}
+  if(ios&&standalone){
+   movieURL=(selected?'ios-loading-play.mp4':'ios-loading.mp4')+'?v='+movieVersion;
+   // A complete local source keeps the loop running even if game downloads saturate the link.
+   fetch(movieURL,{signal:AbortSignal.timeout(12000)}).then(async response=>{
+    if(response.ok)residentMovieURL=URL.createObjectURL(await response.blob());
+   }).catch(()=>{});
+  }
   const response=await fetch('https://raw.githubusercontent.com/NQUAREx/dina-lovely/main/content/'+file+'?fresh='+Date.now(),{cache:'no-store',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(8000)});
   if(!response.ok)throw Error(response.status);
   const data=await response.json();
   if(['game_title','recipient','signature','card_title','card_text','photo_caption','app_short_name'].some(key=>typeof data[key]!=='string'))throw Error('Missing content text field');
   if(!Array.isArray(data.letters)||data.letters.some(letter=>['id','title','text'].some(key=>typeof letter[key]!=='string')))throw Error('Missing letter text field');
-  const requiredUi=["accessory_black_dress", "accessory_crown", "accessory_daisy_wreath", "accessory_dark_scarf", "accessory_emerald_diadem", "accessory_found", "accessory_gold_beads", "accessory_gold_brocade", "accessory_gold_mantle", "accessory_gold_veil", "accessory_heart_tiara", "accessory_lavender_dress", "accessory_peach_dress", "accessory_pink_watch", "accessory_rose_scarf", "accessory_rose_wreath", "accessory_silver_crown", "accessory_veil", "accessory_white_dress", "accessory_white_scarf", "accessory_white_veil", "accessory_wreath", "ammo_counter", "attack_action", "audio_credits", "back", "begin_room", "boss_announcement", "boss_name", "buried_note_exposed", "buried_note_near", "buried_note_required", "can_location", "can_required", "card_heading", "card_recipient_format", "card_signature_format", "cat_fish_found", "cat_needs_fish", "cat_tamed", "chop_tree", "clean_bed", "collected_letters_prefix", "combat_complete", "combat_note_required", "continue_game", "controls_help", "craft_pickaxe", "craft_pickaxe_requirements", "craft_shovel", "craft_shovel_requirements", "credits_return", "cycle_tools_action", "darkness_notes_required", "death_help", "death_title", "desktop_controls", "desktop_open_phone", "desktop_title", "dig_action", "digging_bounds", "digging_empty", "digging_progress", "drill_action", "drop_item_action", "eat_apple", "eat_berries", "edition_demo", "edition_full", "edition_password", "edition_title", "edition_wrong_password", "enemy_attack_alert", "feed_cat", "fertilize_bed", "fertilizer_required", "fill_water", "garden_basket_name", "garden_chores_done", "garden_chores_required", "garden_deposit_basket", "garden_harvest_bush", "garden_rake_grass", "garden_take_basket", "garden_trim_bush", "gate_key_action", "gate_key_found", "gate_key_intro", "gate_key_required", "health_full", "insert_rune", "insert_skull", "install_description", "install_done", "install_home_step", "install_mode_step", "install_open_step", "install_share_step", "install_title", "item_apple", "item_axe", "item_bench", "item_berries", "item_branch", "item_broken_shovel", "item_can", "item_cat_fish", "item_cat_hut", "item_chest", "item_drill", "item_fertilizer", "item_final_chest", "item_flashlight", "item_flower", "item_gate", "item_gate_key", "item_hedge", "item_house_door", "item_large_rock", "item_letter", "item_medkit", "item_pebble", "item_pet_cat", "item_pickaxe", "item_puzzle_reset", "item_rake", "item_rock_material", "item_shears", "item_shovel", "item_skull", "item_skull_stand", "item_stats_stone", "item_swing", "item_tree", "item_well", "item_workbench", "journal_count", "journal_empty", "journal_title", "launch_button", "launch_goal", "launch_intro", "launch_ios_sound", "launch_sound_detail", "launch_sound_title", "letter_stack_counter", "loading_bench", "loading_berries", "loading_birds", "loading_card", "loading_chest", "loading_clouds", "loading_enemy", "loading_fireflies", "loading_grass", "loading_hearts", "loading_hedges", "loading_hugs", "loading_lantern", "loading_letters", "loading_moon", "loading_paths", "loading_petals", "loading_progress_label", "loading_rake", "loading_seeds", "loading_skulls", "loading_soil", "loading_swing", "loading_trees", "loading_water", "maze_notes_required", "medkit_spawned", "medkit_used", "meet_cat", "menu_action", "menu_goal", "menu_tagline", "mine_rock", "new_bed_action", "new_game", "new_game_title", "new_game_warning", "obstacle_retry", "open_chest", "open_gate", "open_house_door", "pet_cat_action", "pickup_axe", "pickup_can", "pickup_drill", "pickup_fertilizer", "pickup_flashlight", "pickup_gate_key", "pickup_material", "pickup_prefix", "pickup_rake", "pickup_rune", "pickup_shears", "pickup_shovel", "plant_growing", "plant_wait", "portrait_hint", "press_rune", "puzzle_full_input", "puzzle_notes_missing", "puzzle_reset_action", "puzzle_reset_notice", "puzzle_short_input", "puzzle_symbol_added", "puzzle_wrong_input", "rake_required", "read_book", "read_letter", "read_statistics", "recovery_context_lost", "recovery_load_failed", "recovery_return", "repair_shovel", "replay_card", "reply_body", "reply_browser_only", "reply_close", "reply_close_symbol", "reply_empty", "reply_failed", "reply_limit", "reply_placeholder", "reply_send", "reply_sending", "reply_sent", "reply_title", "reply_unconfigured", "reply_vpn", "reply_vpn_confirm", "retry_action", "retry_room", "return_to_garden", "return_to_menu", "riddle_link_clue", "riddle_note_heading", "riddle_start_clue", "room_combat", "room_darkness", "room_digging", "room_final", "room_garden", "room_maze", "room_obstacles", "rune_all_inserted", "rune_found", "rune_inserted", "rune_need_all", "rune_not_found", "rune_socket_name", "rune_stone_name", "secret_book_name", "secret_book_text", "secret_book_title", "shovel_needs_repair", "sit_action", "skull_collected", "skull_missing", "snip_plant", "stand_action", "start_intro", "start_new_story", "stats_body", "stats_cat_no", "stats_cat_yes", "stats_time_line", "stats_time_unknown", "stats_title", "stone_dig_near", "stone_unearthed", "storage_unavailable", "swing_action", "symbol_drop", "symbol_flower", "symbol_heart", "symbol_leaf", "symbol_moon", "symbol_star", "symbol_sun", "take_fish", "take_skull", "uproot_flower", "use_medkit", "water_action", "water_empty", "water_filled", "wave_announcement", "weapon_rifle", "weapon_rpg", "weapon_sword", "wear_accessory", "workbench_ready", "write_reply"];
+  const requiredUi=["accessory_black_dress", "accessory_crown", "accessory_daisy_wreath", "accessory_dark_scarf", "accessory_emerald_diadem", "accessory_found", "accessory_gold_beads", "accessory_gold_brocade", "accessory_gold_mantle", "accessory_gold_veil", "accessory_heart_tiara", "accessory_lavender_dress", "accessory_peach_dress", "accessory_pink_watch", "accessory_rose_scarf", "accessory_rose_wreath", "accessory_silver_crown", "accessory_veil", "accessory_white_dress", "accessory_white_scarf", "accessory_white_veil", "accessory_wreath", "ammo_counter", "attack_action", "audio_credits", "back", "begin_room", "boss_announcement", "boss_name", "buried_note_exposed", "buried_note_near", "buried_note_required", "can_location", "can_required", "card_heading", "card_recipient_format", "card_signature_format", "cat_fish_found", "cat_needs_fish", "cat_tamed", "chop_tree", "clean_bed", "collected_letters_prefix", "combat_complete", "combat_note_required", "continue_game", "controls_help", "craft_pickaxe", "craft_pickaxe_requirements", "craft_shovel", "craft_shovel_requirements", "credits_return", "cycle_tools_action", "darkness_notes_required", "death_help", "death_title", "desktop_controls", "desktop_open_phone", "desktop_title", "dig_action", "digging_bounds", "digging_empty", "digging_progress", "drill_action", "drop_item_action", "eat_apple", "eat_berries", "enemy_attack_alert", "feed_cat", "fertilize_bed", "fertilizer_required", "fill_water", "garden_basket_name", "garden_chores_done", "garden_chores_required", "garden_deposit_basket", "garden_harvest_bush", "garden_rake_grass", "garden_take_basket", "garden_trim_bush", "gate_key_action", "gate_key_found", "gate_key_intro", "gate_key_required", "health_full", "insert_rune", "insert_skull", "install_description", "install_done", "install_home_step", "install_mode_step", "install_open_step", "install_share_step", "install_title", "item_apple", "item_axe", "item_bench", "item_berries", "item_branch", "item_broken_shovel", "item_can", "item_cat_fish", "item_cat_hut", "item_chest", "item_drill", "item_fertilizer", "item_final_chest", "item_flashlight", "item_flower", "item_gate", "item_gate_key", "item_hedge", "item_house_door", "item_large_rock", "item_letter", "item_medkit", "item_pebble", "item_pet_cat", "item_pickaxe", "item_puzzle_reset", "item_rake", "item_rock_material", "item_shears", "item_shovel", "item_skull", "item_skull_stand", "item_stats_stone", "item_swing", "item_tree", "item_well", "item_workbench", "journal_count", "journal_empty", "journal_title", "launch_button", "launch_goal", "launch_intro", "launch_ios_sound", "launch_sound_detail", "launch_sound_title", "letter_stack_counter", "loading_bench", "loading_berries", "loading_birds", "loading_card", "loading_chest", "loading_clouds", "loading_enemy", "loading_fireflies", "loading_grass", "loading_hearts", "loading_hedges", "loading_hugs", "loading_lantern", "loading_letters", "loading_moon", "loading_paths", "loading_petals", "loading_progress_label", "loading_rake", "loading_seeds", "loading_skulls", "loading_soil", "loading_swing", "loading_trees", "loading_water", "maze_notes_required", "medkit_spawned", "medkit_used", "meet_cat", "menu_action", "menu_goal", "menu_tagline", "mine_rock", "new_bed_action", "new_game", "new_game_title", "new_game_warning", "obstacle_retry", "open_chest", "open_gate", "open_house_door", "pet_cat_action", "pickup_axe", "pickup_can", "pickup_drill", "pickup_fertilizer", "pickup_flashlight", "pickup_gate_key", "pickup_material", "pickup_prefix", "pickup_rake", "pickup_rune", "pickup_shears", "pickup_shovel", "plant_growing", "plant_wait", "portrait_hint", "press_rune", "puzzle_full_input", "puzzle_notes_missing", "puzzle_reset_action", "puzzle_reset_notice", "puzzle_short_input", "puzzle_symbol_added", "puzzle_wrong_input", "rake_required", "read_book", "read_letter", "read_statistics", "recovery_context_lost", "recovery_load_failed", "recovery_return", "repair_shovel", "replay_card", "reply_body", "reply_browser_only", "reply_close", "reply_close_symbol", "reply_empty", "reply_failed", "reply_limit", "reply_placeholder", "reply_send", "reply_sending", "reply_sent", "reply_title", "reply_unconfigured", "reply_vpn", "reply_vpn_confirm", "retry_action", "retry_room", "return_to_garden", "return_to_menu", "riddle_link_clue", "riddle_note_heading", "riddle_start_clue", "room_combat", "room_darkness", "room_digging", "room_final", "room_garden", "room_maze", "room_obstacles", "rune_all_inserted", "rune_found", "rune_inserted", "rune_need_all", "rune_not_found", "rune_socket_name", "rune_stone_name", "secret_book_name", "secret_book_text", "secret_book_title", "shovel_needs_repair", "sit_action", "skull_collected", "skull_missing", "snip_plant", "stand_action", "start_intro", "start_new_story", "stats_body", "stats_cat_no", "stats_cat_yes", "stats_time_line", "stats_time_unknown", "stats_title", "stone_dig_near", "stone_unearthed", "storage_unavailable", "swing_action", "symbol_drop", "symbol_flower", "symbol_heart", "symbol_leaf", "symbol_moon", "symbol_star", "symbol_sun", "take_fish", "take_skull", "uproot_flower", "use_medkit", "water_action", "water_empty", "water_filled", "wave_announcement", "weapon_rifle", "weapon_rpg", "weapon_sword", "wear_accessory", "workbench_ready", "write_reply"];
   if(requiredUi.some(key=>typeof data.ui?.[key]?.text!=='string'))throw Error('Missing UI key in content');
   if(data.schema_version!==2||!Array.isArray(data.letters)||data.puzzle?.symbols?.length!==7||data.puzzle?.room_letters?.length!==7||!data.ui?.read_letter||typeof data.ui.read_letter.text!=='string')throw Error('Invalid content schema');
-  return data;
- }
-
- async function loadInitialContent() {
-  const selected=await legacyFullGame();
-  if(selected&&!location.pathname.endsWith('/play.html')){
-   location.replace(new URL('play.html'+location.search,location.href));
-   return new Promise(()=>{});
-  }
-  const file=selected?'letters.backup.json':'letters.json';
-  setLoadingMovie(selected);
-  const data=await loadContent(file);
   if(selected){
    const link=document.querySelector('link[rel="manifest"]');
    if(link){
@@ -222,18 +205,12 @@
     }catch{link.remove();}
    }
   }
-  applyContent(data);
-  return {data, selected};
- }
-
- function applyContent(data) {
   window.gardenContent=data;
   let appleTitle=document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if(!appleTitle){appleTitle=document.createElement('meta');appleTitle.name='apple-mobile-web-app-title';document.head.append(appleTitle);}
-  appleTitle.content=data.app_short_name;
-  document.title=data.game_title;
- }
- const liveContent=loadInitialContent().catch(()=>null);
+  appleTitle.content=data.game_title;
+  return data;
+ })().catch(()=>null);
  function getReplyEndpoint() {
   try {
    const endpoint = new URL(window.gardenContent?.reply_delivery?.endpoint);
@@ -271,19 +248,11 @@
  };
 
  let launch;window.gardenLaunch=new Promise(r=>launch=r);
- const style=document.createElement('style');style.textContent=`@font-face{font-family:GardenLetter;src:url('letter-body.ttf?v=2053bce4ba63') format('truetype');font-display:swap}@font-face{font-family:GardenLetterTitle;src:url('letter-title.ttf?v=2053bce4ba63') format('truetype');font-display:swap}html,body{margin:0;background:#242538;overscroll-behavior:none;height:100%;touch-action:none}#mobile-gate,#portrait-gate{position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:2000;background:radial-gradient(ellipse at top,#55435d,#242538 75%);color:#f5e3cf;display:grid;place-content:center;padding:max(28px,env(safe-area-inset-top)) 28px max(28px,env(safe-area-inset-bottom));text-align:center;font:17px/1.6 GardenLetter,sans-serif}#mobile-gate h1{font-size:28px;line-height:1.3;color:#f5e3cf}#mobile-gate p,#mobile-gate li{font:18px/1.5 GardenLetter,sans-serif;color:#f5e3cf;margin:8px 0}#mobile-gate button{padding:18px 28px;border:1px solid #df9eb9;border-radius:18px;color:#fff0dc;background:#76556f;font:30px GardenLetter,sans-serif;margin-top:24px}#mobile-gate ol{text-align:left;max-width:340px}#portrait-gate{display:none;font-size:24px;z-index:3000}@media(orientation:landscape){#portrait-gate{display:grid}}canvas{touch-action:none}
- #mobile-gate.edition-choice{display:flex;flex-direction:column;align-items:center;justify-content:safe center;overflow-y:auto;touch-action:pan-y}
- #mobile-gate.edition-choice > *{flex:none;width:min(100%,340px)}
- #mobile-gate.edition-choice form{display:grid;gap:6px;margin-top:8px}
- #mobile-gate.edition-choice input{box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid #df9eb9;border-radius:8px;background:#34273d;color:#f5e3cf;font:inherit}
- #mobile-gate.edition-choice button{width:100%;font-size:22px}
- #mobile-gate.edition-choice [role="status"]{color:#ffd3dc}
- `;document.head.append(style);
+ const style=document.createElement('style');style.textContent=`@font-face{font-family:GardenLetter;src:url('letter-body.ttf?v=2053bce4ba63') format('truetype');font-display:swap}@font-face{font-family:GardenLetterTitle;src:url('letter-title.ttf?v=2053bce4ba63') format('truetype');font-display:swap}html,body{margin:0;background:#242538;overscroll-behavior:none;height:100%;touch-action:none}#mobile-gate,#portrait-gate{position:fixed;inset:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));box-sizing:border-box;z-index:2000;background:radial-gradient(ellipse at top,#55435d,#242538 75%);color:#f5e3cf;display:grid;place-content:center;padding:max(28px,env(safe-area-inset-top)) 28px max(28px,env(safe-area-inset-bottom));text-align:center;font:17px/1.6 GardenLetter,sans-serif}#mobile-gate h1{font-size:28px;line-height:1.3;color:#f5e3cf}#mobile-gate p,#mobile-gate li{font:18px/1.5 GardenLetter,sans-serif;color:#f5e3cf;margin:8px 0}#mobile-gate button{padding:18px 28px;border:1px solid #df9eb9;border-radius:18px;color:#fff0dc;background:#76556f;font:30px GardenLetter,sans-serif;margin-top:24px}#mobile-gate ol{text-align:left;max-width:340px}#portrait-gate{display:none;font-size:24px;z-index:3000}@media(orientation:landscape){#portrait-gate{display:grid}}canvas{touch-action:none}`;document.head.append(style);
  addEventListener('DOMContentLoaded',async()=>{
-  const initial=await liveContent;
+  const loaded=await liveContent;
   if(document.getElementById('garden-recovery'))return;
-  if(!initial){window.dispatchEvent(new Event('garden-asset-error'));return;}
-  let loaded=initial.data;
+  if(!loaded){window.dispatchEvent(new Event('garden-asset-error'));return;}
   const t=key=>loaded.ui?.[key]?.text||'';
   window.gardenOpenReply=(options={})=>{
    if(document.getElementById('reply-letter'))return;
@@ -458,23 +427,19 @@
    for(const key of ['install_share_step','install_home_step','install_mode_step','install_open_step'])add('li',key,list);
    add('p','install_done');
   }else{
-   const heading=document.createElement('h1');heading.textContent=initial.selected?loaded.game_title:t('edition_title');gate.append(heading);
+   const heading=document.createElement('h1');heading.textContent=loaded.game_title;gate.append(heading);
    for(const key of ['launch_intro','launch_goal','launch_sound_title','launch_sound_detail','launch_ios_sound'])add('p',key);
-   const startGame=async full=>{
-    setLoadingMovie(full||initial.selected);
+   const button=add('button','launch_button');button.onclick=async()=>{
+    if(ios){
+     // Keep the video attached inside the gesture. Engine downloads can begin
+     // while the first frame is pending; room generation still waits for it.
+     gate.remove();
+     try{window.gardenShowLoading();}finally{launch();}
+     return;
+    }
     gate.remove();
     window.gardenShowLoading();
-    if(full&&!initial.selected){
-     try{
-      loaded=await loadContent('letters.backup.json');
-      applyContent(loaded);
-     }catch{
-      window.dispatchEvent(new Event('garden-asset-error'));
-      return;
-     }
-    }
     launch();
-    if(ios)return;
     try{screen.orientation?.lock?.('portrait').catch(()=>{});}catch{}
     // Cosmetic assets must never keep the engine waiting.
     const decoded=await loadingHeroReady;
@@ -496,37 +461,6 @@
     const walkStart=document.timeline.currentTime;
     for(const animation of animations)animation.startTime=walkStart;
    };
-   if(initial.selected){
-    add('button','launch_button').onclick=()=>startGame(true);
-   }else{
-    gate.classList.add('edition-choice');
-    const form=document.createElement('form');
-    gate.append(form);
-    const label=add('label','edition_password',form);
-    label.htmlFor='garden-edition-password';
-    const password=document.createElement('input');
-    password.id=label.htmlFor;password.type='password';password.required=true;
-    password.autocomplete='off';password.autocapitalize='none';password.spellcheck=false;
-    form.append(password);
-    const error=add('p','edition_wrong_password',form);
-    error.setAttribute('role','status');error.hidden=true;
-    password.setAttribute('aria-describedby',error.id='garden-password-error');
-    add('button','edition_full',form).type='submit';
-    form.onsubmit=event=>{
-     event.preventDefault();
-     if(password.value.trim()!==fullGamePassword){
-      error.hidden=false;
-      password.setAttribute('aria-invalid','true');password.focus();
-      return;
-     }
-     password.blur();
-     startGame(true);
-    };
-    password.oninput=()=>{error.hidden=true;password.removeAttribute('aria-invalid');};
-    const demo=add('button','edition_demo');
-    demo.id='garden-play-demo';
-    demo.type='button';demo.onclick=()=>startGame(false);
-   }
   }
   const credits=add('a','audio_credits');credits.href='audio-credits.html';credits.target='_blank';credits.rel='noopener';credits.style.cssText='color:#c3a7b8;font:12px GardenLetter,sans-serif;margin-top:24px';
   document.title=loaded.game_title;document.body.append(gate);
